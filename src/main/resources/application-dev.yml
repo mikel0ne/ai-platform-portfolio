@@ -1,0 +1,10 @@
+# Google Cloud Configuration for Development
+# GOOGLE_APPLICATION_CREDENTIALS=src/main/resources/gemini-credential.json
+
+# Logging
+logging:
+  level:
+    io.github.mikel0ne.l1copilot: DEBUG
+    dev.langchain4j: DEBUG
+    com.google.cloud: INFO
+
