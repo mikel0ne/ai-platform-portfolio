@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: langchain4j-springboot
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-request: true
+      force-response: true
+
+logging:
+  level:
+    root: INFO
+    io.github.mikel0ne.l1copilot: DEBUG
+    dev.langchain4j: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Configuración de LangChain4j (Google AI Studio)
+# La API key se puede obtener gratis en https://aistudio.google.com/app/apikey
+# Se recomienda pasarla por variable de entorno: GEMINI_API_KEY
+langchain4j:
+  gemini:
+    api-key: ${GEMINI_API_KEY:}
+    model-name: gemini-2.5-flash-lite
+
+# Swagger UI / OpenAPI
+springdoc:
+  show-actuator: true
+
+# Actuator - Monitorización
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env,metrics,loggers
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: LangChain4j Spring Boot
+    description: Integración con Google AI Studio (Gemini)
+    version: 1.0.0
+
+# Configuración de caché
+cache:
+  file:
+    path: ./cache
+  ttl-seconds: 3600  # 1 hora
+
