@@ -1,6 +1,6 @@
 package io.github.mikel0ne.l1copilot.service;
 
-import dev.langchain4j.model.chat.ChatLanguageModel;
+import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +18,7 @@ import java.util.Base64;
 @Slf4j
 public class LlmService {
 
-    private final ChatLanguageModel chatLanguageModel;
+    private final ChatModel chatModel;
     private final FileCacheManager fileCacheManager;
 
     /**
@@ -38,7 +38,7 @@ public class LlmService {
         }
 
         log.info("Enviando prompt al LLM: {}", prompt);
-        String response = chatLanguageModel.generate(prompt);
+        String response = chatModel.chat(prompt);
         log.info("Respuesta recibida del LLM");
 
         // Almacena en caché

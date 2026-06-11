@@ -2,13 +2,15 @@ package io.github.mikel0ne.l1copilot;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Aplicación Spring Boot con LangChain4j + Google AI Studio (Gemini)
+ * L1 Support Copilot: Spring Boot + LangChain4j + LangGraph4j + Gemini (Google AI Studio)
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class Application {
 
     private static final Logger log = LoggerFactory.getLogger(Application.class);
@@ -19,10 +21,12 @@ public class Application {
         log.info("✓ Aplicación iniciada correctamente");
         log.info("========================================");
         log.info("Endpoints disponibles:");
-        log.info("  GET    /api/llm/hello    → Hola mundo");
-        log.info("  POST   /api/llm/chat     → Enviar prompt");
-        log.info("  GET    /api/cache/status → Estado de la caché");
-        log.info("  DELETE /api/cache/clear  → Limpiar caché");
+        log.info("  POST   /api/copilot/chat  → Agente de soporte L1 (LangGraph4j)");
+        log.info("  GET    /api/copilot/users → Usuarios de demo");
+        log.info("  GET    /api/llm/hello     → Hola mundo");
+        log.info("  POST   /api/llm/chat      → Enviar prompt");
+        log.info("  GET    /api/cache/status  → Estado de la caché");
+        log.info("  DELETE /api/cache/clear   → Limpiar caché");
         log.info("----------------------------------------");
         log.info("Actuator endpoints:");
         log.info("  GET /actuator/health  → Estado de la aplicación");
