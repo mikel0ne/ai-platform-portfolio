@@ -1,0 +1,11 @@
+# Configuración NO sensible del backend. Los secretos (API key, credenciales BD)
+# van en Secrets creados a mano: ver docs/infraestructura/07-secretos-y-configuracion.md.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: l1-copilot
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/copilot"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
