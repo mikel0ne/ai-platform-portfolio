@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.controller;
 
 import io.github.mikel0ne.l1copilot.service.LlmService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 /**
  * Controlador REST para interactuar con el LLM
  */
+@Tag(name = "LLM", description = "Endpoints para interactuar con el modelo de lenguaje")
 @RestController
 @RequestMapping("/api/llm")
 @RequiredArgsConstructor

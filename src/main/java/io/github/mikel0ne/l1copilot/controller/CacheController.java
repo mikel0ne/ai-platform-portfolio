@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.controller;
 
 import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +11,7 @@ import java.util.Map;
 /**
  * Controlador para gestionar la caché
  */
+@Tag(name = "Caché", description = "Endpoints para gestionar la caché de respuestas")
 @RestController
 @RequestMapping("/api/cache")
 @RequiredArgsConstructor
