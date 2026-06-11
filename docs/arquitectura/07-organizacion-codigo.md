@@ -72,8 +72,9 @@ Criterios:
 ```xml
 <properties>
     <java.version>17</java.version>
-    <langchain4j.version>0.36.2</langchain4j.version>
-    <langgraph4j.version><!-- ver nota de compatibilidad --></langgraph4j.version>
+    <!-- Par validado en la Fase 0 contra Maven Central -->
+    <langchain4j.version>1.16.2</langchain4j.version>
+    <langgraph4j.version>1.8.17</langgraph4j.version>
 </properties>
 
 <dependencies>
@@ -81,12 +82,6 @@ Criterios:
     <dependency>
         <groupId>org.bsc.langgraph4j</groupId>
         <artifactId>langgraph4j-core</artifactId>
-        <version>${langgraph4j.version}</version>
-    </dependency>
-    <!-- Integración LangGraph4j <-> LangChain4j (serializers de ChatMessage, AgentExecutor...) -->
-    <dependency>
-        <groupId>org.bsc.langgraph4j</groupId>
-        <artifactId>langgraph4j-langchain4j</artifactId>
         <version>${langgraph4j.version}</version>
     </dependency>
 
@@ -121,7 +116,7 @@ Criterios:
 </dependencies>
 ```
 
-> **⚠️ Nota de compatibilidad (tarea de la Fase 0):** las versiones modernas de `langgraph4j` (≥ 1.0) están alineadas con LangChain4j ≥ 1.0, mientras que el `pom.xml` actual usa LangChain4j `0.36.2` (API antigua: `ChatLanguageModel.generate(...)`). Antes de empezar hay que **elegir el par de versiones** consultando la matriz del repositorio de langgraph4j ([github.com/langgraph4j/langgraph4j](https://github.com/langgraph4j/langgraph4j)) y, muy probablemente, **subir LangChain4j a 1.x** (cambios: `ChatLanguageModel` → `ChatModel`, `generate()` → `chat()`, artefacto `langchain4j-google-ai-gemini` mantiene el nombre). Esa subida afecta a `Config.java` y `LlmService.java` existentes — está recogida como tarea propia en el [plan](09-plan-implementacion.md).
+> **✅ Nota de compatibilidad (resuelta en la Fase 0):** se fijó **LangChain4j 1.16.2 + LangGraph4j 1.8.17** (langgraph4j 1.8.x compila contra langchain4j 1.14+, Java 17; verificado contra el POM de `langgraph4j-parent` en Maven Central). Migración de API 0.36→1.x aplicada: `ChatLanguageModel` → `ChatModel`, `generate()` → `chat()`. No hizo falta el módulo `langgraph4j-langchain4j`: el estado del grafo usa solo tipos `Serializable` simples, así que basta `langgraph4j-core` con el serializer por defecto.
 
 ## Configuración por perfiles
 
