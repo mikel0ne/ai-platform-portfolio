@@ -30,6 +30,12 @@ langchain4j:
   gemini:
     api-key: ${GEMINI_API_KEY:}
     model-name: gemini-2.5-flash-lite
+    timeout: 30s
+    max-retries: 2
+
+# Agente de soporte L1 (LangGraph4j)
+copilot:
+  max-recent-orders: 3
 
 # Swagger UI / OpenAPI
 springdoc:

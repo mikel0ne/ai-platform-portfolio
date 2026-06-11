@@ -1,10 +1,23 @@
-# Google AI Studio Configuration for Development
-# Define la variable de entorno GEMINI_API_KEY con tu API key de https://aistudio.google.com/app/apikey
+# Perfil de desarrollo
+# La API key NUNCA va en este fichero: define la variable de entorno GEMINI_API_KEY
+# (obtenla gratis en https://aistudio.google.com/app/apikey)
 
-# Configuración de LangChain4j (Google AI Studio)
-langchain4j:
-  gemini:
-    api-key: ${GEMINI_API_KEY}
+spring:
+  datasource:
+    url: jdbc:h2:mem:copilot;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    hibernate:
+      ddl-auto: none        # el esquema lo crean schema.sql/data.sql
+    open-in-view: false
+  sql:
+    init:
+      mode: always          # ejecuta schema.sql + data.sql (seed de demo)
+  h2:
+    console:
+      enabled: true         # http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:copilot)
 
 # Actuator - Monitorización
 management:
