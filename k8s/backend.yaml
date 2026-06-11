@@ -1,0 +1,88 @@
+# Backend Spring Boot + LangGraph4j.
+# Requiere: imagen local l1-copilot-backend, Secrets gemini-api-key y postgres-credentials,
+# ConfigMap backend-config. Ver docs/infraestructura/04-backend.md.
+#
+# IMPORTANTE: replicas=1 y strategy=Recreate mientras el checkpointer del grafo sea
+# MemorySaver (estado conversacional en memoria del pod). No escalar sin implementar
+# antes un BaseCheckpointSaver persistente (decisión D-6 / ADR-6).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: l1-copilot
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: l1-copilot-backend:1.0.0
+          imagePullPolicy: IfNotPresent   # imagen construida en local, sin registry
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: backend-config
+          env:
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gemini-api-key
+                  key: GEMINI_API_KEY
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: 512Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: l1-copilot
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
