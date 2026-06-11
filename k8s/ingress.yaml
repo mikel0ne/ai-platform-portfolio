@@ -1,0 +1,39 @@
+# Punto de entrada único: copilot.localtest.me (resuelve a 127.0.0.1 sin tocar hosts).
+# Alternativas de host: copilot.127.0.0.1.nip.io, o entrada manual en
+# C:\Windows\System32\drivers\etc\hosts. Ver docs/infraestructura/06-ingress-y-acceso.md.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: copilot
+  namespace: l1-copilot
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: copilot.localtest.me
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          - path: /actuator/health
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http
+  # TLS local opcional con mkcert (ver guía 06):
+  # tls:
+  #   - hosts: [copilot.localtest.me]
+  #     secretName: copilot-tls

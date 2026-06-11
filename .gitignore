@@ -45,6 +45,11 @@ credentials.json
 service-account-key.json
 *-credential.json
 
+# Secrets de Kubernetes materializados desde las plantillas *.example.yaml
+k8s/*-secret.yaml
+k8s/*-credentials.yaml
+!k8s/*.example.yaml
+
 # Environment
 .env
 .env.local
