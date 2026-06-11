@@ -1,0 +1,132 @@
+package io.github.mikel0ne.l1copilot.tools;
+
+import io.github.mikel0ne.l1copilot.domain.OrderStatus;
+import io.github.mikel0ne.l1copilot.domain.TicketStatus;
+import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
+import io.github.mikel0ne.l1copilot.domain.repository.TicketRepository;
+import io.github.mikel0ne.l1copilot.dto.tools.CancellationCheck;
+import io.github.mikel0ne.l1copilot.dto.tools.CancellationResult;
+import io.github.mikel0ne.l1copilot.dto.tools.OrderSummary;
+import io.github.mikel0ne.l1copilot.dto.tools.ShipmentStatus;
+import io.github.mikel0ne.l1copilot.dto.tools.TicketCreated;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.context.annotation.Import;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * Reglas de negocio y seguridad del dato de las tools, contra H2 con el seed
+ * real (schema.sql + data.sql). Sin LLM: las tools son deterministas a propósito.
+ */
+@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=none")
+@Import({OrderTools.class, TicketTools.class})
+class OrderToolsTest {
+
+    @Autowired
+    private OrderTools orderTools;
+
+    @Autowired
+    private TicketTools ticketTools;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private TicketRepository ticketRepository;
+
+    // ---- getRecentOrders ----
+
+    @Test
+    @DisplayName("Devuelve los pedidos del usuario ordenados por fecha descendente")
+    void recentOrdersAreOrderedByDateDesc() {
+        List<OrderSummary> orders = orderTools.getRecentOrders("u-001");
+
+        assertThat(orders).extracting(OrderSummary::id).containsExactly(456L, 123L, 789L);
+    }
+
+    @Test
+    @DisplayName("Un usuario sin pedidos recibe lista vacía, no error")
+    void unknownUserGetsEmptyList() {
+        assertThat(orderTools.getRecentOrders("u-999")).isEmpty();
+    }
+
+    // ---- trackShipment ----
+
+    @Test
+    @DisplayName("Informa estado, fecha estimada y transportista del pedido propio")
+    void trackOwnShipment() {
+        ShipmentStatus s = orderTools.trackShipment(123L, "u-001");
+
+        assertThat(s.status()).isEqualTo("IN_DELIVERY");
+        assertThat(s.carrier()).isEqualTo("SEUR");
+        assertThat(s.estimatedDelivery()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("SEGURIDAD: el pedido de otro usuario no existe para este usuario")
+    void cannotTrackForeignOrder() {
+        // El pedido 201 es de u-002: para u-001 debe ser indistinguible de inexistente
+        assertThatThrownBy(() -> orderTools.trackShipment(201L, "u-001"))
+                .isInstanceOf(OrderNotFoundException.class);
+    }
+
+    // ---- checkCancellable / cancelOrder ----
+
+    @Test
+    @DisplayName("Un pedido CREATED es cancelable; uno SHIPPED no")
+    void cancellabilityFollowsBusinessRules() {
+        CancellationCheck created = orderTools.checkCancellable(200L, "u-002");
+        CancellationCheck shipped = orderTools.checkCancellable(201L, "u-002");
+
+        assertThat(created.cancellable()).isTrue();
+        assertThat(shipped.cancellable()).isFalse();
+        assertThat(shipped.description()).contains("SHIPPED");
+    }
+
+    @Test
+    @DisplayName("Cancelar un pedido cancelable lo deja CANCELLED en base de datos")
+    void cancelExecutesAndPersists() {
+        CancellationResult result = orderTools.cancelOrder(200L, "u-002");
+
+        assertThat(result.cancelled()).isTrue();
+        assertThat(orderRepository.findById(200L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("Cancelar un pedido enviado es rechazado POR CÓDIGO, con motivo")
+    void cancelShippedIsRejected() {
+        CancellationResult result = orderTools.cancelOrder(201L, "u-002");
+
+        assertThat(result.cancelled()).isFalse();
+        assertThat(result.reason()).contains("SHIPPED");
+        assertThat(orderRepository.findById(201L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.SHIPPED);
+    }
+
+    // ---- createTicket ----
+
+    @Test
+    @DisplayName("Crea el ticket OPEN asociado al pedido propio")
+    void createTicketForOwnOrder() {
+        TicketCreated t = ticketTools.createTicket("u-001", 123L,
+                "Pantalla rota", "El portátil llegó con la pantalla rota");
+
+        assertThat(t.status()).isEqualTo(TicketStatus.OPEN.name());
+        assertThat(ticketRepository.findByUserIdOrderByCreatedAtDesc("u-001"))
+                .anyMatch(ticket -> ticket.getId().equals(t.ticketId()));
+    }
+
+    @Test
+    @DisplayName("SEGURIDAD: no se puede abrir ticket sobre un pedido ajeno")
+    void cannotCreateTicketForForeignOrder() {
+        assertThatThrownBy(() -> ticketTools.createTicket("u-001", 201L, "x", "y"))
+                .isInstanceOf(OrderNotFoundException.class);
+    }
+}

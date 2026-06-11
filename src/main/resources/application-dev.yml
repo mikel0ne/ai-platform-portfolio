@@ -15,6 +15,7 @@ spring:
   sql:
     init:
       mode: always          # ejecuta schema.sql + data.sql (seed de demo)
+      encoding: UTF-8
   h2:
     console:
       enabled: true         # http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:copilot)
