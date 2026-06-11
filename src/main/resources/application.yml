@@ -34,14 +34,14 @@ langchain4j:
 # Swagger UI / OpenAPI
 springdoc:
   show-actuator: true
+  paths-to-exclude: /actuator/health/**   # Oculta el endpoint /actuator/health/{*path} de Swagger (el wildcard duplicado)
 
 # Actuator - Monitorización
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,env,metrics,loggers
-      base-path: /actuator
+        include: health,info,env
   endpoint:
     health:
       show-details: always
@@ -51,13 +51,12 @@ management:
 
 info:
   app:
-    name: LangChain4j Spring Boot
-    description: Integración con Google AI Studio (Gemini)
-    version: 1.0.0
+    name: "@project.name@"
+    description: "@project.description@"
+    version: "@project.version@"
 
 # Configuración de caché
 cache:
   file:
     path: ./cache
   ttl-seconds: 3600  # 1 hora
-

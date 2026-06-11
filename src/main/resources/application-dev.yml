@@ -1,10 +1,19 @@
-# Google Cloud Configuration for Development
-# GOOGLE_APPLICATION_CREDENTIALS=src/main/resources/gemini-credential.json
+# Google AI Studio Configuration for Development
+# Define la variable de entorno GEMINI_API_KEY con tu API key de https://aistudio.google.com/app/apikey
+
+# Configuración de LangChain4j (Google AI Studio)
+langchain4j:
+  gemini:
+    api-key: ${GEMINI_API_KEY}
+
+# Actuator - Monitorización
+management:
+  endpoint:
+    env:
+      show-values: always       # Muestra valores reales en /actuator/env (no ******)
 
 # Logging
 logging:
   level:
     io.github.mikel0ne.l1copilot: DEBUG
     dev.langchain4j: DEBUG
-    com.google.cloud: INFO
-
