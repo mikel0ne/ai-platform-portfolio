@@ -2,6 +2,8 @@
 
 Plan troceado en **fases independientes y demostrables**, pensado para ejecutarse en sesiones/conversaciones separadas. Cada fase indica: entradas (docs a releer), tareas, y criterio de aceptación (DoD) verificable.
 
+> **Estado:** Fases 0-4 ✅ completadas (backend funcional, 28 tests en verde). Pendientes: Fase 5 (frontend Angular), Fase 6 (demo y cierre) y Fase 7 (despliegue K8s). Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`.
+
 ```mermaid
 gantt
     dateFormat X
