@@ -1,0 +1,13 @@
+<header class="app-header">
+  <div class="brand">L1 Support Copilot</div>
+  @if (user(); as u) {
+    <div class="who">
+      <span class="user">{{ u.name }}</span>
+      <button class="logout" (click)="logout()">Salir</button>
+    </div>
+  }
+</header>
+
+<main>
+  <router-outlet></router-outlet>
+</main>

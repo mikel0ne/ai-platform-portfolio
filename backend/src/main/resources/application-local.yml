@@ -1,0 +1,45 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Perfil LOCAL — PostgreSQL en contenedor Docker accesible desde Windows
+# host: postgres.local → 127.0.0.1 (añadir en C:\Windows\System32\drivers\etc\hosts)
+# ─────────────────────────────────────────────────────────────────────────────
+# Activar:
+#   set SPRING_PROFILES_ACTIVE=local
+#   mvn spring-boot:run
+#
+# Por defecto NO toca los datos existentes de PostgreSQL.
+# Para recargar el seed de demo (borra y vuelve a insertar los datos):
+#   set SQL_INIT_MODE=always
+#   mvn spring-boot:run
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres.local:15432/l1_copilot
+    driver-class-name: org.postgresql.Driver
+    username: appuser
+    password: change-me
+  jpa:
+    hibernate:
+      ddl-auto: none          # el esquema lo crean los scripts SQL
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      # never  → deja los datos que haya en la BD (comportamiento por defecto)
+      # always → borra y recarga el seed de demo (útil si corrompiste datos)
+      mode: ${SQL_INIT_MODE:never}
+      platform: postgresql    # usa schema-postgresql.sql + data-postgresql.sql
+      encoding: UTF-8
+
+management:
+  endpoint:
+    env:
+      show-values: always     # Muestra valores reales en /actuator/env (no ******)
+
+logging:
+  level:
+    io.github.mikel0ne.l1copilot: DEBUG
+    dev.langchain4j: DEBUG
+    org.springframework.jdbc: DEBUG    # Ver los SQLs de inicialización

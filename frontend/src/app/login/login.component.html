@@ -1,0 +1,21 @@
+<section class="login">
+  <h1>L1 Support Copilot</h1>
+  <p class="subtitle">Selecciona un usuario de demostración para entrar.</p>
+
+  @if (loading()) {
+    <p class="hint">Cargando usuarios…</p>
+  } @else if (error()) {
+    <p class="error">{{ error() }}</p>
+  } @else {
+    <ul class="users">
+      @for (u of users(); track u.id) {
+        <li>
+          <button class="user-card" (click)="enter(u)">
+            <span class="name">{{ u.name }}</span>
+            <span class="id">{{ u.id }}</span>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</section>

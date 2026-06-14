@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Perfil PROD — Kubernetes
+# PostgreSQL: postgres.infra.svc.cluster.local:5432/l1_copilot
+# ─────────────────────────────────────────────────────────────────────────────
+# La BD `l1_copilot` se crea con scripts/setup-l1-copilot-db.sh dentro del
+# Postgres compartido del clúster (namespace `infra`). Ver docs/infraestructura.
+# Credenciales sensibles vienen de Secrets de K8s montados como env vars.
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot}
+    driver-class-name: org.postgresql.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:appuser}
+    password: ${SPRING_DATASOURCE_PASSWORD}   # obligatorio vía Secret de K8s
+  jpa:
+    hibernate:
+      ddl-auto: validate      # el esquema lo gestiona el initdb de Postgres; solo valida
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  sql:
+    init:
+      mode: never             # NUNCA recargar datos en producción
+
+# Probes de Kubernetes: /actuator/health/liveness y /actuator/health/readiness
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+
+logging:
+  level:
+    io.github.mikel0ne.l1copilot: INFO
+    dev.langchain4j: WARN
