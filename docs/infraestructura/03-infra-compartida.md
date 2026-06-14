@@ -74,20 +74,43 @@ kubectl exec -n infra deploy/postgres -- psql -U appuser -d appdb -c "SELECT ver
 ## 3. BD del proyecto: `l1_copilot`
 
 El Postgres compartido nace vacío (solo con `appdb`). Cada proyecto crea **su BD**
-dentro del mismo motor con un script propio. Para el L1 copilot:
+dentro del mismo motor con dos scripts propios que se conectan vía `psql` directo
+al NodePort `postgres.local:15432`:
+
+| Script | Qué hace |
+|---|---|
+| [`scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | Crea la BD `l1_copilot` si no existe, aplica el esquema y al final llama al seed. Idempotente. |
+| [`scripts/seed-l1-copilot-db.sh`](../../scripts/seed-l1-copilot-db.sh) | Solo recarga el seed (`TRUNCATE` + `INSERT`). Útil cuando has corrompido los datos de demo o quieres reset. |
 
 ```bash
+# Bootstrap completo (BD + esquema + seed)
 bash scripts/setup-l1-copilot-db.sh
+
+# Solo esquema (sin datos)
+bash scripts/setup-l1-copilot-db.sh --no-seed
+
+# Solo recargar el seed (BD ya existe)
+bash scripts/seed-l1-copilot-db.sh
 ```
 
-El script (idempotente):
+Idempotencia:
 
-1. Crea la BD `l1_copilot` si no existe.
-2. Aplica `backend/src/main/resources/schema-postgresql.sql` (las tablas usan
-   `CREATE TABLE IF NOT EXISTS`).
-3. Aplica `backend/src/main/resources/data-postgresql.sql` (seed) **solo si la BD se
-   acaba de crear**. Para reaplicar el seed manualmente: `bash scripts/setup-l1-copilot-db.sh --reseed`
-   (el SQL hace `TRUNCATE` + `INSERT`, idempotente).
+1. La BD solo se crea si no existe.
+2. El schema usa `CREATE TABLE IF NOT EXISTS`.
+3. El seed (`data-postgresql.sql`) hace `TRUNCATE tickets` + `TRUNCATE orders` +
+   `DELETE FROM users` antes del `INSERT`, así que se puede reaplicar sin generar
+   duplicados.
+
+Variables de entorno opcionales para los dos scripts (los defaults coinciden con
+los del Postgres compartido por defecto):
+
+```bash
+PGHOST=postgres.local       # NodePort del Postgres del namespace `infra`
+PGPORT=15432
+PGUSER=appuser
+PGPASSWORD=change-me     # el del script 03-setup-postgres.sh
+PROJECT_DB=l1_copilot       # solo en setup; el seed usa PGDATABASE
+```
 
 Verificación:
 

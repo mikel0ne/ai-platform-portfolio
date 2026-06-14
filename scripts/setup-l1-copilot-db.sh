@@ -1,38 +1,53 @@
 #!/usr/bin/env bash
 # =============================================================================
 # setup-l1-copilot-db.sh
-# Crea la BD `l1_copilot` dentro del PostgreSQL compartido (namespace `infra`)
-# y aplica el esquema + seed del proyecto L1 Support Copilot.
+# Crea la BD `l1_copilot` dentro del PostgreSQL compartido y aplica el esquema
+# del proyecto. Al final llama a seed-l1-copilot-db.sh para cargar el seed.
 #
-# Modelo: una BD por proyecto, todas en el mismo motor Postgres del clúster.
-# Ver: infra/INFRA.md (Postgres compartido) y memoria project-postgres-compartido.
+# Modelo: una BD por proyecto dentro del mismo motor Postgres del clúster
+# (ver infra/INFRA.md y docs/infraestructura/03-infra-compartida.md).
+#
+# Idempotente:
+#   - La BD solo se crea si no existe (sin error si ya existía).
+#   - El schema usa CREATE TABLE IF NOT EXISTS.
+#   - El seed (data-postgresql.sql) hace TRUNCATE + INSERT, se puede reaplicar.
 #
 # Requisitos:
-#   - infra/scripts/03-setup-postgres.sh ejecutado previamente
-#   - kubectl en el PATH y apuntando al clúster de Rancher Desktop
-#   - Estar ejecutando desde la raíz del repo (usa rutas relativas)
+#   - Postgres compartido accesible desde el host (postgres.local:15432 por
+#     defecto, NodePort del Postgres del namespace `infra`).
+#   - psql en el PATH.
 #
-# Idempotente: si la BD ya existe, no la recrea; el esquema usa
-# CREATE TABLE IF NOT EXISTS. El seed por defecto NO se reaplica
-# (pasa --reseed para forzar recarga del seed).
+# Variables de entorno (opcionales):
+#   PGHOST      (default: postgres.local)
+#   PGPORT      (default: 15432)
+#   PGUSER      (default: appuser)         — superuser que crea la BD
+#   PGPASSWORD  (default: change-me)
+#   PROJECT_DB  (default: l1_copilot)
+#
+# Flags:
+#   --no-seed   Solo crea la BD y aplica el esquema; no carga datos.
 # =============================================================================
 
 set -euo pipefail
 
-NS="infra"
-PG_DEPLOY="postgres"
-ADMIN_USER="appuser"          # superuser creado por 03-setup-postgres.sh
-PROJECT_DB="l1_copilot"
-SCHEMA_FILE="backend/src/main/resources/schema-postgresql.sql"
-SEED_FILE="backend/src/main/resources/data-postgresql.sql"
+: "${PGHOST:=postgres.local}"
+: "${PGPORT:=15432}"
+: "${PGUSER:=appuser}"
+: "${PGPASSWORD:=change-me}"
+: "${PROJECT_DB:=l1_copilot}"
+export PGHOST PGPORT PGUSER PGPASSWORD
 
-RESEED=false
+SCHEMA_FILE="backend/src/main/resources/schema-postgresql.sql"
+SEED_SCRIPT="$(dirname "$0")/seed-l1-copilot-db.sh"
+
+NO_SEED=false
 for arg in "$@"; do
   case "$arg" in
-    --reseed) RESEED=true ;;
+    --no-seed) NO_SEED=true ;;
     -h|--help)
-      echo "Uso: $0 [--reseed]"
-      echo "  --reseed   Reaplica $SEED_FILE aunque la BD ya existiera (idempotente: usa TRUNCATE + INSERT)"
+      echo "Uso: $0 [--no-seed]"
+      echo "  Crea la BD $PROJECT_DB, aplica el esquema y carga el seed."
+      echo "  --no-seed   No ejecuta seed-l1-copilot-db.sh al final."
       exit 0
       ;;
     *) echo "Argumento no reconocido: $arg" >&2; exit 1 ;;
@@ -48,71 +63,56 @@ fail()  { echo "    [x]  $*"; exit 1; }
 # 0. Requisitos
 # -----------------------------------------------------------------------------
 step "Verificando requisitos..."
-command -v kubectl &>/dev/null || fail "kubectl no encontrado en el PATH."
-kubectl cluster-info &>/dev/null || fail "k3s no responde. Abre Rancher Desktop."
+command -v psql >/dev/null 2>&1 || fail "psql no encontrado en el PATH."
 [ -f "$SCHEMA_FILE" ] || fail "No se encuentra $SCHEMA_FILE (¿estás en la raíz del repo?)."
-[ -f "$SEED_FILE" ]   || fail "No se encuentra $SEED_FILE (¿estás en la raíz del repo?)."
 
-PG_POD=$(kubectl get pod -n "$NS" -l app=postgres -o jsonpath="{.items[0].metadata.name}" 2>/dev/null || true)
-[ -n "$PG_POD" ] || fail "No hay pod de Postgres en namespace '$NS'. Ejecuta infra/scripts/03-setup-postgres.sh."
-ok "Postgres encontrado: $PG_POD"
+if ! psql -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+  fail "No se puede conectar a $PGHOST:$PGPORT como $PGUSER. ¿Está Rancher Desktop arrancado y el NodePort 15432 expuesto?"
+fi
+ok "Conexión a Postgres OK ($PGHOST:$PGPORT como $PGUSER)"
 
 # -----------------------------------------------------------------------------
 # 1. Crear la BD del proyecto (idempotente)
 # -----------------------------------------------------------------------------
 step "Creando BD '$PROJECT_DB' (si no existe)..."
 
-DB_EXISTS=$(kubectl exec -n "$NS" "$PG_POD" -- \
-  psql -U "$ADMIN_USER" -d postgres -tAc \
-  "SELECT 1 FROM pg_database WHERE datname='$PROJECT_DB';" 2>/dev/null || true)
+DB_EXISTS=$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PROJECT_DB';")
 
 if [ "$DB_EXISTS" = "1" ]; then
   warn "BD '$PROJECT_DB' ya existe."
-  DB_WAS_NEW=false
 else
-  kubectl exec -n "$NS" "$PG_POD" -- \
-    psql -U "$ADMIN_USER" -d postgres -c "CREATE DATABASE $PROJECT_DB OWNER $ADMIN_USER;"
+  psql -d postgres -c "CREATE DATABASE $PROJECT_DB OWNER $PGUSER;"
   ok "BD '$PROJECT_DB' creada"
-  DB_WAS_NEW=true
 fi
 
 # -----------------------------------------------------------------------------
 # 2. Aplicar schema (idempotente con CREATE TABLE IF NOT EXISTS)
 # -----------------------------------------------------------------------------
 step "Aplicando $SCHEMA_FILE..."
-kubectl exec -i -n "$NS" "$PG_POD" -- \
-  psql -U "$ADMIN_USER" -d "$PROJECT_DB" -v ON_ERROR_STOP=1 < "$SCHEMA_FILE"
+psql -d "$PROJECT_DB" -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE"
 ok "Schema aplicado"
 
 # -----------------------------------------------------------------------------
-# 3. Seed: solo en primer arranque o si se fuerza con --reseed
+# 3. Seed
 # -----------------------------------------------------------------------------
-if $DB_WAS_NEW || $RESEED; then
-  step "Aplicando $SEED_FILE..."
-  kubectl exec -i -n "$NS" "$PG_POD" -- \
-    psql -U "$ADMIN_USER" -d "$PROJECT_DB" -v ON_ERROR_STOP=1 < "$SEED_FILE"
-  ok "Seed aplicado"
+if $NO_SEED; then
+  warn "Seed omitido (--no-seed). Para cargarlo más tarde: bash $SEED_SCRIPT"
 else
-  warn "Seed omitido (la BD ya existía). Para reaplicarlo: $0 --reseed"
+  step "Cargando seed con $SEED_SCRIPT"
+  PGDATABASE="$PROJECT_DB" bash "$SEED_SCRIPT"
 fi
-
-# -----------------------------------------------------------------------------
-# 4. Resumen
-# -----------------------------------------------------------------------------
-ROW_COUNT=$(kubectl exec -n "$NS" "$PG_POD" -- \
-  psql -U "$ADMIN_USER" -d "$PROJECT_DB" -tAc "SELECT COUNT(*) FROM orders;" 2>/dev/null || echo "?")
 
 cat <<EOF
 
 ============================================================
   BD del L1 Copilot lista
 ============================================================
-  Host interno (en-cluster): postgres.${NS}.svc.cluster.local:5432
-  Base de datos            : ${PROJECT_DB}
-  Usuario                  : ${ADMIN_USER}
-  Filas en 'orders'        : ${ROW_COUNT}
+  Host externo (host)      : $PGHOST:$PGPORT
+  Host interno (en-cluster): postgres.infra.svc.cluster.local:5432
+  Base de datos            : $PROJECT_DB
+  Usuario                  : $PGUSER
 ------------------------------------------------------------
-  JDBC URL para el backend:
-  jdbc:postgresql://postgres.${NS}.svc.cluster.local:5432/${PROJECT_DB}
+  JDBC URL para el backend (perfil prod):
+  jdbc:postgresql://postgres.infra.svc.cluster.local:5432/$PROJECT_DB
 ============================================================
 EOF
