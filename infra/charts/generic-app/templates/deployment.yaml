@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "generic-app.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "generic-app.labels" . | nindent 4 }}
+  {{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if not .Values.hpa.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "generic-app.selectorLabels" . | nindent 6 }}
+  strategy:
+    {{- if eq .Values.strategy.type "Recreate" }}
+    type: Recreate
+    {{- else }}
+    type: RollingUpdate
+    {{- with .Values.strategy.rollingUpdate }}
+    rollingUpdate:
+      maxSurge: {{ .maxSurge | default 1 }}
+      maxUnavailable: {{ .maxUnavailable | default 0 }}
+    {{- end }}
+    {{- end }}
+  template:
+    metadata:
+      labels:
+        {{- include "generic-app.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "generic-app.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ include "generic-app.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: {{ .Values.container.portName }}
+              containerPort: {{ .Values.container.port }}
+              protocol: TCP
+
+          {{- /*
+            envFrom: monta el ConfigMap propio del chart y ConfigMaps externos
+            como variables de entorno en bloque. Los Secrets se inyectan de forma
+            individual en env[] (secretEnv) para mayor granularidad y trazabilidad.
+          */}}
+          {{- if or .Values.configmap.enabled .Values.envFrom.configMaps }}
+          envFrom:
+            {{- if .Values.configmap.enabled }}
+            - configMapRef:
+                name: {{ include "generic-app.configmapName" . }}
+            {{- end }}
+            {{- range .Values.envFrom.configMaps }}
+            - configMapRef:
+                name: {{ .name }}
+            {{- end }}
+          {{- end }}
+
+          {{- /*
+            env: variables planas (env[]) + referencias a Secrets externos (secretEnv[]).
+            Los Secrets NO los crea el chart; créalos con scripts/create-secrets.ps1
+            o con kubectl antes de hacer helm upgrade/install.
+          */}}
+          {{- if or .Values.env .Values.secretEnv }}
+          env:
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+            {{- range .Values.secretEnv }}
+            - name: {{ .name }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .secretKey }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.httpGet.path }}
+              port: {{ .Values.probes.readiness.httpGet.port }}
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.httpGet.path }}
+              port: {{ .Values.probes.liveness.httpGet.port }}
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          {{- end }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

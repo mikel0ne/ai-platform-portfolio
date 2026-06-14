@@ -1,0 +1,9 @@
+# Helm ignora estos ficheros al empaquetar el chart (helm package)
+.helmignore
+.git
+.gitignore
+.DS_Store
+*.swp
+*.tmp
+README.md
+values-examples/
