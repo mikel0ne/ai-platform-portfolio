@@ -17,11 +17,15 @@
 #     defecto, NodePort del Postgres del namespace `infra`).
 #   - psql en el PATH.
 #
-# Variables de entorno (opcionales):
+# Credenciales: el script carga `infra/.env.l1-copilot` + `infra/.env.l1-copilot.local`
+# si existen (mismo patrón que las Run Configurations de IntelliJ con el plugin
+# EnvFile). POSTGRES_USER/POSTGRES_PASSWORD del .env se mapean a PGUSER/PGPASSWORD.
+#
+# Variables de entorno reconocidas (con fallbacks):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
-#   PGUSER      (default: appuser)         — superuser que crea la BD
-#   PGPASSWORD  (default: change-me)
+#   PGUSER      (default: POSTGRES_USER del .env, o appuser)
+#   PGPASSWORD  (default: POSTGRES_PASSWORD del .env, o change-me)
 #   PROJECT_DB  (default: l1_copilot)
 #
 # Flags:
@@ -30,10 +34,18 @@
 
 set -euo pipefail
 
+# Cargar .env.l1-copilot (commiteado) y .env.l1-copilot.local (overrides) si existen
+for env_file in infra/.env.l1-copilot infra/.env.l1-copilot.local; do
+  if [ -f "$env_file" ]; then
+    set -a; source "$env_file"; set +a
+  fi
+done
+
+# Mapear nombres POSTGRES_* (Spring/K8s) → PG* (psql) si no se definieron PG* directamente
+: "${PGUSER:=${POSTGRES_USER:-appuser}}"
+: "${PGPASSWORD:=${POSTGRES_PASSWORD:-change-me}}"
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
-: "${PGUSER:=appuser}"
-: "${PGPASSWORD:=change-me}"
 : "${PROJECT_DB:=l1_copilot}"
 export PGHOST PGPORT PGUSER PGPASSWORD
 

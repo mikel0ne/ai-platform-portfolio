@@ -12,21 +12,35 @@
 #     defecto, NodePort del Postgres del namespace `infra`).
 #   - psql en el PATH (instalación de PostgreSQL en Windows o paquete en WSL).
 #
-# Variables de entorno (opcionales):
+# Credenciales: el script carga `infra/.env.l1-copilot` + `infra/.env.l1-copilot.local`
+# si existen (mismo patrón que las Run Configurations de IntelliJ con el plugin
+# EnvFile). El .env trae POSTGRES_USER/POSTGRES_PASSWORD (nombres Spring/K8s);
+# aquí se mapean a PGUSER/PGPASSWORD que es lo que entiende psql/libpq.
+#
+# Variables de entorno reconocidas (con fallbacks):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
-#   PGUSER      (default: appuser)
+#   PGUSER      (default: POSTGRES_USER del .env, o appuser)
+#   PGPASSWORD  (default: POSTGRES_PASSWORD del .env, o change-me)
 #   PGDATABASE  (default: l1_copilot)
-#   PGPASSWORD  (default: change-me  — el del script 03-setup-postgres.sh)
 # =============================================================================
 
 set -euo pipefail
 
+# Cargar .env.l1-copilot (commiteado, defaults) y .env.l1-copilot.local (overrides
+# git-ignorados) si existen. set -a exporta automáticamente todo lo definido en ellos.
+for env_file in infra/.env.l1-copilot infra/.env.l1-copilot.local; do
+  if [ -f "$env_file" ]; then
+    set -a; source "$env_file"; set +a
+  fi
+done
+
+# Mapear nombres POSTGRES_* (Spring/K8s) → PG* (psql) si no se definieron PG* directamente
+: "${PGUSER:=${POSTGRES_USER:-appuser}}"
+: "${PGPASSWORD:=${POSTGRES_PASSWORD:-change-me}}"
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
-: "${PGUSER:=appuser}"
 : "${PGDATABASE:=l1_copilot}"
-: "${PGPASSWORD:=change-me}"
 export PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD
 
 SEED_FILE="backend/src/main/resources/data-postgresql.sql"
