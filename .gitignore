@@ -7,9 +7,13 @@
 *.tar.gz
 *.rar
 
-target/
-.mvn/wrapper/maven-wrapper.jar
-.mvn/wrapper/maven-wrapper.properties
+# Maven build output y wrapper (ahora en backend/)
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+backend/.mvn/wrapper/maven-wrapper.properties
+
+# Caché de respuestas generada en runtime (backend/cache/ relativo al workdir)
+backend/cache/
 
 # IDE
 .idea/
@@ -35,24 +39,24 @@ build/
 !gradle/wrapper/gradle-wrapper.properties
 gradle-app.setting
 
-# Logs
+# Logs (se generan en la raíz del repo al arrancar con scripts/)
 *.log
 logs/
 log.txt
+
+# Scripts de arranque — ficheros de estado
+.running.pids
 
 # Credenciales / API keys (red de seguridad)
 credentials.json
 service-account-key.json
 *-credential.json
 
-# Secrets de Kubernetes materializados desde las plantillas *.example.yaml
-k8s/*-secret.yaml
-k8s/*-credentials.yaml
-!k8s/*.example.yaml
+# Secrets locales para create-secrets.ps1 (ver docs/infraestructura/07)
+secrets-*.env
+*-secrets.env
 
 # Environment
 .env
 .env.local
 *.properties.local
-
-cache/

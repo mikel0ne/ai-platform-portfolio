@@ -1,0 +1,83 @@
+# =============================================================================
+# values-frontend.yaml — Plantilla para frontends Angular / React servidos por nginx
+# =============================================================================
+# Uso:
+#   helm upgrade --install my-frontend infra/charts/generic-app \
+#     -f infra/charts/generic-app/values-examples/values-frontend.yaml \
+#     --set image.repository=my-frontend \
+#     --set image.tag=1.0.0
+# =============================================================================
+# Diferencias respecto al backend Java:
+#   - Sin ConfigMap ni Secrets (los frontends no deben tener variables sensibles;
+#     la config se embebe en build-time o se sirve desde /assets/config.json)
+#   - Puerto 80 (nginx) — o 8080 con nginxinc/nginx-unprivileged para runAsNonRoot
+#   - Probes apuntan a "/" (página raíz)
+#   - Recursos mucho más bajos
+#   - RollingUpdate siempre (sin estado en memoria)
+# =============================================================================
+
+namespace: default   # cambiar por el namespace de tu proyecto
+
+image:
+  repository: my-frontend
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+strategy:
+  type: RollingUpdate
+
+container:
+  port: 80      # usa 8080 si la imagen es nginxinc/nginx-unprivileged (recomendado para runAsNonRoot)
+  portName: http
+
+service:
+  type: ClusterIP
+  port: 80
+
+configmap:
+  enabled: false   # frontends no tienen config en servidor; la config va embebida en el build
+
+secretEnv: []      # los frontends no deben manejar secretos en runtime
+
+probes:
+  readiness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    failureThreshold: 3
+  liveness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    failureThreshold: 3
+
+resources:
+  requests:
+    memory: 16Mi
+    cpu: 10m
+  limits:
+    memory: 64Mi
+    cpu: 100m
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: false   # nginx:alpine corre como root; usa nginx-unprivileged para true
+
+# Ingress: el frontend normalmente sirve "/" y el backend sirve "/api"
+# Ambos pueden compartir el mismo host en el Ingress del backend usando ingressExtraPaths,
+# o puedes activar el Ingress aquí solo para el frontend.
+# ingress:
+#   enabled: true
+#   className: nginx
+#   host: myapp.localtest.me
+#   paths:
+#     - path: /
+#       pathType: Prefix

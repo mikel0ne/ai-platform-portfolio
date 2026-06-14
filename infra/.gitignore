@@ -1,0 +1,8 @@
+# Ficheros de secrets locales — NUNCA commitear
+.env
+.env.*
+!.env.example
+
+# Helm
+charts/*/charts/
+*.tgz

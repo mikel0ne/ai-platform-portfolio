@@ -1,0 +1,73 @@
+# =============================================================================
+# values-l1-copilot-frontend.yaml — Frontend Angular del L1 Support Copilot
+# Chart: infra/charts/generic-app
+# =============================================================================
+# Despliegue:
+#   docker build -t localhost:30500/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile .
+#   docker push localhost:30500/l1-copilot-frontend:1.0.0
+#
+#   helm upgrade --install l1-copilot-frontend infra/charts/generic-app \
+#     -f infra/values-l1-copilot-frontend.yaml
+#
+# El Ingress lo monta el backend (ingressExtraPaths apunta a este Service);
+# aquí Ingress queda desactivado.
+# =============================================================================
+
+namespace: l1-copilot
+
+image:
+  repository: localhost:30500/l1-copilot-frontend
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+strategy:
+  type: RollingUpdate
+
+container:
+  port: 80         # cambiar a 8080 si se usa nginxinc/nginx-unprivileged
+  portName: http
+
+service:
+  type: ClusterIP
+  port: 80
+
+# Frontend Angular: la config va embebida en el build, no hay ConfigMap/Secrets
+configmap:
+  enabled: false
+secretEnv: []
+
+probes:
+  readiness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 3
+    periodSeconds: 5
+    failureThreshold: 3
+  liveness:
+    enabled: true
+    httpGet:
+      path: /
+      port: http
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    failureThreshold: 3
+
+resources:
+  requests:
+    memory: 16Mi
+    cpu: 10m
+  limits:
+    memory: 64Mi
+    cpu: 100m
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: false   # nginx:alpine corre como root; usar nginx-unprivileged para true
+
+# Ingress lo monta el backend (ingressExtraPaths -> l1-copilot-frontend)
+ingress:
+  enabled: false
