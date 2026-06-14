@@ -2,7 +2,7 @@
 
 Plan troceado en **fases independientes y demostrables**, pensado para ejecutarse en sesiones/conversaciones separadas. Cada fase indica: entradas (docs a releer), tareas, y criterio de aceptación (DoD) verificable.
 
-> **Estado:** Fases 0-4 ✅ completadas (backend funcional, 28 tests en verde). Pendientes: Fase 5 (frontend Angular), Fase 6 (demo y cierre) y Fase 7 (despliegue K8s). Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`.
+> **Estado:** Fases 0-5 ✅ completadas (backend funcional con 28 tests en verde; frontend Angular 17 en `frontend/` con 9 tests en verde). Pendientes: Fase 6 (demo y cierre) y Fase 7 (despliegue K8s). Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`.
 
 ```mermaid
 gantt
@@ -87,7 +87,7 @@ gantt
 3. Chat: store con signals, burbujas, typing indicator, badge de intención, nueva conversación.
 4. Tests de `ChatStore` e interceptor.
 
-**DoD:** demo end-to-end en local (dos terminales: `mvn spring-boot:run` + `ng serve`) con los 3 escenarios.
+**DoD:** demo end-to-end en local (dos terminales: `cd backend && mvn spring-boot:run` + `cd frontend && ng serve`) con los 3 escenarios.
 
 ## Fase 6 — Demo y documentación de cierre
 
@@ -99,7 +99,7 @@ gantt
 
 ## Fase 7 — Despliegue en Kubernetes
 
-**Seguir la rama `docs/infraestructura-k8s`** (guías 01-08 + manifiestos `k8s/`): imágenes Docker de backend y frontend, PostgreSQL, Secrets (`GEMINI_API_KEY`, credenciales BD), Ingress.
+**Seguir [`docs/infraestructura/`](../infraestructura/README.md)** (guías 01-08): imágenes Docker de backend y frontend (Dockerfiles en `docker/`), PostgreSQL y Registry instalados por los scripts de `infra/scripts/`, BD del proyecto creada con `scripts/setup-l1-copilot-db.sh`, Secrets (`GEMINI_API_KEY`, credenciales BD) y app desplegada con el chart `infra/charts/generic-app` parametrizado por `infra/values-l1-copilot-{backend,frontend}.yaml`.
 
 **DoD:** los 3 escenarios funcionan accediendo por el Ingress del clúster local.
 

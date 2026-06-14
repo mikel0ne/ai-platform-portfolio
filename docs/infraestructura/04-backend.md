@@ -1,101 +1,126 @@
 # 04 — Backend (Spring Boot + LangGraph4j)
 
-**Prerrequisitos:** guía 03 (Postgres sano), código del backend con perfil `prod` implementado (Fases 0-4 del plan de arquitectura).
-**Resultado:** backend desplegado, conectado a Postgres y a Gemini, expuesto internamente como `backend:8080`.
+**Prerrequisitos:** guía 03 (infra sana, BD `l1_copilot` con esquema y seed cargados),
+backend con perfil `prod` (Fases 0-4 ✅).
+**Resultado:** backend desplegado en `l1-copilot` con el chart `generic-app`, conectado
+al Postgres compartido y a Gemini, expuesto internamente como
+`l1-copilot-backend:8080` y públicamente vía el Ingress de la guía 06.
 
-## 1. Imagen Docker
+## 1. Imagen
 
-[`docker/backend.Dockerfile`](../../docker/backend.Dockerfile) — multi-stage:
+[`docker/backend.Dockerfile`](../../docker/backend.Dockerfile) — multi-stage (Maven con
+caché de dependencias → JRE 17 alpine, usuario no-root).
 
-1. **Stage build** (`maven:3.9-eclipse-temurin-17`): `mvn package -DskipTests` con cacheo de dependencias (se copia antes el `pom.xml` y se hace `dependency:go-offline`).
-2. **Stage runtime** (`eclipse-temurin:17-jre-alpine`): solo el JAR, usuario no-root, `SERVER_PORT 8080`.
-
-Build (desde la raíz del repo):
-
-```powershell
-docker build -f docker/backend.Dockerfile -t l1-copilot-backend:1.0.0 .
+```bash
+docker build -t localhost:30500/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./backend
+docker push localhost:30500/l1-copilot-backend:1.0.0
 ```
 
-> Con el Kubernetes de Docker Desktop la imagen ya es visible para el clúster. Con kind: `kind load docker-image l1-copilot-backend:1.0.0 --name l1-copilot`.
+> **Por qué push al registry y no `IfNotPresent` directo:** el modelo es multi-servicio
+> y debe funcionar igual si mañana hay dos nodos. El motor moby permitiría saltarse el
+> registry en un nodo único, pero deja la imagen invisible para cualquier otro contexto.
+> El NodePort `30500` está disponible nada más correr `02-setup-registry.sh`.
 
 ## 2. Configuración por entorno
 
-El contenedor es **el mismo para cualquier entorno**; todo lo variable entra por entorno:
+El contenedor es el mismo para cualquier entorno; todo lo variable entra por entorno
+(declarado en [`infra/values-l1-copilot-backend.yaml`](../../infra/values-l1-copilot-backend.yaml)):
 
-| Variable | Origen | Ejemplo |
+| Variable | Origen | Valor |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | ConfigMap `backend-config` | `prod` |
-| `SPRING_DATASOURCE_URL` | ConfigMap `backend-config` | `jdbc:postgresql://postgres:5432/copilot` |
-| `SPRING_DATASOURCE_USERNAME` | Secret `postgres-credentials` (key `POSTGRES_USER`) | `copilot` |
-| `SPRING_DATASOURCE_PASSWORD` | Secret `postgres-credentials` (key `POSTGRES_PASSWORD`) | — |
+| `SPRING_PROFILES_ACTIVE` | ConfigMap (del chart) | `prod` |
+| `SPRING_DATASOURCE_URL` | ConfigMap | `jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot` |
+| `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | Secret `postgres-credentials` (ns `l1-copilot`) | `appuser` / `change-me` |
 | `GEMINI_API_KEY` | Secret `gemini-api-key` | — |
 | `JAVA_TOOL_OPTIONS` | ConfigMap | `-XX:MaxRAMPercentage=75` |
 
-Crear el Secret de Gemini (una vez; la key se obtiene gratis en [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)):
+Crear los Secrets (una vez; key gratuita de Gemini en
+[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)):
 
-```powershell
-kubectl create secret generic gemini-api-key -n l1-copilot --from-literal=GEMINI_API_KEY=<TU_API_KEY>
+```bash
+kubectl apply -f infra/namespace-l1-copilot.yaml      # crea el namespace l1-copilot
+
+kubectl create secret generic gemini-api-key -n l1-copilot \
+  --from-literal=GEMINI_API_KEY=<TU_API_KEY>
+
+kubectl create secret generic postgres-credentials -n l1-copilot \
+  --from-literal=POSTGRES_USER=appuser \
+  --from-literal=POSTGRES_PASSWORD=change-me
 ```
 
-## 3. Desplegar
+> El password debe coincidir con el del Postgres compartido (lo fija
+> `03-setup-postgres.sh`; valor por defecto `change-me`).
 
-```powershell
-kubectl apply -f k8s/backend-configmap.yaml
-kubectl apply -f k8s/backend.yaml
-kubectl rollout status deploy/backend -n l1-copilot --timeout=180s
+## 3. Desplegar con el chart `generic-app`
+
+```bash
+helm upgrade --install l1-copilot-backend infra/charts/generic-app \
+  -f infra/values-l1-copilot-backend.yaml
+
+kubectl rollout status deploy/l1-copilot-backend -n l1-copilot --timeout=180s
 ```
 
-Puntos del manifiesto ([`k8s/backend.yaml`](../../k8s/backend.yaml)):
+Puntos clave del values
+([`infra/values-l1-copilot-backend.yaml`](../../infra/values-l1-copilot-backend.yaml)):
 
-- **`replicas: 1` y `strategy: Recreate`** — obligatorio mientras el estado conversacional sea `MemorySaver` en memoria (D-6): un rolling update con 2 pods simultáneos repartiría turnos de una conversación entre pods distintos.
-- **Probes sobre Actuator** (ya incluido en el proyecto): liveness `/actuator/health/liveness`, readiness `/actuator/health/readiness` con `initialDelaySeconds` generoso (Spring Boot + primera conexión a BD tardan ~20-40 s). Requiere habilitar los grupos de salud en el perfil `prod`:
-  ```yaml
-  management:
-    endpoint:
-      health:
-        probes:
-          enabled: true
-  ```
+- **`replicaCount: 1` + `strategy.type: Recreate`** — obligatorio mientras el estado
+  conversacional sea `MemorySaver` en memoria (D-8).
+- **Probes Actuator**: liveness `/actuator/health/liveness`, readiness
+  `/actuator/health/readiness` (grupos habilitados en el perfil `prod`), con
+  `initialDelaySeconds` generoso (arranque Spring + primera conexión a BD).
 - **Recursos:** requests 512Mi/250m, limits 1Gi/1000m.
-- **`imagePullPolicy: IfNotPresent`** — imprescindible con imágenes locales sin registry (con `Always` el kubelet intentaría bajarla de Docker Hub y fallaría con `ErrImagePull`).
-- **Service ClusterIP `backend:8080`** — solo el Ingress y otros pods lo ven; no se expone directamente.
+- **`pullPolicy: IfNotPresent`** — basta porque el tag es semver, no `latest`.
+- **Service ClusterIP `l1-copilot-backend:8080`** (el chart usa el nombre del release).
+- **Ingress**: el chart del backend genera el Ingress compartido con el frontend (ver
+  guía 06: `paths` para el backend, `ingressExtraPaths` para el frontend).
+- **`secretEnv`**: declara las referencias a los Secrets `gemini-api-key` y
+  `postgres-credentials`; **el chart NO crea esos Secrets**, debes crearlos antes.
 
 ## 4. Verificación
 
-```powershell
-kubectl get pods -n l1-copilot -l app=backend
-kubectl logs deploy/backend -n l1-copilot --tail=20    # "Started Application in ..."
+```bash
+kubectl logs deploy/l1-copilot-backend -n l1-copilot --tail=20    # "Started Application in ..."
 
 # Salud desde dentro del clúster
-kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- `
-  curl -s http://backend:8080/actuator/health
-# {"status":"UP", ...}
+kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- \
+  curl -s http://l1-copilot-backend:8080/actuator/health
+# {"status":"UP", ...}  (incluye db: UP contra la BD l1_copilot del Postgres compartido)
 
-# Turno de chat real (atraviesa grafo + Gemini + Postgres)
-kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- `
-  curl -s -X POST http://backend:8080/api/copilot/chat `
-       -H "Content-Type: application/json" -H "X-User-Id: u-001" `
-       -d '{\"conversationId\":\"smoke-1\",\"message\":\"Hola\"}'
+# Turno de chat real (grafo + Gemini + Postgres)
+kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- \
+  curl -s -X POST http://l1-copilot-backend:8080/api/copilot/chat \
+       -H "Content-Type: application/json" -H "X-User-Id: u-001" \
+       -d '{"conversationId":"smoke-1","message":"Hola"}'
 ```
 
-✅ **Listo cuando:** health `UP` (incluye `db: UP`) y el turno de chat devuelve una respuesta del agente.
+✅ **Listo cuando:** health `UP` (con `db: UP`) y el turno de chat devuelve respuesta
+del agente.
 
 ## Troubleshooting
 
 | Síntoma | Causa | Arreglo |
 |---|---|---|
-| `ErrImagePull` / `ImagePullBackOff` | falta la imagen local o `imagePullPolicy: Always` | reconstruir imagen; comprobar tag exacto; policy `IfNotPresent` |
-| `CrashLoopBackOff`, log "Failed to configure a DataSource" | variables de datasource no llegan | `kubectl describe pod`: revisar envFrom/secretKeyRef; ¿existe el Secret? |
-| Readiness nunca pasa | BD caída o `initialDelaySeconds` corto | `kubectl get pods -l app=postgres`; subir delay |
-| Respuestas 503 del chat | `GEMINI_API_KEY` vacía o cuota agotada | log del backend: error 4xx de generativelanguage; regenerar key |
-| `OOMKilled` | heap > limit | subir limit a 1.5Gi o bajar `-XX:MaxRAMPercentage` |
+| `ErrImagePull` / `ImagePullBackOff` | imagen no en el registry o tag distinto | `docker push localhost:30500/...` con tag exacto; `curl http://localhost:30500/v2/l1-copilot-backend/tags/list` |
+| `CrashLoopBackOff`: "Failed to configure a DataSource" | Secrets/ConfigMap no llegan | `kubectl describe pod -n l1-copilot`: ¿existen los Secrets? `kubectl get configmap l1-copilot-backend -n l1-copilot -o yaml` |
+| Readiness nunca pasa | Postgres caído, BD `l1_copilot` no creada, o credenciales mal | guía 03 §3; `kubectl logs`: ¿`database "l1_copilot" does not exist`? ejecutar `scripts/setup-l1-copilot-db.sh` |
+| Chat devuelve 503 | `GEMINI_API_KEY` vacía o cuota agotada | rotar key (guía 07) |
+| `OOMKilled` | heap > limit | subir limit o bajar `-XX:MaxRAMPercentage` |
 
-## Ciclo de actualización del backend
+## Ciclo de actualización
 
-```powershell
-docker build -f docker/backend.Dockerfile -t l1-copilot-backend:1.0.1 .   # nueva versión
-# editar k8s/backend.yaml: image: l1-copilot-backend:1.0.1
-kubectl apply -f k8s/backend.yaml
+```bash
+# Nuevo tag (no reutilizar 'latest' con IfNotPresent)
+docker build -t localhost:30500/l1-copilot-backend:1.0.1 -f docker/backend.Dockerfile ./backend
+docker push localhost:30500/l1-copilot-backend:1.0.1
+
+# Actualizar el values y reinstalar (o usar --set):
+helm upgrade --install l1-copilot-backend infra/charts/generic-app \
+  -f infra/values-l1-copilot-backend.yaml \
+  --set image.tag=1.0.1
+
+helm history l1-copilot-backend -n l1-copilot
+helm rollback l1-copilot-backend <rev> -n l1-copilot   # si hace falta
 ```
 
-> Versionar el tag (1.0.0 → 1.0.1) en vez de reutilizar `latest`: con `IfNotPresent`, un tag reutilizado **no** se recarga y se queda la imagen vieja. Es el error más común de este flujo.
+> `strategy: Recreate` implica ~30-60 s de corte y pérdida de las conversaciones en
+> memoria — avisar si hay demo en curso.

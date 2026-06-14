@@ -30,4 +30,4 @@ Documentación exhaustiva de diseño y código del **Agente de Soporte de Nivel 
 - **Backend:** Java 17, Spring Boot 3.2.x, LangChain4j (Gemini / Google AI Studio), LangGraph4j, Spring Data JPA.
 - **Base de datos:** H2 en memoria (perfil `dev`), PostgreSQL (perfil `prod`/Kubernetes).
 - **Frontend:** Angular 17+ (standalone components), interfaz de chat con usuario "logueado" simulado.
-- **Infraestructura:** ver rama `docs/infraestructura-k8s` (Kubernetes local con manifiestos completos).
+- **Infraestructura:** Rancher Desktop (k3s + Traefik), PostgreSQL compartido en namespace `infra` y registry en namespace `registry` (instalados por los scripts de [`infra/scripts/`](../../infra/scripts)); apps desplegadas con el chart Helm [`infra/charts/generic-app`](../../infra/charts/generic-app). Ver [`docs/infraestructura/`](../infraestructura/README.md).

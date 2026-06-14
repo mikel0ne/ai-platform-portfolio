@@ -13,7 +13,7 @@ El L1 Copilot **se construye encima**, en paquetes nuevos, sin romper los endpoi
 ## Árbol de paquetes objetivo
 
 ```
-src/main/java/io/github/mikel0ne/l1copilot/
+backend/src/main/java/io/github/mikel0ne/l1copilot/
 ├── Application.java
 ├── config/
 │   ├── Config.java                  # (existente) bean ChatLanguageModel Gemini
