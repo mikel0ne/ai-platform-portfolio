@@ -13,7 +13,7 @@ graph LR
 - **Frontend Angular**: SPA con interfaz de chat y un selector de "usuario logueado" simulado. No contiene lógica de negocio.
 - **Backend Spring Boot**: aloja el grafo LangGraph4j, las tools, el acceso a datos y la integración con Gemini. Es el único componente con la API key.
 - **Gemini (Google AI Studio)**: LLM usado para enrutamiento de intención, extracción de entidades y redacción de respuestas. Modelo: `gemini-2.5-flash-lite`.
-- **Base de datos**: H2 en memoria en desarrollo; PostgreSQL en Kubernetes (ver rama `docs/infraestructura-k8s`).
+- **Base de datos**: H2 en memoria en desarrollo (perfil `dev`); PostgreSQL desplegado con Helm en el namespace `infra` de Rancher Desktop en producción (ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)).
 
 ## Vista de contenedores/componentes del backend (C4 nivel 2-3)
 
@@ -99,7 +99,7 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 
 ### ADR-5: H2 en dev, PostgreSQL en despliegue
 **Decisión:** Perfil `dev` con H2 en memoria + seed automático; perfil `prod` con PostgreSQL.
-**Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL (`schema.sql`/`data.sql` en dev, mismos scripts adaptados como init de Postgres en infra).
+**Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL (`schema.sql`/`data.sql` en dev; versión Postgres en `schema-postgresql.sql`/`data-postgresql.sql` aplicada a la BD del proyecto por `scripts/setup-l1-copilot-db.sh` — ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)).
 
 ### ADR-6: Memoria conversacional en `MemorySaver`
 **Decisión:** Checkpointer en memoria del proceso.

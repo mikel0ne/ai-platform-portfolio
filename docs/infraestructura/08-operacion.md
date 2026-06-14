@@ -1,83 +1,110 @@
 # 08 — Operación del clúster
 
-Día a día una vez desplegado: observar, actualizar, recuperar y limpiar.
+Día a día una vez desplegado: observar, actualizar (Helm y app), recuperar y limpiar.
 
 ## Observabilidad
 
-```powershell
-# Estado de todo el namespace de un vistazo
+```bash
+# Estado general
 kubectl get all -n l1-copilot
+kubectl get all -n infra
+kubectl get all -n registry
+helm ls -A                                     # releases y su estado/revisión
 
 # Logs del agente en vivo (los nodos del grafo logean ---ROUTER---, ---TRACKING---, etc.)
-kubectl logs -f deploy/backend -n l1-copilot
+kubectl logs -f deploy/l1-copilot-backend -n l1-copilot
 
 # Solo errores
-kubectl logs deploy/backend -n l1-copilot --tail=500 | Select-String "ERROR"
+kubectl logs deploy/l1-copilot-backend -n l1-copilot --tail=500 | grep ERROR
 
-# Eventos del namespace ordenados (la primera parada cuando algo no arranca)
+# Eventos ordenados (primera parada cuando algo no arranca)
 kubectl get events -n l1-copilot --sort-by=.lastTimestamp
-
-# Consumo real frente a limits (requiere metrics-server; en Docker Desktop: instalarlo aparte)
-kubectl top pods -n l1-copilot
+kubectl get events -n infra --sort-by=.lastTimestamp
 ```
 
-Salud HTTP desde fuera: `http://copilot.localtest.me/actuator/health` (vía Ingress, guía 06).
+Salud HTTP desde fuera: `http://copilot.localtest.me/actuator/health` (vía Traefik,
+guía 06).
 
 ## Actualizar componentes
 
 | Qué cambió | Pasos |
 |---|---|
-| Código backend | `docker build` con **tag nuevo** → editar `image:` en `k8s/backend.yaml` → `kubectl apply` (strategy Recreate: ~30-60 s de corte, y las conversaciones en memoria se pierden — avisar en demo) |
-| Código frontend | igual con `frontend.Dockerfile` y `k8s/frontend.yaml` (rolling, sin corte) |
-| Config no sensible | editar ConfigMap → `kubectl apply` → `kubectl rollout restart deploy/backend` (los env de ConfigMap no se refrescan en caliente) |
+| Código backend | `docker build` con **tag nuevo** → push al registry → `helm upgrade --install l1-copilot-backend infra/charts/generic-app -f infra/values-l1-copilot-backend.yaml --set image.tag=<nuevo>` (Recreate: ~30-60 s de corte; las conversaciones en memoria se pierden) |
+| Código frontend | igual con `l1-copilot-frontend` y su values (rolling, sin corte) |
+| Values del chart (recursos, probes, env…) | editar `infra/values-l1-copilot-*.yaml` → `helm upgrade --install <release> infra/charts/generic-app -f <values>` |
+| Esquema de la BD del proyecto | editar `backend/src/main/resources/schema-postgresql.sql` → `bash scripts/setup-l1-copilot-db.sh` (CREATE TABLE IF NOT EXISTS; para cambios destructivos: `DROP TABLE` o `DROP DATABASE l1_copilot` y re-ejecutar) |
+| Seed de la BD del proyecto | editar `backend/src/main/resources/data-postgresql.sql` → `bash scripts/setup-l1-copilot-db.sh --reseed` |
+| Versión del chart Postgres / Registry | re-ejecutar `infra/scripts/03-setup-postgres.sh` o `02-setup-registry.sh` con la imagen nueva (editar la variable `PG_VERSION` o el tag) |
 | Secretos | guía 07 §4 (apply del secret + rollout restart) |
-| Esquema BD | con PVC persistente el initdb NO se re-ejecuta: aplicar cambios con `psql` o recrear el PVC (guía 03 §2) |
 
-## Backup y restauración de la BD de demo
+### Rollback con Helm
 
-```powershell
+```bash
+helm history l1-copilot-backend -n l1-copilot
+helm rollback l1-copilot-backend <revision> -n l1-copilot
+helm status l1-copilot-backend -n l1-copilot
+```
+
+## Backup y restauración de la BD del proyecto
+
+```bash
 # Dump
-kubectl exec postgres-0 -n l1-copilot -- pg_dump -U copilot copilot > backup.sql
+kubectl exec -n infra deploy/postgres -- pg_dump -U appuser l1_copilot > backup.sql
 
 # Restore
-Get-Content backup.sql | kubectl exec -i postgres-0 -n l1-copilot -- psql -U copilot -d copilot
+cat backup.sql | kubectl exec -i -n infra deploy/postgres -- psql -U appuser -d l1_copilot
 ```
 
 ## Parar sin perder nada / arrancar de nuevo
 
-```powershell
-# Parar (libera RAM; el PVC conserva los datos)
-kubectl scale deploy/backend deploy/frontend -n l1-copilot --replicas=0
-kubectl scale statefulset/postgres -n l1-copilot --replicas=0
+Lo más simple con Rancher Desktop: **salir de la aplicación** (la VM se detiene y
+libera toda la RAM; los PVCs persisten). Al arrancar Rancher Desktop, k3s levanta todo
+solo. Para parar selectivamente dentro del clúster:
 
-# Arrancar
-kubectl scale statefulset/postgres -n l1-copilot --replicas=1
-kubectl scale deploy/backend deploy/frontend -n l1-copilot --replicas=1
+```bash
+kubectl scale deploy/l1-copilot-backend deploy/l1-copilot-frontend -n l1-copilot --replicas=0
+kubectl scale deploy/postgres -n infra --replicas=0
+kubectl scale deploy/registry -n registry --replicas=0
+# arrancar: mismos comandos con --replicas=1 (postgres primero)
 ```
 
-## Limpieza total
+## Limpieza
 
-```powershell
-kubectl delete namespace l1-copilot          # borra todo, incluido el PVC (datos fuera)
-docker rmi l1-copilot-backend:1.0.0 l1-copilot-frontend:1.0.0
-# y si se quiere desinstalar el ingress controller:
-kubectl delete -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+```bash
+# Solo la aplicación
+helm uninstall l1-copilot-backend l1-copilot-frontend -n l1-copilot
+kubectl delete namespace l1-copilot
+
+# Solo la BD del proyecto (deja appdb y el resto intactos)
+kubectl exec -n infra deploy/postgres -- psql -U appuser -d postgres \
+  -c "DROP DATABASE l1_copilot;"
+
+# La infra compartida (¡afecta a TODOS los proyectos que la usen!)
+kubectl delete namespace infra registry
+
+# Imágenes locales
+docker rmi localhost:30500/l1-copilot-backend:1.0.0 localhost:30500/l1-copilot-frontend:1.0.0
+
+# Borrón y cuenta nueva del clúster entero (sin reinstalar Rancher Desktop)
+# Rancher Desktop → Troubleshooting → Reset Kubernetes
 ```
 
 ## Runbook de incidencias frecuentes
 
 | Alarma | Diagnóstico | Acción |
 |---|---|---|
-| Chat devuelve 503 | `kubectl logs deploy/backend \| Select-String "generativelanguage"` → ¿429/403? | cuota AI Studio agotada o key inválida: rotar key (guía 07) o esperar ventana de cuota |
-| Chat "olvida" conversaciones | `kubectl get pods -l app=backend` → ¿RESTARTS > 0? | el estado es en-memoria (D-6): reinicio = memoria limpia; investigar el motivo del reinicio (OOM, probe) |
-| Pod backend `OOMKilled` | `kubectl describe pod` → Last State: OOMKilled | subir `limits.memory` o bajar `-XX:MaxRAMPercentage` en `backend-config` |
-| Todo `Pending` | `kubectl describe pod` → "Insufficient memory/cpu" | subir recursos de Docker Desktop (Settings → Resources) |
-| `kubectl` no conecta | contexto equivocado o K8s de Docker Desktop parado | `kubectl config use-context docker-desktop`; reiniciar Docker Desktop |
+| Chat devuelve 503 | `kubectl logs deploy/l1-copilot-backend -n l1-copilot \| grep generativelanguage` → ¿429/403? | cuota AI Studio agotada o key inválida: rotar key (guía 07) |
+| Chat "olvida" conversaciones | `kubectl get pods -n l1-copilot` → ¿RESTARTS > 0? | estado en memoria (D-8): reinicio = memoria limpia; investigar el motivo (OOM, probe) |
+| Pod backend `OOMKilled` | `kubectl describe pod` → Last State: OOMKilled | subir `limits.memory` o bajar `-XX:MaxRAMPercentage` |
+| Todo `Pending` | `kubectl describe pod` → "Insufficient memory/cpu" | subir RAM/CPU de la VM (en WSL: `%USERPROFILE%\.wslconfig` + `wsl --shutdown`) |
+| Release de Helm en `failed` | `helm status <release> -n l1-copilot` | `helm rollback`; si el install inicial falló, `helm uninstall` + reinstalar |
+| `kubectl` no conecta | contexto equivocado o Rancher Desktop parado | `kubectl config use-context rancher-desktop`; arrancar Rancher Desktop |
 
 ## Mejoras "v2" (apuntadas, no implementadas)
 
-- Checkpointer persistente (Postgres) → permitir `replicas > 1` y rolling updates sin pérdida de conversaciones.
-- Migraciones con Flyway en vez de initdb ConfigMap.
-- Helm chart o Kustomize overlays (dev/prod) en lugar de YAML plano.
-- Prometheus + Grafana (Actuator ya expone métricas con `micrometer-registry-prometheus`).
-- CI: build + push de imágenes a un registry y despliegue con GitHub Actions.
+- Checkpointer persistente (Postgres) → `replicaCount > 1` y rolling updates sin
+  pérdida de conversaciones.
+- Migraciones con Flyway en vez del script `setup-l1-copilot-db.sh`.
+- Prometheus + Grafana en `infra` (otro chart genérico o releases con sus propios
+  charts; Actuator ya expone métricas).
+- CI: build + push al registry de `infra` y despliegue con GitHub Actions.

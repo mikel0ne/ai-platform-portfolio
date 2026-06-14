@@ -42,7 +42,7 @@ graph TB
 Principios de diseño (los ADR completos están en [docs/arquitectura](docs/arquitectura/README.md)):
 
 - **El LLM clasifica, el código decide.** El router produce una etiqueta estructurada;
-  las aristas condicionales son funciones Java puras ([SupportRouting](src/main/java/io/github/mikel0ne/l1copilot/agent/SupportRouting.java)) testeables sin modelo.
+  las aristas condicionales son funciones Java puras ([SupportRouting](backend/src/main/java/io/github/mikel0ne/l1copilot/agent/SupportRouting.java)) testeables sin modelo.
 - **Un turno HTTP = una invocación del grafo.** El checkpointer (`MemorySaver`) con
   `threadId` = `conversationId` restaura el estado entre turnos: así se implementan
   los ciclos de clarificación y la confirmación human-in-the-loop de las cancelaciones.
@@ -57,8 +57,23 @@ Principios de diseño (los ADR completos están en [docs/arquitectura](docs/arqu
 Requisitos: Java 17, Maven y una API key gratuita de
 [Google AI Studio](https://aistudio.google.com/app/apikey).
 
+**Opción A — IntelliJ IDEA (recomendado):** abre el repo como proyecto y usa las Run Configurations incluidas en `.run/`:
+- **Backend - Spring Boot** → arranca el servidor en `:8080`
+- **Frontend - Angular** → arranca la SPA en `:4200`
+- **Full Stack (Backend + Frontend)** → lanza ambos a la vez
+- **Backend - Tests** → ejecuta los 28 tests
+
+**Opción B — Scripts de consola:**
 ```powershell
 $env:GEMINI_API_KEY = "tu-api-key"   # NUNCA en el repo
+.\scripts\start.bat      # Windows (doble clic también funciona)
+bash scripts/start.sh    # Git Bash / WSL / Linux / Mac
+```
+
+**Opción C — Manual (terminal):**
+```powershell
+$env:GEMINI_API_KEY = "tu-api-key"
+cd backend
 mvn spring-boot:run
 ```
 
@@ -66,33 +81,58 @@ mvn spring-boot:run
 - Consola H2 (perfil `dev`, con seed de demo): http://localhost:8080/h2-console (`jdbc:h2:mem:copilot`)
 
 ```powershell
-mvn test    # 28 tests: aristas puras, tools contra H2, flujo completo del grafo con LLM fake, API
+cd backend && mvn test    # 28 tests: aristas puras, tools contra H2, flujo completo del grafo con LLM fake, API
 ```
 
 ## Estructura
 
 | Ruta | Contenido |
 |---|---|
-| `src/main/java/.../agent/` | El grafo LangGraph4j: estado, nodos, aristas, AiServices |
-| `src/main/java/.../tools/` | Herramientas Java deterministas (reglas de negocio y seguridad) |
-| `src/main/java/.../domain/` | Entidades JPA y repositorios |
-| [docs/arquitectura](docs/arquitectura/README.md) | Diseño completo: ADRs, modelo de datos, grafo, API, plan por fases |
-| [docs/infraestructura](docs/infraestructura/README.md) | Despliegue en Kubernetes local paso a paso |
-| `k8s/` + `docker/` | Manifiestos listos para `kubectl apply` y Dockerfiles multi-stage |
+| `backend/` | Proyecto Spring Boot (Java) — `pom.xml`, `src/`, `.mvn/` |
+| `backend/src/main/java/.../agent/` | El grafo LangGraph4j: estado, nodos, aristas, AiServices |
+| `backend/src/main/java/.../tools/` | Herramientas Java deterministas (reglas de negocio y seguridad) |
+| `backend/src/main/java/.../domain/` | Entidades JPA y repositorios |
+| `frontend/` | SPA Angular |
+| `scripts/` | Scripts del proyecto (arranque/parada local, `setup-l1-copilot-db.sh`) |
+| `.run/` | Run Configurations de IntelliJ IDEA (versioned, aparecen en el menú Run) |
+| `docker/` | Dockerfiles multi-stage para backend y frontend |
+| `infra/` | Infra compartida del clúster: scripts de instalación, chart Helm `generic-app` y values del proyecto |
+| `docs/arquitectura/` | Diseño completo: ADRs, modelo de datos, grafo, API, plan por fases |
+| `docs/infraestructura/` | Despliegue en Kubernetes local paso a paso |
 
 ## Despliegue en Kubernetes
 
-El repo incluye la infraestructura completa para un clúster local (Docker Desktop):
-PostgreSQL con seed por initdb, backend con probes de Actuator, Secrets para la API
-key y credenciales de BD, e Ingress. Guías paso a paso en
+Modelo sobre **Rancher Desktop (k3s) + Helm**: un **PostgreSQL compartido** en el
+namespace `infra` (una BD por proyecto) y un **registry local** en el namespace
+`registry`, ambos desplegados por los scripts de [`infra/scripts/`](infra/scripts).
+Las aplicaciones (backend y frontend) se despliegan con el chart Helm reutilizable
+[`infra/charts/generic-app`](infra/charts/generic-app) parametrizado con
+`infra/values-l1-copilot-*.yaml`. Guías paso a paso en
 [docs/infraestructura](docs/infraestructura/README.md).
 
-```powershell
-kubectl apply -f k8s/namespace.yaml
+```bash
+# 1. Infra compartida (una vez por clúster, desde WSL)
+bash infra/scripts/02-setup-registry.sh
+bash infra/scripts/03-setup-postgres.sh
+
+# 2. BD del proyecto dentro del Postgres compartido
+bash scripts/setup-l1-copilot-db.sh
+
+# 3. Namespace y Secrets de la app
+kubectl apply -f infra/namespace-l1-copilot.yaml
 kubectl create secret generic gemini-api-key -n l1-copilot --from-literal=GEMINI_API_KEY=<key>
-kubectl create secret generic postgres-credentials -n l1-copilot `
-  --from-literal=POSTGRES_USER=copilot --from-literal=POSTGRES_PASSWORD=<pwd> --from-literal=POSTGRES_DB=copilot
-kubectl apply -f k8s/
+kubectl create secret generic postgres-credentials -n l1-copilot \
+  --from-literal=POSTGRES_USER=appuser --from-literal=POSTGRES_PASSWORD=change-me
+
+# 4. Build + push de imágenes al registry
+docker build -t localhost:30500/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./backend
+docker push localhost:30500/l1-copilot-backend:1.0.0
+docker build -t localhost:30500/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile ./frontend
+docker push localhost:30500/l1-copilot-frontend:1.0.0
+
+# 5. Aplicación con el chart genérico
+helm upgrade --install l1-copilot-backend  infra/charts/generic-app -f infra/values-l1-copilot-backend.yaml
+helm upgrade --install l1-copilot-frontend infra/charts/generic-app -f infra/values-l1-copilot-frontend.yaml
 ```
 
 ## Estado y hoja de ruta

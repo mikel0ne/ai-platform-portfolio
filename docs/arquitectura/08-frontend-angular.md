@@ -125,11 +125,11 @@ npm install
 ng serve --proxy-config proxy.conf.json   # http://localhost:4200, /api → :8080
 ```
 
-Backend en paralelo: `mvn spring-boot:run` con `GEMINI_API_KEY` exportada.
+Backend en paralelo: `cd backend && mvn spring-boot:run` con `GEMINI_API_KEY` exportada.
 
 ## Build de producción
 
-`ng build` genera estáticos que sirve un **nginx** en Kubernetes (imagen y manifiestos en la rama `docs/infraestructura-k8s`). El nginx hace también de reverse-proxy de `/api` hacia el servicio del backend, de modo que la SPA usa rutas relativas y no necesita configuración por entorno.
+`ng build` genera estáticos que sirve un **nginx** en Kubernetes (imagen en `docker/frontend.Dockerfile`, configuración nginx en `docker/frontend-nginx.conf`, desplegado con el chart `infra/charts/generic-app` parametrizado por `infra/values-l1-copilot-frontend.yaml`). El enrutado `/api → backend` lo hace el Ingress de Traefik (no nginx), de modo que la SPA usa rutas relativas y no necesita configuración por entorno. Ver guía completa en [`docs/infraestructura/05-frontend.md`](../infraestructura/05-frontend.md).
 
 ## Tests (mínimos exigibles)
 

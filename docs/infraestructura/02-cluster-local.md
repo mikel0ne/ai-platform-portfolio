@@ -1,98 +1,96 @@
-# 02 — Clúster local (Docker Desktop + Kubernetes)
+# 02 — Clúster local (Rancher Desktop + k3s)
 
-**Prerrequisitos:** Windows 11, Docker Desktop instalado.
-**Resultado:** clúster funcionando con ingress-nginx y el namespace `l1-copilot`.
+**Prerrequisitos:** Windows 11 con WSL2 habilitado, bash disponible (Ubuntu en WSL).
+**Resultado:** k3s funcionando con Traefik, `kubectl` y `helm` operativos.
 
-## 1. Activar Kubernetes en Docker Desktop
+## 1. Instalar Rancher Desktop
 
-1. Docker Desktop → ⚙️ **Settings** → **Kubernetes** → marcar **Enable Kubernetes** → **Apply & Restart**.
-2. Esperar a que el icono de Kubernetes quede en verde (la primera vez descarga imágenes, varios minutos).
-3. Recursos recomendados: **Settings → Resources** → ≥ 6 GB RAM, ≥ 4 CPUs.
+Hay dos caminos. Eligen el mismo destino:
+
+```bash
+# Desde WSL — automatizado:
+bash infra/scripts/01-install-rancher-desktop.sh
+```
+
+…o manualmente desde [rancherdesktop.io](https://rancherdesktop.io/) /
+`winget install SUSE.RancherDesktop`.
+
+Primer arranque → **Preferences**:
+
+- **Container Engine:** `dockerd (moby)`. Razón: k3s usa entonces el mismo daemon que
+  el CLI `docker`; sin embargo aquí se usa **registry local** en lugar de imágenes
+  compartidas por daemon (el modelo es multi-servicio: ver guía 03).
+- **Kubernetes:** habilitado, versión estable por defecto. **Traefik: habilitado**
+  (viene marcado de serie; es el Ingress Controller del clúster).
+- **Resources** (en WSL se ajusta vía `%USERPROFILE%\.wslconfig`): 4-6 GB de RAM.
+
+Esperar a que la barra de estado muestre Kubernetes en verde.
 
 Verificación:
 
-```powershell
-kubectl config use-context docker-desktop
+```bash
+kubectl config use-context rancher-desktop
 kubectl get nodes
-# NAME             STATUS   ROLES           AGE   VERSION
-# docker-desktop   Ready    control-plane   ...   v1.3x.x
+# NAME                   STATUS   ROLES                  AGE   VERSION
+# <hostname>             Ready    control-plane,master   ...   v1.3x.x+k3s1
+
+helm version --short      # incluido con Rancher Desktop
+docker version            # CLI docker contra el dockerd de Rancher Desktop
 ```
 
-> `kubectl` viene incluido con Docker Desktop. Si no está en PATH: `winget install Kubernetes.kubectl`.
+> Si `kubectl`/`helm`/`docker` no están en el PATH, Rancher Desktop los deja en
+> `%USERPROFILE%\.rd\bin` — añadir esa carpeta al PATH (Preferences → Application →
+> PATH → Automatic).
 
-## 2. Instalar el Ingress Controller (ingress-nginx)
+## 2. Verificar Traefik
 
-```powershell
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
-kubectl wait --namespace ingress-nginx --for=condition=ready pod `
-  --selector=app.kubernetes.io/component=controller --timeout=120s
-```
+k3s despliega Traefik en `kube-system`; no hay nada que instalar:
 
-En Docker Desktop, el Service `ingress-nginx-controller` es de tipo `LoadBalancer` y queda publicado en `localhost:80/443`:
-
-```powershell
-kubectl get svc -n ingress-nginx ingress-nginx-controller
+```bash
+kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
+kubectl get svc  -n kube-system traefik
 # TYPE           EXTERNAL-IP   PORT(S)
-# LoadBalancer   localhost     80:3xxxx/TCP,443:3xxxx/TCP
+# LoadBalancer   <ip-local>    80:3xxxx/TCP,443:3xxxx/TCP
 ```
 
-> Si el puerto 80 está ocupado en tu máquina (IIS, otro nginx…), libéralo o cambia el Service a NodePort y accede por `localhost:<nodeport>`.
+Rancher Desktop publica el LoadBalancer en `localhost:80/443`:
 
-## 3. Crear el namespace
-
-`k8s/namespace.yaml` ya lo define; aplícalo:
-
-```powershell
-kubectl apply -f k8s/namespace.yaml
-kubectl config set-context --current --namespace=l1-copilot   # opcional: namespace por defecto
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost   # 404 = Traefik vivo sin reglas: OK
 ```
 
-## 4. Verificación final
+> Si el puerto 80 está ocupado en tu máquina (IIS, otro proxy…), libéralo: Traefik
+> queda inaccesible en 80 y el Ingress no responderá.
 
-```powershell
-kubectl get ns l1-copilot
-kubectl get pods -n ingress-nginx
-curl.exe -s -o NUL -w "%{http_code}" http://localhost   # 404 de nginx = ingress vivo sin reglas: OK
+## 3. Verificación final
+
+```bash
+kubectl get ns
+helm ls -A          # vacío: las releases llegan en las guías 03-05
 ```
 
-✅ **Listo cuando:** `curl http://localhost` devuelve un 404 firmado por nginx (`404 Not Found` con server nginx) — significa que el Ingress Controller atiende y aún no hay reglas.
+✅ **Listo cuando:** el nodo está `Ready` y `curl http://localhost` devuelve un 404 de
+Traefik.
 
----
+Los namespaces (`infra`, `registry`, `l1-copilot`) se crearán en las guías siguientes
+(los scripts de infra los crean con `kubectl create namespace`; el de la app se aplica
+con `kubectl apply -f infra/namespace-l1-copilot.yaml`).
 
-## Alternativa: kind (si no se quiere el K8s de Docker Desktop)
+## Comandos de supervivencia (referencia rápida)
 
-```powershell
-winget install Kubernetes.kind
-kind create cluster --name l1-copilot --config - @"
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-nodes:
-- role: control-plane
-  extraPortMappings:
-  - containerPort: 80
-    hostPort: 80
-  - containerPort: 443
-    hostPort: 443
-"@
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+```bash
+kubectl get all -n l1-copilot                  # estado de la app
+kubectl get all -n infra                       # estado del Postgres compartido
+kubectl get all -n registry                    # estado del registry
+helm ls -A                                     # releases instaladas
+kubectl describe pod <pod> -n <ns>             # eventos: por qué no arranca
+kubectl logs -f deploy/l1-copilot-backend -n l1-copilot
+kubectl rollout restart deploy/l1-copilot-backend -n l1-copilot
+wsl -d rancher-desktop                         # shell dentro de la VM/distro del clúster
 ```
 
-Diferencia importante con kind: las imágenes locales **no** son visibles automáticamente; tras cada `docker build` hay que cargarlas:
+## Nota: motor containerd en vez de moby
 
-```powershell
-kind load docker-image l1-copilot-backend:1.0.0 --name l1-copilot
-kind load docker-image l1-copilot-frontend:1.0.0 --name l1-copilot
-```
-
-El resto de guías es idéntico para ambas opciones.
-
-## Comandos kubectl de supervivencia (referencia rápida)
-
-```powershell
-kubectl get all -n l1-copilot                  # estado general
-kubectl describe pod <pod> -n l1-copilot       # eventos: por qué no arranca
-kubectl logs -f deploy/backend -n l1-copilot   # logs en vivo
-kubectl exec -it <pod> -n l1-copilot -- sh     # shell dentro del contenedor
-kubectl delete pod <pod> -n l1-copilot         # forzar recreación
-kubectl rollout restart deploy/backend -n l1-copilot  # reinicio limpio
-```
+Si prefieres `containerd` como Container Engine, los builds se hacen con
+`nerdctl --namespace k8s.io build ...` (el namespace `k8s.io` es el que ve el kubelet).
+Todo lo demás de estas guías es idéntico.
