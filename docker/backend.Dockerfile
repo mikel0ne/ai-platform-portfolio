@@ -1,6 +1,6 @@
 # Backend Spring Boot + LangGraph4j — build multi-stage.
 # Uso (desde la raíz del repo):
-#   docker build -f docker/backend.Dockerfile -t l1-copilot-backend:1.0.0 .
+#   docker build -f docker/backend.Dockerfile -t l1-copilot-backend:1.0.0 ./backend
 # Ver docs/infraestructura/04-backend.md.
 
 # ---- Stage 1: build ----
