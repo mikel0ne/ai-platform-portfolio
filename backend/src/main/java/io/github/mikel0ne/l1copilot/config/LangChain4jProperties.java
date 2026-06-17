@@ -15,7 +15,8 @@ public record LangChain4jProperties(
         String apiKey,
         String modelName,
         Duration timeout,
-        Integer maxRetries) {
+        Integer maxRetries,
+        Double temperature) {
 
     public LangChain4jProperties {
         if (modelName == null || modelName.isBlank()) {
@@ -26,6 +27,11 @@ public record LangChain4jProperties(
         }
         if (maxRetries == null) {
             maxRetries = 2;
+        }
+        // Temperatura 0 por defecto: el agente clasifica y decide acciones; queremos
+        // la MISMA salida para la misma entrada (consistencia), no creatividad.
+        if (temperature == null) {
+            temperature = 0.0;
         }
     }
 }
