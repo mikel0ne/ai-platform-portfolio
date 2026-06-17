@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.controller;
 
+import io.github.mikel0ne.l1copilot.config.TreatmentPolicy;
 import io.github.mikel0ne.l1copilot.domain.User;
 import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
 import io.github.mikel0ne.l1copilot.service.ConversationService;
@@ -33,14 +34,17 @@ class ChatControllerTest {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private TreatmentPolicy treatmentPolicy;
+
     @Test
     @DisplayName("Un turno válido devuelve la respuesta del agente")
     void validTurnReturnsAgentReply() throws Exception {
         when(userRepository.existsById("u-001")).thenReturn(true);
         when(conversationService.chat(eq("u-001"), eq("conv-1"), any()))
-                .thenReturn(new ConversationService.ChatResult("Tu pedido está en reparto", "TRACKING", true));
+                .thenReturn(new ConversationService.ChatResult("Tu pedido está en reparto", "TRACKING", true, List.of(), List.of(), null));
 
-        mockMvc.perform(post("/api/copilot/chat")
+        mockMvc.perform(post("/copilot/chat")
                         .header("X-User-Id", "u-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -56,7 +60,7 @@ class ChatControllerTest {
     @Test
     @DisplayName("Sin cabecera de sesión: 401 problem+json")
     void missingSessionHeaderIsUnauthorized() throws Exception {
-        mockMvc.perform(post("/api/copilot/chat")
+        mockMvc.perform(post("/copilot/chat")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"conversationId":"conv-1","message":"hola"}
@@ -69,7 +73,7 @@ class ChatControllerTest {
     void unknownUserIsUnauthorized() throws Exception {
         when(userRepository.existsById("u-999")).thenReturn(false);
 
-        mockMvc.perform(post("/api/copilot/chat")
+        mockMvc.perform(post("/copilot/chat")
                         .header("X-User-Id", "u-999")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -83,7 +87,7 @@ class ChatControllerTest {
     void blankMessageIsRejected() throws Exception {
         when(userRepository.existsById("u-001")).thenReturn(true);
 
-        mockMvc.perform(post("/api/copilot/chat")
+        mockMvc.perform(post("/copilot/chat")
                         .header("X-User-Id", "u-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -99,7 +103,7 @@ class ChatControllerTest {
         when(conversationService.chat(any(), any(), any()))
                 .thenThrow(new ConversationService.LlmUnavailableException(new RuntimeException("quota")));
 
-        mockMvc.perform(post("/api/copilot/chat")
+        mockMvc.perform(post("/copilot/chat")
                         .header("X-User-Id", "u-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -115,11 +119,15 @@ class ChatControllerTest {
         ana.setId("u-001");
         ana.setName("Ana García");
         ana.setEmail("ana@example.com");
+        ana.setAge(28);
         when(userRepository.findAll()).thenReturn(List.of(ana));
+        when(treatmentPolicy.isFormal(ana)).thenReturn(false);
 
-        mockMvc.perform(get("/api/copilot/users"))
+        mockMvc.perform(get("/copilot/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value("u-001"))
-                .andExpect(jsonPath("$[0].name").value("Ana García"));
+                .andExpect(jsonPath("$[0].name").value("Ana García"))
+                .andExpect(jsonPath("$[0].age").value(28))
+                .andExpect(jsonPath("$[0].formal").value(false));
     }
 }
