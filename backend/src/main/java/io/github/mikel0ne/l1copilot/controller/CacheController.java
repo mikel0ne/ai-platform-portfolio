@@ -13,7 +13,7 @@ import java.util.Map;
  */
 @Tag(name = "Caché", description = "Endpoints para gestionar la caché de respuestas")
 @RestController
-@RequestMapping("/api/cache")
+@RequestMapping("/cache")
 @RequiredArgsConstructor
 public class CacheController {
 

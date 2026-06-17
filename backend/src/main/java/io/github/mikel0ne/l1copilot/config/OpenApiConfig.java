@@ -30,8 +30,10 @@ import java.util.stream.Collectors;
 @Configuration
 public class OpenApiConfig {
 
+    // Springdoc emite paths relativos al context-path del servlet (ver
+    // application.yml: server.servlet.context-path=/api), no las URLs externas.
     private static final String ACTUATOR_PATH_PREFIX = "/actuator";
-    private static final String CACHE_PATH_PREFIX    = "/api/cache";
+    private static final String CACHE_PATH_PREFIX    = "/cache";
 
     @Bean
     public OpenApiCustomizer actuatorTagsAtBottom() {

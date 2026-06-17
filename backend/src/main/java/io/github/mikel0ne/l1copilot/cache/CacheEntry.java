@@ -5,7 +5,10 @@ import lombok.Getter;
 import java.io.Serializable;
 
 /**
- * Entrada de caché con timestamp y TTL
+ * Entrada de caché con marca temporal y TTL en segundos.
+ * <p>
+ * La comparación se hace en milisegundos para evitar truncar a segundos enteros
+ * (que dejaba "vivir" una entrada con TTL=1s casi dos segundos).
  */
 @Getter
 public class CacheEntry implements Serializable {
@@ -21,13 +24,9 @@ public class CacheEntry implements Serializable {
         this.ttlSeconds = ttlSeconds;
     }
 
-    /**
-     * Verifica si la entrada ha expirado
-     */
+    /** {@code true} si han pasado al menos {@code ttlSeconds} desde la creación. */
     public boolean isExpired() {
-        long currentTime = System.currentTimeMillis();
-        long elapsedSeconds = (currentTime - createdAt) / 1000;
-        return elapsedSeconds > ttlSeconds;
+        long elapsedMillis = System.currentTimeMillis() - createdAt;
+        return elapsedMillis >= ttlSeconds * 1000L;
     }
 }
-
