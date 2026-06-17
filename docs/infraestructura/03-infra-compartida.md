@@ -29,18 +29,22 @@ curl -s http://localhost:30500/v2/_catalog        # {"repositories":[...]}
 Uso (en builds posteriores):
 
 ```bash
-docker build -t localhost:30500/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile .
-docker push localhost:30500/l1-copilot-backend:1.0.0
+docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./backend
+docker push registry.local/l1-copilot-backend:1.0.0
 ```
 
-Los pods referencian la imagen con el mismo nombre (`localhost:30500/...`): dentro del
-nodo k3s, `localhost:30500` es el propio NodePort.
+El hostname canónico es `registry.local` (sin puerto, vía Traefik 80/443). El
+NodePort `localhost:30500` sigue disponible como fallback. Para que esto funcione,
+el script
+[`05-setup-registry-ingress.sh`](../../infra/scripts/05-setup-registry-ingress.sh)
+configura:
+- IngressRoute Traefik `web` + `websecure` (cert por defecto) → svc `registry:5000`.
+- `/etc/docker/daemon.json` y `/etc/rancher/k3s/registries.yaml` dentro de la WSL
+  `rancher-desktop` con `registry.local` como `insecure-registry`.
+- `/etc/hosts` (tanto en Windows vía `add-registry-host.ps1` como en la WSL).
 
-> **Opcional — URL "limpia"**: el script
-> [`05-setup-registry-ingress.sh`](../../infra/scripts/05-setup-registry-ingress.sh)
-> añade un entrypoint TCP en Traefik y expone el registry también en
-> `localhost:15000` (y opcionalmente `registry.local:15000` tras ejecutar
-> `add-registry-host.ps1` como Administrador).
+Detalles completos y aviso de persistencia ante reset de Rancher: ver
+[`infra/INFRA.md`](../../infra/INFRA.md#4-registry-local).
 
 ## 2. PostgreSQL compartido
 

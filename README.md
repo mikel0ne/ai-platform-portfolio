@@ -58,8 +58,8 @@ Requisitos: Java 17, Maven y una API key gratuita de
 [Google AI Studio](https://aistudio.google.com/app/apikey).
 
 **Opción A — IntelliJ IDEA (recomendado):** abre el repo como proyecto y usa las Run Configurations incluidas en `.run/`:
-- **Backend - Spring Boot** → arranca el servidor en `:8080`
-- **Frontend - Angular** → arranca la SPA en `:4200`
+- **Backend - Spring Boot** → arranca el servidor en `:8079`
+- **Frontend - Angular** → arranca la SPA en `:4199`
 - **Full Stack (Backend + Frontend)** → lanza ambos a la vez
 - **Backend - Tests** → ejecuta los 28 tests
 
@@ -77,8 +77,8 @@ cd backend
 mvn spring-boot:run
 ```
 
-- Swagger UI: http://localhost:8080/swagger-ui/index.html — probar `POST /api/copilot/chat` con cabecera `X-User-Id: u-001`
-- Consola H2 (perfil `dev`, con seed de demo): http://localhost:8080/h2-console (`jdbc:h2:mem:copilot`)
+- Swagger UI: http://localhost:8079/swagger-ui/index.html — probar `POST /api/copilot/chat` con cabecera `X-User-Id: u-001`
+- Consola H2 (perfil `dev`, con seed de demo): http://localhost:8079/h2-console (`jdbc:h2:mem:copilot`)
 
 ```powershell
 cd backend && mvn test    # 28 tests: aristas puras, tools contra H2, flujo completo del grafo con LLM fake, API
@@ -109,6 +109,9 @@ Las aplicaciones (backend y frontend) se despliegan con el chart Helm reutilizab
 [`infra/charts/generic-app`](infra/charts/generic-app) parametrizado con
 `infra/values-l1-copilot-*.yaml`. Guías paso a paso en
 [docs/infraestructura](docs/infraestructura/README.md).
+
+El backend local/dev usa `gemini-2.5-flash-lite`; el despliegue en Kubernetes
+usa `gemini-2.5-flash` para separar cuotas.
 
 ```bash
 # 1. Infra compartida (una vez por clúster, desde WSL)

@@ -27,8 +27,8 @@ El `frontend-nginx.conf` hace dos cosas y solo dos:
 Build y push:
 
 ```bash
-docker build -t localhost:30500/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile ./frontend
-docker push localhost:30500/l1-copilot-frontend:1.0.0
+docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile ./frontend
+docker push registry.local/l1-copilot-frontend:1.0.0
 ```
 
 ## 2. Desplegar con el chart `generic-app`
@@ -48,8 +48,8 @@ Puntos clave del values
 - Probes HTTP a `/` (nginx responde el index).
 - Recursos mínimos: requests 16Mi/10m, limits 64Mi/100m.
 - Service ClusterIP `l1-copilot-frontend:80`.
-- **`ingress.enabled: false`** — el Ingress lo monta el chart del backend
-  (`ingressExtraPaths` apunta a este Service). Ver guía 06.
+- **`ingress.enabled: false`** — el Ingress lo aplica el script
+  `infra/scripts/06-setup-app-ingress.sh` directamente con `kubectl`. Ver guía 06.
 - `runAsNonRoot: false` porque la imagen `nginx:alpine` corre como root; si quieres
   estricto, construir sobre `nginxinc/nginx-unprivileged` (puerto 8080) y ajustar
   `container.port`.

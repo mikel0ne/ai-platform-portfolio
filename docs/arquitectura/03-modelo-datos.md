@@ -12,6 +12,8 @@ erDiagram
         varchar id PK "u-001"
         varchar name
         varchar email
+        int age "decide tú/usted"
+        varchar avatar_url
     }
     ORDERS {
         bigint id PK
@@ -128,7 +130,7 @@ public class Ticket {
 }
 ```
 
-`User` es análoga (`id`, `name`, `email`). Convención: **no usar Lombok `@Data` en entidades** (equals/hashCode peligrosos en JPA); usar `@Getter/@Setter`.
+`User` es análoga (`id`, `name`, `email`, `age`, `avatarUrl`). La `age` decide el **tratamiento** (tú/usted) con el que el asistente se dirige al usuario (ver [04-grafo-langgraph.md](04-grafo-langgraph.md), sección de registro). Convención: **no usar Lombok `@Data` en entidades** (equals/hashCode peligrosos en JPA); usar `@Getter/@Setter`.
 
 ## Repositorios
 
@@ -166,9 +168,11 @@ public record TicketCreated(Long ticketId, String subject, String status) {}
 
 ```sql
 CREATE TABLE IF NOT EXISTS users (
-    id    VARCHAR(20)  PRIMARY KEY,
-    name  VARCHAR(100) NOT NULL,
-    email VARCHAR(150) NOT NULL
+    id         VARCHAR(20)  PRIMARY KEY,
+    name       VARCHAR(100) NOT NULL,
+    email      VARCHAR(150) NOT NULL,
+    age        INTEGER      NOT NULL,  -- decide el tratamiento tú/usted del asistente
+    avatar_url VARCHAR(500)
 );
 
 CREATE TABLE IF NOT EXISTS orders (
@@ -195,9 +199,10 @@ CREATE TABLE IF NOT EXISTS tickets (
 ### `data.sql` (seed pensado para los escenarios de demo)
 
 ```sql
-INSERT INTO users (id, name, email) VALUES
-  ('u-001', 'Ana García',   'ana@example.com'),
-  ('u-002', 'Luis Pérez',   'luis@example.com');
+-- Ana (28) → tuteo simpático; Luis (70) → trato de usted, amable.
+INSERT INTO users (id, name, email, age, avatar_url) VALUES
+  ('u-001', 'Ana García',   'ana@example.com', 28, '/assets/avatars/ana.jpg'),
+  ('u-002', 'Luis Pérez',   'luis@example.com', 70, '/assets/avatars/luis.jpg');
 
 -- u-001: el escenario de referencia (dos pedidos recientes, uno en reparto)
 INSERT INTO orders (id, user_id, description, status, order_date, estimated_delivery, tracking_carrier) VALUES
