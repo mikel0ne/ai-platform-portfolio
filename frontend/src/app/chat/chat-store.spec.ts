@@ -74,6 +74,52 @@ describe('ChatStore', () => {
     expect(store.messages()[1].text).toContain('no puedo atenderte');
   });
 
+  it('send() con displayText muestra la etiqueta pero envía el payload del botón', () => {
+    store.send('action:confirm-cancel:123', 'Sí, cancelar el pedido');
+
+    expect(store.messages()[0]).toEqual(jasmine.objectContaining({
+      from: 'user',
+      text: 'Sí, cancelar el pedido',
+    }));
+
+    const req = httpMock.expectOne('/api/copilot/chat');
+    expect(req.request.body.message).toBe('action:confirm-cancel:123');
+    req.flush({
+      conversationId: store.conversationId,
+      reply: 'Pedido cancelado.',
+      intent: 'CANCEL',
+      resolved: true,
+    } as ChatResponse);
+  });
+
+  it('send() retira los botones de confirmación pendientes de mensajes anteriores', () => {
+    store.send('cancela el 123');
+    httpMock.expectOne('/api/copilot/chat').flush({
+      conversationId: store.conversationId,
+      reply: '¿Confirmas?',
+      intent: 'CANCEL',
+      resolved: false,
+      confirm: {
+        orderId: 123,
+        title: '¿Confirmas la cancelación del pedido #123?',
+        warning: 'Esta acción no se puede deshacer.',
+        confirmLabel: 'Sí, cancelar el pedido',
+        confirmPayload: 'action:confirm-cancel:123',
+        cancelLabel: 'No, conservarlo',
+        cancelPayload: 'action:abort-cancel:123',
+      },
+    } as ChatResponse);
+
+    expect(store.messages()[1].confirm).toBeTruthy();
+
+    store.send('action:confirm-cancel:123', 'Sí, cancelar el pedido');
+    // El mensaje del agente que traía los botones ya no debe mostrarlos
+    expect(store.messages()[1].confirm).toBeFalsy();
+    httpMock.expectOne('/api/copilot/chat').flush({
+      conversationId: store.conversationId, reply: 'Hecho.', intent: 'CANCEL', resolved: true,
+    } as ChatResponse);
+  });
+
   it('send() ignora texto vacío', () => {
     store.send('   ');
     expect(store.messages().length).toBe(0);

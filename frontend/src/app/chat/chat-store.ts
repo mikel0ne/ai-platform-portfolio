@@ -10,46 +10,65 @@ export class ChatStore {
   readonly messages = signal<ChatMessage[]>([]);
   readonly sending = signal(false);
   private _conversationId = crypto.randomUUID();
+  /** true → trato de usted (amable); false → tuteo (simpático). Lo fija el saludo. */
+  private formal = false;
 
   get conversationId(): string {
     return this._conversationId;
   }
 
-  greet(name: string): void {
-    this.messages.set([{
-      from: 'agent',
-      text: `Hola ${name}, soy tu asistente. Puedo informarte de tus envíos, cancelar pedidos o abrir una incidencia.`,
-      at: new Date(),
-    }]);
+  greet(name: string, formal = false): void {
+    this.formal = formal;
+    const text = formal
+      ? `Hola ${name}, soy su asistente. Puedo informarle del estado de sus envíos, cancelar sus pedidos o abrir una incidencia.`
+      : `Hola ${name}, soy tu asistente. Puedo informarte del estado de tus envíos, cancelar tus pedidos o abrir una incidencia.`;
+    this.messages.set([{ from: 'agent', text, at: new Date() }]);
   }
 
-  send(text: string): void {
-    const trimmed = text.trim();
-    if (this.sending() || !trimmed) return;
-    this.messages.update(m => [...m, { from: 'user', text: trimmed, at: new Date() }]);
+  /**
+   * Envía un mensaje al agente. El `payload` es lo que viaja al backend; `displayText`
+   * (si se indica) es lo que se muestra en la burbuja del usuario — útil para los botones
+   * de acción, cuyo payload es un comando interno que el usuario no debería leer.
+   */
+  send(payload: string, displayText?: string): void {
+    const message = payload.trim();
+    if (this.sending() || !message) return;
+    const bubble = (displayText ?? payload).trim();
+    // Al iniciar un nuevo turno, cualquier acción de confirmación pendiente queda superada.
+    this.messages.update(m => [
+      ...m.map(msg => msg.confirm ? { ...msg, confirm: null } : msg),
+      { from: 'user', text: bubble, at: new Date() },
+    ]);
     this.sending.set(true);
 
-    this.api.send({ conversationId: this._conversationId, message: trimmed })
+    this.api.send({ conversationId: this._conversationId, message })
       .pipe(finalize(() => this.sending.set(false)))
       .subscribe({
         next: r => this.messages.update(m => [
           ...m,
-          { from: 'agent', text: r.reply, intent: r.intent, at: new Date() },
+          { from: 'agent', text: this.stripThoughts(r.reply), intent: r.intent, at: new Date(), orders: r.orders, tickets: r.tickets, confirm: r.confirm },
         ]),
         error: () => this.messages.update(m => [
           ...m,
           {
             from: 'agent',
-            text: 'Ahora mismo no puedo atenderte, inténtalo de nuevo en unos minutos.',
+            text: this.formal
+              ? 'Ahora mismo no puedo atenderle, inténtelo de nuevo en unos minutos.'
+              : 'Ahora mismo no puedo atenderte, inténtalo de nuevo en unos minutos.',
             at: new Date(),
           },
         ]),
       });
   }
 
-  newConversation(name: string): void {
+  newConversation(name: string, formal = false): void {
     this._conversationId = crypto.randomUUID();
     this.messages.set([]);
-    this.greet(name);
+    this.greet(name, formal);
+  }
+
+  /** Strips <thought>...</thought> blocks the LLM may include in its reply. */
+  private stripThoughts(text: string): string {
+    return text.replace(/\s*<thought>[\s\S]*?<\/thought>\s*/gi, '').trim();
   }
 }

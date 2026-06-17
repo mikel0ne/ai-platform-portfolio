@@ -24,16 +24,45 @@
 
 .user-card {
   width: 100%;
-  padding: 1rem 1.25rem;
+  padding: 0.85rem 1.1rem;
   border: 1px solid #d0d7de;
   background: #fff;
   border-radius: 10px;
   cursor: pointer;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.9rem;
   font-size: 1rem;
+  text-align: left;
   transition: border-color 0.15s, transform 0.05s;
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #f0f3f6;
+}
+
+.avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #57606a;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.age {
+  color: #888;
+  font-weight: 400;
 }
 
 .user-card:hover {
@@ -52,6 +81,7 @@
   color: #888;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
+  text-transform: uppercase;  /* solo presentación: el id real sigue en minúscula */
 }
 
 .error {
