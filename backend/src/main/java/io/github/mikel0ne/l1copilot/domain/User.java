@@ -28,4 +28,12 @@ public class User {
 
     @Column(nullable = false, length = 150)
     private String email;
+
+    /** Edad del usuario: decide el tratamiento (tú/usted) del asistente. */
+    @Column(nullable = false)
+    private int age;
+
+    /** Foto de perfil para el selector de "login" de la demo. */
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
 }
