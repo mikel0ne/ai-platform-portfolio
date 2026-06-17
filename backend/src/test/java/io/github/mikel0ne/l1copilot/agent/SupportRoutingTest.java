@@ -21,37 +21,104 @@ class SupportRoutingTest {
     // ---- fromRouter ----
 
     @Test
-    @DisplayName("TRACKING sin orderId va a desambiguación")
-    void trackingWithoutOrderGoesToResolve() {
-        var s = state(Map.of("intent", "TRACKING"));
-        assertThat(SupportRouting.fromRouter(s)).isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+    @DisplayName("TRACKING fresco pasa por verify (con o sin orderId)")
+    void trackingFreshGoesToVerify() {
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TRACKING"))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TRACKING", "orderId", 123L))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
     }
 
     @Test
-    @DisplayName("TRACKING con orderId va directo a tracking")
-    void trackingWithOrderGoesToTracking() {
-        var s = state(Map.of("intent", "TRACKING", "orderId", 123L));
-        assertThat(SupportRouting.fromRouter(s)).isEqualTo(SupportRouting.TO_TRACKING);
-    }
-
-    @Test
-    @DisplayName("CANCEL sin orderId va a desambiguación; con orderId a la comprobación")
-    void cancelRouting() {
-        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "CANCEL"))))
+    @DisplayName("TRACKING respondiendo a una elección de pedido NO re-verifica: va directo")
+    void trackingMidFlowSkipsVerify() {
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "TRACKING", "awaiting", "ORDER_CHOICE"))))
                 .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "TRACKING", "orderId", 123L, "awaiting", "ORDER_CHOICE"))))
+                .isEqualTo(SupportRouting.TO_TRACKING);
+    }
+
+    @Test
+    @DisplayName("CANCEL fresco pasa por verify (con o sin orderId)")
+    void cancelFreshGoesToVerify() {
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "CANCEL"))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "CANCEL", "orderId", 200L))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
+    }
+
+    @Test
+    @DisplayName("CANCEL respondiendo a una confirmación pendiente NO re-verifica: va directo")
+    void cancelMidFlowSkipsVerify() {
+        // Hay algo pendiente (CANCEL_CONFIRM): es una respuesta nuestra, no una petición fresca
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM"))))
                 .isEqualTo(SupportRouting.TO_CANCEL_CHECK);
     }
 
     @Test
-    @DisplayName("SUPPORT va al flujo de incidencias y OTHER/NONE al fallback")
-    void supportAndFallbackRouting() {
+    @DisplayName("SUPPORT fresco pasa por verify; con gate en curso va directo a support")
+    void supportRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT"))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
+        // Borrador a medias o pregunta pendiente → ya preguntamos, no se re-verifica
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "ticketDraft", "algo"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "awaiting", "TICKET_CONFIRM"))))
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+    }
+
+    @Test
+    @DisplayName("OTHER/NONE al fallback")
+    void fallbackRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "OTHER"))))
                 .isEqualTo(SupportRouting.TO_FALLBACK);
         assertThat(SupportRouting.fromRouter(state(Map.of())))
                 .isEqualTo(SupportRouting.TO_FALLBACK);
+    }
+
+    // ---- fromVerify ----
+
+    @Test
+    @DisplayName("REJECT manda a clarify, sea lectura o acción")
+    void verifyRejectGoesToClarify() {
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "SUPPORT", "verdict", "REJECT"))))
+                .isEqualTo(SupportRouting.TO_CLARIFY);
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "TRACKING", "verdict", "REJECT"))))
+                .isEqualTo(SupportRouting.TO_CLARIFY);
+    }
+
+    @Test
+    @DisplayName("DOUBT en una ACCIÓN va a clarify; en una LECTURA sigue adelante (tono tentativo)")
+    void verifyDoubtDependsOnRisk() {
+        // Acciones (costosas): DOUBT pregunta antes de tocar nada
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "SUPPORT", "verdict", "DOUBT"))))
+                .isEqualTo(SupportRouting.TO_CLARIFY);
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "CANCEL", "verdict", "DOUBT"))))
+                .isEqualTo(SupportRouting.TO_CLARIFY);
+        // Lecturas (inocuas): DOUBT sigue adelante con normalidad
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "TRACKING", "verdict", "DOUBT"))))
+                .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+        assertThat(SupportRouting.fromVerify(state(Map.of(
+                "intent", "TRACKING", "orderId", 123L, "verdict", "DOUBT"))))
+                .isEqualTo(SupportRouting.TO_TRACKING);
+    }
+
+    @Test
+    @DisplayName("SURE sigue el flujo normal de la gestión")
+    void verifySureContinuesFlow() {
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "SUPPORT", "verdict", "SURE"))))
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+        assertThat(SupportRouting.fromVerify(state(Map.of("intent", "CANCEL", "verdict", "SURE"))))
+                .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+        assertThat(SupportRouting.fromVerify(state(Map.of(
+                "intent", "CANCEL", "orderId", 200L, "verdict", "SURE"))))
+                .isEqualTo(SupportRouting.TO_CANCEL_CHECK);
+        assertThat(SupportRouting.fromVerify(state(Map.of(
+                "intent", "TRACKING", "orderId", 123L, "verdict", "SURE"))))
+                .isEqualTo(SupportRouting.TO_TRACKING);
     }
 
     @Test
@@ -59,6 +126,20 @@ class SupportRoutingTest {
     void unknownIntentDegradesToFallback() {
         var s = state(Map.of("intent", "BANANA"));
         assertThat(SupportRouting.fromRouter(s)).isEqualTo(SupportRouting.TO_FALLBACK);
+    }
+
+    @Test
+    @DisplayName("FAQ va a la skill de preguntas frecuentes")
+    void faqRouting() {
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "FAQ"))))
+                .isEqualTo(SupportRouting.TO_FAQ);
+    }
+
+    @Test
+    @DisplayName("CHATTY va al modo de charla informal")
+    void chattyRouting() {
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "CHATTY"))))
+                .isEqualTo(SupportRouting.TO_CHATTY);
     }
 
     // ---- fromResolveOrder ----
