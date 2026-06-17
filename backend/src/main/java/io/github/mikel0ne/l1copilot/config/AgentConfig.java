@@ -6,6 +6,8 @@ import io.github.mikel0ne.l1copilot.agent.SupportAgentGraph;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
 import io.github.mikel0ne.l1copilot.agent.llm.Responder;
+import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter;
+import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
 import org.bsc.langgraph4j.CompileConfig;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphRepresentation;
@@ -33,6 +35,16 @@ public class AgentConfig {
     @Bean
     public Responder responder(ChatModel chatModel) {
         return AiServices.create(Responder.class, chatModel);
+    }
+
+    @Bean
+    public TicketWriter ticketWriter(ChatModel chatModel) {
+        return AiServices.create(TicketWriter.class, chatModel);
+    }
+
+    @Bean
+    public Verifier verifier(ChatModel chatModel) {
+        return AiServices.create(Verifier.class, chatModel);
     }
 
     /**
