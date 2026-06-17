@@ -46,6 +46,6 @@ public class TicketTools {
         t.setCreatedAt(Instant.now());
         t = ticketRepository.save(t);
         log.info("Ticket {} creado para el usuario {} (pedido: {})", t.getId(), userId, orderId);
-        return new TicketCreated(t.getId(), t.getSubject(), t.getStatus().name());
+        return new TicketCreated(t.getId(), t.getSubject(), t.getStatus().name(), t.getCreatedAt());
     }
 }

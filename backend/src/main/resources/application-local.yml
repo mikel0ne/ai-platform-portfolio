@@ -33,6 +33,21 @@ spring:
       platform: postgresql    # usa schema-postgresql.sql + data-postgresql.sql
       encoding: UTF-8
 
+# Gemma tiene cuotas gratuitas mucho más generosas (~1500 req/día) que Gemini 2.5 Flash/Lite (~20).
+# Usa la misma GEMINI_API_KEY; el cliente OpenAI-compatible se selecciona automáticamente
+# en Config.java por el prefijo "gemma" del model-name.
+
+# Registro de turnos (materia prima del golden-set de evaluación).
+# Fichero + tabla: la tabla turn_log está excluida del reset del seed, así que
+# recargar la demo no la borra. (Crea la tabla re-ejecutando setup-l1-copilot-db.sh.)
+copilot:
+  turn-log:
+    file:
+      enabled: true
+      path: ./logs/turns.jsonl
+    db:
+      enabled: true
+
 management:
   endpoint:
     env:

@@ -29,13 +29,14 @@ import java.util.List;
  */
 @Tag(name = "Copilot", description = "Agente de soporte L1 autónomo (LangGraph4j)")
 @RestController
-@RequestMapping("/api/copilot")
+@RequestMapping("/copilot")
 @RequiredArgsConstructor
 @Slf4j
 public class ChatController {
 
     private final ConversationService conversationService;
     private final UserRepository userRepository;
+    private final io.github.mikel0ne.l1copilot.config.TreatmentPolicy treatmentPolicy;
 
     @Operation(summary = "Turno de conversación con el agente",
             description = "Envía un mensaje del usuario; el mismo conversationId mantiene el estado entre turnos")
@@ -45,14 +46,16 @@ public class ChatController {
         ensureKnownUser(userId);
         ConversationService.ChatResult result =
                 conversationService.chat(userId, request.conversationId(), request.message());
-        return new ChatResponse(request.conversationId(), result.reply(), result.intent(), result.resolved());
+        return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
+                result.resolved(), result.orders(), result.tickets(), result.confirm());
     }
 
     @Operation(summary = "Usuarios de demo para el login simulado del frontend")
     @GetMapping("/users")
     public List<UserDto> demoUsers() {
         return userRepository.findAll().stream()
-                .map(u -> new UserDto(u.getId(), u.getName()))
+                .map(u -> new UserDto(u.getId(), u.getName(), u.getAge(),
+                        u.getAvatarUrl(), treatmentPolicy.isFormal(u)))
                 .toList();
     }
 

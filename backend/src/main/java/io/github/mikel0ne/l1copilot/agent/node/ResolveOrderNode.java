@@ -11,7 +11,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Subflujo reutilizable de desambiguación (lo comparten TRACKING y CANCEL).
@@ -30,6 +29,16 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
     public Map<String, Object> apply(SupportState state) {
         log.debug("---RESOLVE ORDER---");
         List<OrderSummary> recent = orderTools.getRecentOrders(state.userId());
+        List<String> candidates = recent.stream()
+                .map(ResolveOrderNode::describeCandidate)
+                .toList();
+        List<Map<String, Object>> orderCards = recent.stream()
+                .map(o -> Map.<String, Object>of(
+                        "id", o.id(),
+                        "description", o.description(),
+                        "status", o.status(),
+                        "imageUrl", o.imageUrl() != null ? o.imageUrl() : ""))
+                .toList();
 
         if (recent.isEmpty()) {
             return Map.of(
@@ -41,18 +50,25 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
             log.debug("---RESOLVE ORDER--- único candidato: {}", recent.get(0).id());
             return Map.of(
                     "orderId", recent.get(0).id(),
-                    "candidates", recent,
+                    "candidates", candidates,
+                    "orderCards", orderCards,
                     "awaiting", Awaiting.NOTHING.name());
         }
 
-        String listing = recent.stream()
-                .map(o -> "#" + o.id() + " " + o.description() + " (pedido el " + o.orderDate() + ")")
-                .collect(Collectors.joining("; "));
+        String listing = String.join("; ", candidates);
         log.debug("---RESOLVE ORDER--- {} candidatos, se pide elección", recent.size());
         return Map.of(
-                "candidates", recent,
+                "candidates", candidates,
+                "orderCards", orderCards,
                 "awaiting", Awaiting.ORDER_CHOICE.name(),
                 "toolResult", "El usuario tiene varios pedidos recientes: " + listing
                         + ". Hay que preguntarle sobre cuál quiere actuar.");
+    }
+
+    private static String describeCandidate(OrderSummary order) {
+        return "#" + order.id() + " " + order.description()
+                + " (" + order.status()
+                + (order.orderDate() != null ? ", pedido el " + order.orderDate() : "")
+                + ")";
     }
 }

@@ -18,13 +18,23 @@ spring:
       encoding: UTF-8
   h2:
     console:
-      enabled: true         # http://localhost:8080/h2-console (JDBC URL: jdbc:h2:mem:copilot)
+      enabled: true         # http://localhost:8079/h2-console (JDBC URL: jdbc:h2:mem:copilot)
 
 # Actuator - Monitorización
 management:
   endpoint:
     env:
       show-values: always       # Muestra valores reales en /actuator/env (no ******)
+
+# Registro de turnos (materia prima del golden-set de evaluación).
+# Solo fichero: la BD de dev es H2 en memoria, una tabla no sobreviviría al reinicio.
+copilot:
+  turn-log:
+    file:
+      enabled: true
+      path: ./logs/turns.jsonl
+    db:
+      enabled: false
 
 # Logging
 logging:
