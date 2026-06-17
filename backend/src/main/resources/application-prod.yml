@@ -40,3 +40,21 @@ logging:
   level:
     io.github.mikel0ne.l1copilot: INFO
     dev.langchain4j: WARN
+
+# En K8s el pod es efímero: persistir la caché a disco no aporta y solo añade
+# un volumen extra. Mantenemos únicamente el mapa en memoria.
+cache:
+  file:
+    enabled: false
+
+# Registro de turnos: solo a la tabla turn_log de Postgres (persistente y
+# excluida del reset del seed). El fichero del pod es efímero, no sirve aquí.
+copilot:
+  turn-log:
+    file:
+      enabled: false
+    db:
+      enabled: true
+
+# En Kubernetes usamos Gemini 3.1 Flash Lite para separar la cuota del despliegue
+# respecto a la de desarrollo local (Gemma 4), que consume cuota independiente.

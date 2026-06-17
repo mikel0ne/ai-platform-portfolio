@@ -48,4 +48,7 @@ public class Order {
 
     @Column(name = "tracking_carrier", length = 50)
     private String trackingCarrier;
+
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 }

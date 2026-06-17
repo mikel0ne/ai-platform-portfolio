@@ -39,8 +39,16 @@ public class OrderTools {
     public List<OrderSummary> getRecentOrders(@P("ID del usuario logueado") String userId) {
         return orderRepository.findTop3ByUserIdOrderByOrderDateDesc(userId).stream()
                 .map(o -> new OrderSummary(o.getId(), o.getDescription(),
-                        o.getStatus().name(), o.getOrderDate()))
+                        o.getStatus().name(), o.getOrderDate(), o.getImageUrl()))
                 .toList();
+    }
+
+    /** Resumen de un pedido del usuario para usarlo como contexto, o vacío si no es suyo. */
+    @Transactional(readOnly = true)
+    public java.util.Optional<OrderSummary> findOrder(Long orderId, String userId) {
+        return orderRepository.findByIdAndUserId(orderId, userId)
+                .map(o -> new OrderSummary(o.getId(), o.getDescription(),
+                        o.getStatus().name(), o.getOrderDate(), o.getImageUrl()));
     }
 
     @Tool("Obtiene el estado de envío de un pedido específico del usuario")
@@ -48,7 +56,7 @@ public class OrderTools {
     public ShipmentStatus trackShipment(@P("El ID exacto del pedido") Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
         return new ShipmentStatus(o.getId(), o.getDescription(), o.getStatus().name(),
-                o.getEstimatedDelivery(), o.getTrackingCarrier());
+                o.getEstimatedDelivery(), o.getTrackingCarrier(), o.getImageUrl());
     }
 
     @Tool("Comprueba si un pedido puede cancelarse según las reglas de negocio, sin cancelarlo")

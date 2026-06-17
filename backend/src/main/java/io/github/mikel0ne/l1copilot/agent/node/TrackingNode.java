@@ -11,6 +11,7 @@ import org.bsc.langgraph4j.action.NodeAction;
 import org.bsc.langgraph4j.state.AgentState;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,9 +36,18 @@ public class TrackingNode implements NodeAction<SupportState> {
                     + s.status()
                     + (s.estimatedDelivery() != null ? ", entrega estimada el " + s.estimatedDelivery() : "")
                     + (s.carrier() != null ? ", transportista " + s.carrier() : "");
+            Map<String, Object> card = new java.util.HashMap<>();
+            card.put("id", s.orderId());
+            card.put("description", s.description());
+            card.put("status", s.status());
+            card.put("imageUrl", s.imageUrl() != null ? s.imageUrl() : "");
             return Map.of(
                     "toolResult", result,
+                    "orderCards", List.of(card),
                     "resolved", true,
+                    // El menú de desambiguación ya cumplió su función: se descarta para que el
+                    // router no pueda "reelegir" otro pedido del listado en el siguiente turno.
+                    "candidates", AgentState.MARK_FOR_REMOVAL,
                     "awaiting", Awaiting.NOTHING.name());
         } catch (OrderNotFoundException e) {
             log.debug("---TRACKING--- pedido no encontrado: {}", orderId);
@@ -45,6 +55,7 @@ public class TrackingNode implements NodeAction<SupportState> {
             return Map.of(
                     "toolResult", "No existe el pedido #" + orderId + " entre los pedidos del usuario.",
                     "orderId", AgentState.MARK_FOR_REMOVAL,
+                    "candidates", AgentState.MARK_FOR_REMOVAL,
                     "awaiting", Awaiting.NOTHING.name());
         }
     }

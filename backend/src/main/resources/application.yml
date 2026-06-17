@@ -5,9 +5,12 @@ spring:
     active: dev
 
 server:
-  port: 8080
+  port: 8079
   servlet:
-    context-path: /
+    # Todo el back vive bajo /api. Los @RequestMapping NO repiten el prefijo:
+    # el Ingress (Traefik) enruta /api/* -> este Service tal cual y el context-path
+    # lo absorbe. El frontend Angular se sirve en / desde el mismo host.
+    context-path: /api
     encoding:
       charset: UTF-8
       enabled: true
@@ -29,13 +32,27 @@ logging:
 langchain4j:
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    model-name: gemini-2.5-flash-lite
+    # gemma-*  → cliente OpenAI-compatible (generativelanguage.googleapis.com/v1beta/openai/)
+    #             cuota gratuita ~1500 req/día — ideal para desarrollo
+    # gemini-* → cliente nativo Gemini; cuota gratuita ~20-50 req/día según modelo
+    #
+    # Otros modelos disponibles (cambiar aquí para todos los perfiles):
+    #   gemma-4-27b-it        ← Gemma 4 26B  (OpenAI-compat, cuota generosa)
+    #   gemma-4-27b-it        ← Gemma 4 26B  (OpenAI-compat, cuota generosa)
+    #   gemini-3.1-flash-lite ← Gemini 3.1 Flash Lite (nativo, cuota independiente K8s)
+    model-name: gemini-3.1-flash-lite
     timeout: 30s
     max-retries: 2
 
 # Agente de soporte L1 (LangGraph4j)
 copilot:
   max-recent-orders: 3
+
+# Tratamiento del asistente: a partir de esta edad se trata de usted (amable);
+# por debajo, se tutea (simpático). Aplica a mensajes generados y hardcodeados.
+app:
+  treatment:
+    formal-age-threshold: 60
 
 # Swagger UI / OpenAPI
 springdoc:
@@ -61,8 +78,14 @@ info:
     description: "@project.description@"
     version: "@project.version@"
 
-# Configuración de caché
+# Configuración de caché de respuestas LLM
+# - enabled=false → caché completamente desactivada (memoria + disco). Actívala con true.
+# - file.enabled=true → además del mapa en memoria, persiste cada entrada en disco
+#   y la recarga al arrancar. Útil en local para no perder cuota entre reinicios.
+# - file.enabled=false → solo memoria (lo que usa el perfil prod en Kubernetes).
 cache:
+  enabled: false   # ← DESACTIVADA hasta nueva orden
   file:
+    enabled: true
     path: ./cache
   ttl-seconds: 3600  # 1 hora

@@ -2,12 +2,20 @@ package io.github.mikel0ne.l1copilot.service;
 
 import dev.langchain4j.exception.LangChain4jException;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
+import io.github.mikel0ne.l1copilot.agent.Treatment;
+import io.github.mikel0ne.l1copilot.agent.UiAction;
+import io.github.mikel0ne.l1copilot.config.TreatmentPolicy;
+import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
+import io.github.mikel0ne.l1copilot.dto.ConfirmActionDto;
+import io.github.mikel0ne.l1copilot.dto.OrderCardDto;
+import io.github.mikel0ne.l1copilot.dto.TicketCardDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -22,9 +30,16 @@ import java.util.Map;
 public class ConversationService {
 
     private final CompiledGraph<SupportState> supportAgent;
+    private final UserRepository userRepository;
+    private final TreatmentPolicy treatmentPolicy;
+    private final TurnLogger turnLogger;
 
     public ChatResult chat(String userId, String conversationId, String message) {
         log.debug("Turno de conversación {} (usuario {})", conversationId, userId);
+
+        Treatment treatment = userRepository.findById(userId)
+                .map(treatmentPolicy::treatmentFor)
+                .orElse(Treatment.TU);
 
         RunnableConfig config = RunnableConfig.builder()
                 .threadId(conversationId)
@@ -32,14 +47,20 @@ public class ConversationService {
 
         // Valores por turno: el resto del estado (intent, orderId, awaiting,
         // candidates, ticketDraft) lo restaura el checkpointer.
-        Map<String, Object> input = Map.of(
-                "userId", userId,
-                "userMessage", message,
-                "history", List.of("USER: " + message),
-                "confirmation", "NONE",
-                "toolResult", "",
-                "reply", "",
-                "resolved", false);
+        Map<String, Object> input = new HashMap<>();
+        input.put("userId", userId);
+        input.put("treatment", treatment.name());
+        input.put("userMessage", message);
+        input.put("history", List.of("USER: " + message));
+        input.put("confirmation", "NONE");
+        input.put("tentative", false);
+        input.put("toolResult", "");
+        input.put("reply", "");
+        input.put("resolved", false);
+        input.put("orderCards", List.of());
+        input.put("ticketCards", List.of());
+        // Efímero: solo lo (re)activa cancel_check en el turno que pide confirmar.
+        input.put("pendingCancelId", 0L);
 
         SupportState state;
         try {
@@ -57,7 +78,63 @@ public class ConversationService {
         }
 
         log.debug("Turno completado: intent={} resolved={}", state.intent(), state.resolved());
-        return new ChatResult(state.reply(), state.intent().name(), state.resolved());
+
+        List<OrderCardDto> orders = state.orderCards().stream()
+                .map(m -> new OrderCardDto(
+                        m.get("id") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(m.get("id"))),
+                        String.valueOf(m.get("description")),
+                        String.valueOf(m.get("status")),
+                        m.get("imageUrl") != null ? String.valueOf(m.get("imageUrl")) : null))
+                .toList();
+
+        List<TicketCardDto> tickets = state.ticketCards().stream()
+                .map(m -> new TicketCardDto(
+                        m.get("id") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(m.get("id"))),
+                        String.valueOf(m.get("code")),
+                        String.valueOf(m.get("title")),
+                        String.valueOf(m.get("status")),
+                        String.valueOf(m.get("createdAt"))))
+                .toList();
+
+        ConfirmActionDto confirm = state.pendingCancelId()
+                .map(id -> cancelConfirmation(id, state.treatment()))
+                .orElse(null);
+
+        String reply = stripThoughts(state.reply());
+
+        // Materia prima del golden-set: una línea por turno en un fichero JSONL
+        // (fuera de la BD, sobrevive a reinicios de H2 y al reset del seed).
+        turnLogger.record(new TurnLogger.TurnLog(
+                conversationId, userId, message,
+                state.intent().name(), state.awaiting().name(), state.orderId().orElse(null),
+                orders.size(), tickets.size(), state.resolved(), reply));
+
+        return new ChatResult(reply, state.intent().name(),
+                state.resolved(), orders, tickets, confirm);
+    }
+
+    /** Acción de confirmación (botones) para cancelar el pedido, con el tratamiento adecuado. */
+    private static ConfirmActionDto cancelConfirmation(long orderId, Treatment treatment) {
+        String title = treatment == Treatment.USTED
+                ? "¿Confirma la cancelación del pedido #" + orderId + "?"
+                : "¿Confirmas la cancelación del pedido #" + orderId + "?";
+        return new ConfirmActionDto(
+                orderId,
+                title,
+                "Esta acción no se puede deshacer.",
+                "Sí, cancelar el pedido", UiAction.confirmCancel(orderId),
+                "No, conservarlo", UiAction.abortCancel(orderId));
+    }
+
+    /**
+     * Elimina bloques {@code <thought>…</thought>} que algunos modelos incluyen
+     * en su respuesta antes del texto visible al usuario. El filtrado se aplica
+     * aquí, en el backend, para que ningún cliente reciba razonamientos internos
+     * independientemente del canal (REST, tests, futuros clientes).
+     */
+    private static String stripThoughts(String reply) {
+        if (reply == null) return "";
+        return reply.replaceAll("(?si)\\s*<thought>.*?</thought>\\s*", "").trim();
     }
 
     /** El grafo envuelve las excepciones de los nodos: se inspecciona la cadena de causas. */
@@ -71,7 +148,9 @@ public class ConversationService {
     }
 
     /** Resultado de un turno, listo para mapear al DTO de la API. */
-    public record ChatResult(String reply, String intent, boolean resolved) {
+    public record ChatResult(String reply, String intent, boolean resolved,
+                             List<OrderCardDto> orders, List<TicketCardDto> tickets,
+                             ConfirmActionDto confirm) {
     }
 
     /** El modelo (Gemini) no está disponible o agotó la cuota. */

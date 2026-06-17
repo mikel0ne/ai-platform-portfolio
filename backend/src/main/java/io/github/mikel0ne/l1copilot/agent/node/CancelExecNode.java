@@ -7,6 +7,7 @@ import io.github.mikel0ne.l1copilot.tools.OrderTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
+import org.bsc.langgraph4j.state.AgentState;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -33,6 +34,8 @@ public class CancelExecNode implements NodeAction<SupportState> {
         return Map.of(
                 "toolResult", result.reason(),
                 "resolved", result.cancelled(),
+                "orderId", AgentState.MARK_FOR_REMOVAL,
+                "candidates", AgentState.MARK_FOR_REMOVAL,
                 "confirmation", "NONE",
                 "awaiting", Awaiting.NOTHING.name());
     }

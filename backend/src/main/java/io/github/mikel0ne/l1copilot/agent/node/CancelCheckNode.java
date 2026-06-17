@@ -39,6 +39,7 @@ public class CancelCheckNode implements NodeAction<SupportState> {
         } catch (OrderNotFoundException e) {
             updates.put("toolResult", "No existe el pedido #" + orderId + " entre los pedidos del usuario.");
             updates.put("orderId", AgentState.MARK_FOR_REMOVAL);
+            updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
             updates.put("cancellable", false);
             updates.put("awaiting", Awaiting.NOTHING.name());
             return updates;
@@ -47,8 +48,11 @@ public class CancelCheckNode implements NodeAction<SupportState> {
         updates.put("cancellable", check.cancellable());
 
         if (!check.cancellable()) {
-            // Caso cerrado: las reglas de negocio lo impiden (lo dice Java, no el prompt)
+            // Las reglas de negocio lo impiden (lo dice Java, no el prompt). Se cierra el
+            // intento de cancelación pero NO se suelta el foco: el usuario sigue "sobre" ese
+            // pedido y puede preguntar otras cosas (alternativas, dudas) sin volver a elegirlo.
             updates.put("toolResult", check.description());
+            updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
             updates.put("awaiting", Awaiting.NOTHING.name());
             updates.put("resolved", true);
             return updates;
@@ -62,14 +66,20 @@ public class CancelCheckNode implements NodeAction<SupportState> {
             case "NO" -> {
                 updates.put("toolResult", "El usuario ha decidido NO cancelar el pedido #" + orderId
                         + ". La cancelación queda descartada.");
+                updates.put("orderId", AgentState.MARK_FOR_REMOVAL);
+                updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
                 updates.put("awaiting", Awaiting.NOTHING.name());
                 updates.put("resolved", true);
             }
             default -> {
-                // Primera vez (o respuesta ambigua): pedir confirmación explícita
+                // Primera vez (o respuesta ambigua): pedir confirmación explícita. Se emite
+                // además la acción de confirmación para que la UI muestre el botón: el clic
+                // será una autorización inequívoca, no texto libre que el modelo deba interpretar.
                 updates.put("toolResult", check.description()
-                        + ". Hay que pedir al usuario confirmación explícita (sí o no) antes de ejecutarla.");
+                        + ". Hay que pedir al usuario que confirme la cancelación con el botón "
+                        + "de confirmación (acción irreversible).");
                 updates.put("awaiting", Awaiting.CANCEL_CONFIRM.name());
+                updates.put("pendingCancelId", orderId);
             }
         }
         return updates;
