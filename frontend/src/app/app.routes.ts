@@ -11,5 +11,9 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import('./chat/chat.component').then(m => m.ChatComponent),
   },
+  {
+    path: 'tickets/:id',
+    loadComponent: () => import('./ticket/ticket-detail.component').then(m => m.TicketDetailComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

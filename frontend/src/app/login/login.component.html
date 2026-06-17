@@ -11,8 +11,16 @@
       @for (u of users(); track u.id) {
         <li>
           <button class="user-card" (click)="enter(u)">
-            <span class="name">{{ u.name }}</span>
-            <span class="id">{{ u.id }}</span>
+            @if (u.avatarUrl && !brokenAvatars.has(u.id)) {
+              <img class="avatar" [src]="u.avatarUrl" [alt]="u.name" loading="lazy"
+                   (error)="brokenAvatars.add(u.id)" />
+            } @else {
+              <span class="avatar avatar-fallback">{{ u.name.charAt(0) }}</span>
+            }
+            <span class="who">
+              <span class="name">{{ u.name }} <span class="age">({{ u.age }} años)</span></span>
+              <span class="id">{{ u.id }}</span>
+            </span>
           </button>
         </li>
       }

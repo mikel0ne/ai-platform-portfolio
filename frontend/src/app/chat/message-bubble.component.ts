@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
-import { ChatMessage } from '../core/models';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChatMessage, OrderCard, TicketCard } from '../core/models';
 
 @Component({
   selector: 'app-message-bubble',
@@ -9,6 +9,65 @@ import { ChatMessage } from '../core/models';
   template: `
     <div class="bubble" [class.user]="msg.from === 'user'" [class.agent]="msg.from === 'agent'">
       <div class="text">{{ msg.text }}</div>
+
+      @if (msg.orders && msg.orders.length > 0) {
+        <div class="order-cards">
+          @for (order of msg.orders; track order.id) {
+            <button class="order-card" (click)="selectOrder(order)">
+              <div class="card-img-wrap">
+                @if (order.imageUrl) {
+                  <img [src]="order.imageUrl" [alt]="order.description" class="card-img" loading="lazy" />
+                } @else {
+                  <div class="card-img-placeholder">📦</div>
+                }
+              </div>
+              <div class="card-body">
+                <span class="card-order-num">#{{ order.id }}</span>
+                <span class="card-desc">{{ order.description }}</span>
+                <span class="card-status" [class]="'status-' + order.status.toLowerCase()">
+                  {{ statusLabel(order.status) }}
+                </span>
+              </div>
+            </button>
+          }
+        </div>
+      }
+
+      @if (msg.tickets && msg.tickets.length > 0) {
+        <div class="ticket-cards">
+          @for (ticket of msg.tickets; track ticket.id) {
+            <a class="ticket-link" href="javascript:void(0)" (click)="openTicket(ticket)">
+              <span class="ticket-icon">🎫</span>
+              <span class="ticket-body">
+                <span class="ticket-code">[{{ ticket.code }}]</span>
+                <span class="ticket-title">{{ ticket.title }}</span>
+                <span class="ticket-status" [class]="'tstatus-' + ticket.status.toLowerCase()">
+                  {{ ticketStatusLabel(ticket.status) }}
+                </span>
+              </span>
+              <span class="ticket-open" aria-hidden="true">↗</span>
+            </a>
+          }
+        </div>
+      }
+
+      @if (msg.confirm) {
+        <div class="confirm-action">
+          <p class="confirm-title">{{ msg.confirm.title }}</p>
+          <p class="confirm-warning">⚠️ {{ msg.confirm.warning }}</p>
+          <div class="confirm-buttons">
+            <button type="button" class="btn-danger"
+                    (click)="triggerAction(msg.confirm.confirmPayload, msg.confirm.confirmLabel)">
+              {{ msg.confirm.confirmLabel }}
+            </button>
+            <button type="button" class="btn-secondary"
+                    (click)="triggerAction(msg.confirm.cancelPayload, msg.confirm.cancelLabel)">
+              {{ msg.confirm.cancelLabel }}
+            </button>
+          </div>
+        </div>
+      }
+
       <div class="meta">
         @if (msg.intent && msg.intent !== 'NONE' && msg.from === 'agent') {
           <span class="badge" [class]="'intent-' + msg.intent.toLowerCase()">{{ msg.intent }}</span>
@@ -18,8 +77,12 @@ import { ChatMessage } from '../core/models';
     </div>
   `,
   styles: [`
+    :host {
+      display: flex;
+      flex-direction: column;
+    }
     .bubble {
-      max-width: 78%;
+      max-width: 82%;
       padding: 0.6rem 0.85rem;
       border-radius: 14px;
       margin-bottom: 0.5rem;
@@ -38,6 +101,156 @@ import { ChatMessage } from '../core/models';
       border-bottom-left-radius: 4px;
     }
     .text { white-space: pre-wrap; line-height: 1.4; }
+
+    /* ── Order cards ─────────────────────────────────────────────────────── */
+    .order-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0.65rem;
+    }
+    .order-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #fff;
+      border: 1.5px solid #e1e4e8;
+      border-radius: 10px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      text-align: left;
+      width: 100%;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .order-card:hover {
+      border-color: #1f6feb;
+      box-shadow: 0 2px 8px rgba(31,111,235,0.15);
+      transform: translateY(-1px);
+    }
+    .order-card:active { transform: translateY(0); }
+
+    .card-img-wrap {
+      flex-shrink: 0;
+      width: 60px;
+      height: 48px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #f6f8fa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .card-img-placeholder { font-size: 1.6rem; }
+
+    .card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .card-order-num {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #656d76;
+      letter-spacing: 0.03em;
+    }
+    .card-desc {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1f2328;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-status {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 20px;
+      align-self: flex-start;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .status-created    { background: #e5e7eb; color: #374151; }
+    .status-paid       { background: #dbeafe; color: #1d4ed8; }
+    .status-shipped    { background: #ffedd5; color: #c2410c; }
+    .status-in_delivery { background: #ede9fe; color: #6d28d9; }
+    .status-delivered  { background: #d1fae5; color: #065f46; }
+    .status-cancelled  { background: #fee2e2; color: #b91c1c; }
+
+    /* ── Ticket link card ────────────────────────────────────────────────── */
+    .ticket-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0.65rem;
+    }
+    .ticket-link {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      background: #fff;
+      border: 1.5px solid #d8b4fe;
+      border-left: 4px solid #7c3aed;
+      border-radius: 10px;
+      padding: 0.55rem 0.75rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .ticket-link:hover {
+      box-shadow: 0 2px 8px rgba(124,58,237,0.18);
+      transform: translateY(-1px);
+    }
+    .ticket-link:active { transform: translateY(0); }
+    .ticket-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .ticket-body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1;
+    }
+    .ticket-code {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #6d28d9;
+      letter-spacing: 0.04em;
+    }
+    .ticket-title {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #1f2328;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .ticket-status {
+      display: inline-block;
+      font-size: 0.66rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 20px;
+      align-self: flex-start;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .tstatus-open        { background: #dbeafe; color: #1d4ed8; }
+    .tstatus-in_progress { background: #fef3c7; color: #b45309; }
+    .tstatus-closed      { background: #d1fae5; color: #065f46; }
+    .ticket-open {
+      font-size: 1.1rem;
+      color: #7c3aed;
+      flex-shrink: 0;
+    }
+
+    /* ── Meta row ────────────────────────────────────────────────────────── */
     .meta {
       display: flex;
       align-items: center;
@@ -55,11 +268,76 @@ import { ChatMessage } from '../core/models';
       letter-spacing: 0.02em;
     }
     .intent-tracking { background: #dbeafe; color: #1d4ed8; }
-    .intent-cancel { background: #fee2e2; color: #b91c1c; }
-    .intent-support { background: #ede9fe; color: #6d28d9; }
-    .intent-other { background: #e5e7eb; color: #374151; }
+    .intent-cancel   { background: #fee2e2; color: #b91c1c; }
+    .intent-support  { background: #ede9fe; color: #6d28d9; }
+    .intent-faq      { background: #cffafe; color: #0e7490; }
+    .intent-chatty   { background: #fce7f3; color: #be185d; }
+    .intent-other    { background: #e5e7eb; color: #374151; }
+
+    .confirm-action {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1.5px solid #fecaca;
+      border-radius: 10px;
+      background: #fef2f2;
+    }
+    .confirm-title { margin: 0 0 4px; font-weight: 600; color: #1f2328; font-size: 0.92rem; }
+    .confirm-warning { margin: 0 0 10px; color: #b91c1c; font-size: 0.82rem; }
+    .confirm-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .confirm-buttons button {
+      flex: 1 1 auto;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      border: 1.5px solid transparent;
+      transition: filter 0.15s, background 0.15s;
+    }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { filter: brightness(1.08); }
+    .btn-secondary { background: #fff; color: #374151; border-color: #d1d5db; }
+    .btn-secondary:hover { background: #f3f4f6; }
   `],
 })
 export class MessageBubbleComponent {
   @Input({ required: true }) msg!: ChatMessage;
+  @Output() orderSelected = new EventEmitter<OrderCard>();
+  @Output() actionTriggered = new EventEmitter<{ payload: string; label: string }>();
+
+  selectOrder(order: OrderCard): void {
+    this.orderSelected.emit(order);
+  }
+
+  /** Pulsación de un botón de acción: envía el comando al backend mostrando su etiqueta. */
+  triggerAction(payload: string, label: string): void {
+    this.actionTriggered.emit({ payload, label });
+  }
+
+  /** Abre el detalle del ticket en una ventana emergente. */
+  openTicket(ticket: TicketCard): void {
+    const features = 'width=520,height=680,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes';
+    window.open(`/tickets/${ticket.id}`, `ticket-${ticket.id}`, features);
+  }
+
+  ticketStatusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      OPEN:        'Abierto',
+      IN_PROGRESS: 'En curso',
+      CLOSED:      'Cerrado',
+    };
+    return labels[status] ?? status;
+  }
+
+  statusLabel(status: string): string {
+    const labels: Record<string, string> = {
+      CREATED:     'Creado',
+      PAID:        'Pagado',
+      SHIPPED:     'Enviado',
+      IN_DELIVERY: 'En reparto',
+      DELIVERED:   'Entregado',
+      CANCELLED:   'Cancelado',
+    };
+    return labels[status] ?? status;
+  }
 }

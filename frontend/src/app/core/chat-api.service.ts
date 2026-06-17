@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { ChatRequest, ChatResponse, UserDto } from './models';
+import { ChatRequest, ChatResponse, TicketDetail, UserDto } from './models';
 
 @Injectable({ providedIn: 'root' })
 export class ChatApiService {
@@ -13,5 +13,9 @@ export class ChatApiService {
 
   send(req: ChatRequest): Observable<ChatResponse> {
     return this.http.post<ChatResponse>('/api/copilot/chat', req);
+  }
+
+  ticket(id: number): Observable<TicketDetail> {
+    return this.http.get<TicketDetail>(`/api/copilot/tickets/${id}`);
   }
 }

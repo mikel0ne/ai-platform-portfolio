@@ -3,6 +3,9 @@
 # Compiled output
 /dist
 /tmp
+
+# Copiado por infra/scripts/deploy.sh antes del docker build (fuente: docker/frontend-nginx.conf)
+/nginx.conf
 /out-tsc
 /bazel-out
 

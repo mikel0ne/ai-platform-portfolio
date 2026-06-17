@@ -20,6 +20,8 @@ export class LoginComponent {
   readonly users = signal<UserDto[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+  /** Avatares cuya imagen no cargó: se cae a la inicial del nombre. */
+  readonly brokenAvatars = new Set<string>();
 
   constructor() {
     this.api.users().subscribe({

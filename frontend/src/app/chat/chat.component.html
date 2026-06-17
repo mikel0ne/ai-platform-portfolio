@@ -7,7 +7,9 @@
   <div class="scroller" #scroller>
     <div class="stream">
       @for (m of store.messages(); track $index) {
-        <app-message-bubble [msg]="m"></app-message-bubble>
+        <app-message-bubble [msg]="m"
+                            (orderSelected)="selectOrder($event)"
+                            (actionTriggered)="triggerAction($event)"></app-message-bubble>
       }
       @if (store.sending()) {
         <app-typing-indicator></app-typing-indicator>
@@ -20,7 +22,7 @@
       type="text"
       name="message"
       [(ngModel)]="draft"
-      placeholder="Escribe tu mensaje…"
+      [placeholder]="placeholder"
       autocomplete="off"
       [disabled]="store.sending()"
       aria-label="Mensaje"
