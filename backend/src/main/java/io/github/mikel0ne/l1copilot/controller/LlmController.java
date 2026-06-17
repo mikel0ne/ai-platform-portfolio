@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @Tag(name = "LLM", description = "Endpoints para interactuar con el modelo de lenguaje")
 @RestController
-@RequestMapping("/api/llm")
+@RequestMapping("/llm")
 @RequiredArgsConstructor
 @Slf4j
 public class LlmController {

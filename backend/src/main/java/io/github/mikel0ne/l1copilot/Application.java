@@ -35,7 +35,7 @@ public class Application {
         log.info("  GET /actuator/metrics → Métricas de la JVM");
         log.info("  GET /actuator/loggers → Niveles de log");
         log.info("----------------------------------------");
-        log.info("Swagger UI: http://localhost:8080/swagger-ui/index.html");
+        log.info("Swagger UI: http://localhost:8079/swagger-ui/index.html");
         log.info("========================================");
     }
 }

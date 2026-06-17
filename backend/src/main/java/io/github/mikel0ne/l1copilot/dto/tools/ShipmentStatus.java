@@ -7,6 +7,6 @@ import java.time.LocalDate;
  * Estado de envío de un pedido concreto.
  */
 public record ShipmentStatus(Long orderId, String description, String status,
-                             LocalDate estimatedDelivery, String carrier)
+                             LocalDate estimatedDelivery, String carrier, String imageUrl)
         implements Serializable {
 }

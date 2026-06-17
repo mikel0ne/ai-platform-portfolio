@@ -80,6 +80,13 @@
             <artifactId>langchain4j-google-ai-gemini</artifactId>
         </dependency>
 
+        <!-- LangChain4j OpenAI-compatible client — necesario para modelos Gemma,
+             que Google AI Studio expone bajo el endpoint compatible con OpenAI -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+
         <!-- LangGraph4j: grafo de estado del agente (ciclos, checkpointing) -->
         <dependency>
             <groupId>org.bsc.langgraph4j</groupId>
