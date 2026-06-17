@@ -18,8 +18,8 @@ RUN mvn -B package -DskipTests
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-RUN addgroup -S app && adduser -S app -G app
-USER app
+RUN addgroup -S -g 1000 app && adduser -S -u 1000 -G app app
+USER 1000
 
 COPY --from=build /workspace/target/*.jar app.jar
 
