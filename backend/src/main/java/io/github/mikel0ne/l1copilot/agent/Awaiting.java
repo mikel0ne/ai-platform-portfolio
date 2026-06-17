@@ -13,7 +13,10 @@ public enum Awaiting {
     ORDER_CHOICE,
     /** Se pidió confirmación explícita (sí/no) antes de cancelar. */
     CANCEL_CONFIRM,
-    /** Se pidió la descripción del problema para abrir un ticket. */
+    /** Se propuso abrir una incidencia y se espera que el usuario confirme que la
+     *  quiere y describa con detalle qué ha ocurrido (gate previo a crear el ticket). */
+    TICKET_CONFIRM,
+    /** Se pidió ampliar la descripción del problema para abrir un ticket. */
     TICKET_INFO;
 
     public static Awaiting fromState(String raw) {
