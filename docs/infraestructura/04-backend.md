@@ -4,7 +4,8 @@
 backend con perfil `prod` (Fases 0-4 ✅).
 **Resultado:** backend desplegado en `l1-copilot` con el chart `generic-app`, conectado
 al Postgres compartido y a Gemini, expuesto internamente como
-`l1-copilot-backend:8080` y públicamente vía el Ingress de la guía 06.
+`l1-copilot-backend-generic-app:8080` y públicamente vía el Ingress de la guía 06
+en `http://l1-copilot.local/api/...` (incluyendo el actuator).
 
 ## 1. Imagen
 
@@ -12,8 +13,8 @@ al Postgres compartido y a Gemini, expuesto internamente como
 caché de dependencias → JRE 17 alpine, usuario no-root).
 
 ```bash
-docker build -t localhost:30500/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./backend
-docker push localhost:30500/l1-copilot-backend:1.0.0
+docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./backend
+docker push registry.local/l1-copilot-backend:1.0.0
 ```
 
 > **Por qué push al registry y no `IfNotPresent` directo:** el modelo es multi-servicio
@@ -32,6 +33,7 @@ El contenedor es el mismo para cualquier entorno; todo lo variable entra por ent
 | `SPRING_DATASOURCE_URL` | ConfigMap | `jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot` |
 | `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | Secret `postgres-credentials` (ns `l1-copilot`) | `appuser` / `change-me` |
 | `GEMINI_API_KEY` | Secret `gemini-api-key` | — |
+| `langchain4j.gemini.model-name` | `application-prod.yml` | `gemini-2.5-flash` |
 | `JAVA_TOOL_OPTIONS` | ConfigMap | `-XX:MaxRAMPercentage=75` |
 
 Crear los Secrets (una vez; key gratuita de Gemini en
@@ -65,30 +67,37 @@ Puntos clave del values
 
 - **`replicaCount: 1` + `strategy.type: Recreate`** — obligatorio mientras el estado
   conversacional sea `MemorySaver` en memoria (D-8).
-- **Probes Actuator**: liveness `/actuator/health/liveness`, readiness
-  `/actuator/health/readiness` (grupos habilitados en el perfil `prod`), con
+- **Context-path `/api`**: `server.servlet.context-path: /api` en `application.yml`.
+  Todos los controllers usan rutas relativas (`@RequestMapping("/cache")`, `/copilot`,
+  `/llm`); el contexto añade `/api` automáticamente. El actuator queda en
+  `/api/actuator/*`. Ventaja: ni el Ingress ni el frontend necesitan reescribir paths.
+- **Probes Actuator**: liveness `/api/actuator/health/liveness`, readiness
+  `/api/actuator/health/readiness` (grupos habilitados en el perfil `prod`), con
   `initialDelaySeconds` generoso (arranque Spring + primera conexión a BD).
 - **Recursos:** requests 512Mi/250m, limits 1Gi/1000m.
 - **`pullPolicy: IfNotPresent`** — basta porque el tag es semver, no `latest`.
-- **Service ClusterIP `l1-copilot-backend:8080`** (el chart usa el nombre del release).
-- **Ingress**: el chart del backend genera el Ingress compartido con el frontend (ver
-  guía 06: `paths` para el backend, `ingressExtraPaths` para el frontend).
+- **Service ClusterIP `l1-copilot-backend-generic-app:8080`** (el chart Helm
+  `generic-app` nombra los Services como `<release>-generic-app`).
+- **Ingress**: `ingress.enabled: false` en el values — el Ingress lo aplica el script
+  `infra/scripts/06-setup-app-ingress.sh` directamente con `kubectl` (ver guía 06).
 - **`secretEnv`**: declara las referencias a los Secrets `gemini-api-key` y
   `postgres-credentials`; **el chart NO crea esos Secrets**, debes crearlos antes.
+- **Modelo Gemini**: `application.yml` deja `gemini-2.5-flash-lite` como base para
+  local/dev; `application-prod.yml` lo sobrescribe a `gemini-2.5-flash` en K8s.
 
 ## 4. Verificación
 
 ```bash
 kubectl logs deploy/l1-copilot-backend -n l1-copilot --tail=20    # "Started Application in ..."
 
-# Salud desde dentro del clúster
+# Salud desde dentro del clúster (recuerda el /api del context-path)
 kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- \
-  curl -s http://l1-copilot-backend:8080/actuator/health
+  curl -s http://l1-copilot-backend-generic-app:8080/api/actuator/health
 # {"status":"UP", ...}  (incluye db: UP contra la BD l1_copilot del Postgres compartido)
 
 # Turno de chat real (grafo + Gemini + Postgres)
 kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- \
-  curl -s -X POST http://l1-copilot-backend:8080/api/copilot/chat \
+  curl -s -X POST http://l1-copilot-backend-generic-app:8080/api/copilot/chat \
        -H "Content-Type: application/json" -H "X-User-Id: u-001" \
        -d '{"conversationId":"smoke-1","message":"Hola"}'
 ```
@@ -110,8 +119,8 @@ del agente.
 
 ```bash
 # Nuevo tag (no reutilizar 'latest' con IfNotPresent)
-docker build -t localhost:30500/l1-copilot-backend:1.0.1 -f docker/backend.Dockerfile ./backend
-docker push localhost:30500/l1-copilot-backend:1.0.1
+docker build -t registry.local/l1-copilot-backend:1.0.1 -f docker/backend.Dockerfile ./backend
+docker push registry.local/l1-copilot-backend:1.0.1
 
 # Actualizar el values y reinstalar (o usar --set):
 helm upgrade --install l1-copilot-backend infra/charts/generic-app \

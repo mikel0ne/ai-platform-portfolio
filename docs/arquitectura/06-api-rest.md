@@ -70,8 +70,10 @@ Validación con `jakarta.validation` (`spring-boot-starter-validation`): mensaje
 ## Controlador
 
 ```java
+// El backend monta TODO bajo /api vía server.servlet.context-path en application.yml.
+// Los controllers usan rutas relativas (sin /api), el contexto lo absorbe.
 @RestController
-@RequestMapping("/api/copilot")
+@RequestMapping("/copilot")
 @RequiredArgsConstructor
 @Tag(name = "Copilot", description = "Agente de soporte L1")
 public class ChatController {
