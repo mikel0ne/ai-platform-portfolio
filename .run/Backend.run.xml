@@ -1,5 +1,16 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Backend" type="Application" factoryName="Application">
+    <extension name="net.ashald.envfile">
+      <option name="IS_ENABLED" value="true" />
+      <option name="IS_SUBST_NON_DEFINED_VARS_AS_EMPTY" value="false" />
+      <ENTRIES>
+        <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
+        <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
+               PATH="$PROJECT_DIR$/infra/.env.l1-copilot" />
+        <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
+               PATH="$PROJECT_DIR$/infra/.env.l1-copilot.local" />
+      </ENTRIES>
+    </extension>
     <envs>
       <env name="SPRING_PROFILES_ACTIVE" value="dev" />
     </envs>

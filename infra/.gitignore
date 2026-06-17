@@ -2,6 +2,9 @@
 .env
 .env.*
 !.env.example
+# Excepciones: ficheros compartidos sin credenciales sensibles (la API key de
+# Gemini va en .env.l1-copilot.local, gitignored por el patrón .env.*).
+!.env.l1-copilot
 
 # Helm
 charts/*/charts/

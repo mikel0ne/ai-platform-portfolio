@@ -1,30 +1,41 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 05-setup-registry-ingress.sh
-# Configura acceso externo al registry con URL limpia desde el host.
+# Configura acceso al registry local como `registry.local` (sin puerto).
 #
 # Resultado tras ejecutarlo:
-#   localhost:30500       -- INMEDIATO (NodePort existente)
-#   localhost:15000       -- via Traefik TCP entrypoint
-#   registry.local:15000  -- tras ejecutar add-registry-host.ps1 como Administrador
+#   http://registry.local           -- Traefik entrypoint web (80)
+#   https://registry.local          -- Traefik entrypoint websecure (443, cert por defecto)
+#   localhost:30500                 -- NodePort directo (fallback)
 #
 # Como funciona:
-#   Traefik (LoadBalancer en k3s/Rancher Desktop) expone el entrypoint TCP
-#   registry en localhost:15000 a traves del Klipper LB de k3s.
-#   El IngressRouteTCP enruta ese trafico al servicio registry en namespace registry.
+#   - IngressRoute Traefik con Host(registry.local) -> svc registry:5000.
+#   - Docker daemon (moby de Rancher Desktop) confia en registry.local como
+#     insecure-registry, asi acepta el cert auto-firmado por defecto de Traefik.
+#   - k3s containerd usa /etc/rancher/k3s/registries.yaml para hacer lo mismo.
+#   - /etc/hosts dentro de la WSL rancher-desktop apunta 127.0.0.1 registry.local
+#     (para que containerd resuelva el host).
+#   - El hosts file de Windows se actualiza con scripts/add-registry-host.ps1.
 #
-# Requiere: script 02-setup-registry.sh ejecutado previamente
+# Requiere:
+#   - 02-setup-registry.sh ejecutado previamente
+#   - wsl.exe disponible (Windows host) para tocar la WSL rancher-desktop
 # =============================================================================
 
 set -euo pipefail
 
 NS="registry"
-REGISTRY_PORT="15000"
 
 step()  { echo -e "\n==> $*"; }
 ok()    { echo "    [ok] $*"; }
 warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
+
+# Detecta si tenemos wsl.exe (estamos en Git Bash sobre Windows o en WSL).
+# El script asume que el host es Windows con Rancher Desktop; los `wsl` posteriores
+# usan la distro `rancher-desktop`.
+have_wsl() { command -v wsl.exe >/dev/null 2>&1 || command -v wsl >/dev/null 2>&1; }
+WSL_BIN="$(command -v wsl.exe || command -v wsl)"
 
 # =========================================================================
 # 0. Requisitos
@@ -33,143 +44,108 @@ step "Verificando requisitos..."
 kubectl cluster-info &>/dev/null || fail "k3s no responde."
 kubectl get svc registry -n "$NS" &>/dev/null || \
   fail "Servicio registry no encontrado en namespace '$NS'. Ejecuta primero 02-setup-registry.sh"
+have_wsl || fail "No encuentro wsl(.exe) -- este script asume Windows + Rancher Desktop"
 ok "Prerrequisitos OK"
 
 # =========================================================================
-# 1. HelmChartConfig -- entrypoint TCP registry en Traefik puerto 15000
+# 1. IngressRoute Traefik en `web` + `websecure` con TLS por defecto
 # =========================================================================
-step "Anadiendo entrypoint TCP registry (${REGISTRY_PORT}) a Traefik..."
-kubectl apply -f - <<EOF
-apiVersion: helm.cattle.io/v1
-kind: HelmChartConfig
-metadata:
-  name: traefik
-  namespace: kube-system
-spec:
-  valuesContent: |-
-    ports:
-      postgres:
-        port: 5432
-        expose:
-          default: true
-        exposedPort: 5432
-        protocol: TCP
-      registry:
-        port: ${REGISTRY_PORT}
-        expose:
-          default: true
-        exposedPort: ${REGISTRY_PORT}
-        protocol: TCP
-EOF
-ok "HelmChartConfig aplicado"
-
-# =========================================================================
-# 2. Esperar a que Traefik se reinicie con el nuevo entrypoint
-# =========================================================================
-step "Esperando a que Traefik aplique la nueva configuracion (max. 90 s)..."
-kubectl rollout status deployment/traefik -n kube-system --timeout=90s
-ok "Traefik listo"
-
-# =========================================================================
-# 3. IngressRouteTCP
-# =========================================================================
-step "Creando IngressRouteTCP registry..."
-kubectl apply -f - <<'EOF'
+step "Aplicando IngressRoute registry.local (web + websecure)..."
+kubectl apply -n "$NS" -f - <<EOF
 apiVersion: traefik.io/v1alpha1
-kind: IngressRouteTCP
+kind: IngressRoute
 metadata:
   name: registry
-  namespace: registry
+  namespace: ${NS}
 spec:
   entryPoints:
-    - registry
+    - web
+    - websecure
   routes:
-    - match: HostSNI(*)
+    - kind: Rule
+      match: Host(\`registry.local\`)
       services:
         - name: registry
           port: 5000
+  tls: {}
 EOF
-ok "IngressRouteTCP creado"
+ok "IngressRoute aplicado"
 
 # =========================================================================
-# 4. Verificar que el puerto 15000 esta expuesto en localhost
+# 2. /etc/hosts dentro de la WSL rancher-desktop (para que containerd resuelva)
 # =========================================================================
-step "Verificando que localhost:${REGISTRY_PORT} es accesible..."
-sleep 5
-if command -v nc &>/dev/null; then
-  if nc -z 127.0.0.1 "${REGISTRY_PORT}" 2>/dev/null; then
-    ok "Puerto ${REGISTRY_PORT} accesible en 127.0.0.1"
-  else
-    warn "Puerto ${REGISTRY_PORT} aun no responde. Espera unos segundos y vuelve a probar."
-  fi
-fi
+step "Anadiendo registry.local al hosts de la WSL rancher-desktop..."
+"${WSL_BIN}" -d rancher-desktop -e sh -c '
+  grep -q "registry.local" /etc/hosts || echo "127.0.0.1 registry.local" >> /etc/hosts
+'
+ok "Hosts WSL listo"
 
 # =========================================================================
-# 5. Prueba de conexion HTTP con el registry
+# 3. /etc/docker/daemon.json: insecure-registries
 # =========================================================================
-step "Probando endpoint /v2/ del registry..."
-sleep 3
-if curl -sf "http://localhost:${REGISTRY_PORT}/v2/" &>/dev/null; then
-  ok "Registry responde en http://localhost:${REGISTRY_PORT}/v2/"
+step "Marcando registry.local como insecure-registry en el daemon de Docker..."
+"${WSL_BIN}" -d rancher-desktop -e sh -c '
+cat > /etc/docker/daemon.json <<JSON
+{
+  "min-api-version": "1.41",
+  "seccomp-profile": "/etc/rancher-desktop/seccomp.json",
+  "features": {
+    "containerd-snapshotter": true
+  },
+  "insecure-registries": ["registry.local"]
+}
+JSON
+pkill -HUP dockerd 2>/dev/null || true
+'
+ok "daemon.json escrito + HUP enviado a dockerd"
+
+# =========================================================================
+# 4. /etc/rancher/k3s/registries.yaml: mirror insecure
+# =========================================================================
+step "Configurando k3s containerd para registry.local..."
+"${WSL_BIN}" -d rancher-desktop -e sh -c '
+mkdir -p /etc/rancher/k3s
+cat > /etc/rancher/k3s/registries.yaml <<YAML
+mirrors:
+  registry.local:
+    endpoint:
+      - "http://registry.local"
+configs:
+  registry.local:
+    tls:
+      insecure_skip_verify: true
+YAML
+( rc-service k3s restart 2>&1 || /etc/init.d/k3s restart 2>&1 ) | tail -3
+'
+ok "registries.yaml escrito + k3s reiniciado"
+
+# =========================================================================
+# 5. Verificacion
+# =========================================================================
+step "Verificando registry.local..."
+sleep 4
+http_status=$(curl -sk -o /dev/null -w "%{http_code}" https://registry.local/v2/ || echo "000")
+if [ "${http_status}" = "200" ]; then
+  ok "https://registry.local/v2/ responde 200"
 else
-  warn "El registry aun no responde en el puerto ${REGISTRY_PORT}. Prueba en unos segundos:"
-  warn "  curl http://localhost:${REGISTRY_PORT}/v2/"
+  warn "https://registry.local/v2/ devolvio ${http_status} (puede tardar unos segundos)"
 fi
 
 # =========================================================================
-# 6. Actualizar daemon.json de Docker para incluir registry.local:15000
+# 6. Recordatorio del hosts de Windows
 # =========================================================================
-step "Actualizando daemon.json de Docker para registry.local:${REGISTRY_PORT}..."
-
-daemon_json="${HOME}/.docker/daemon.json"
-mkdir -p "$(dirname "$daemon_json")"
-[ ! -f "$daemon_json" ] && echo '{}' > "$daemon_json"
-
-if command -v jq &>/dev/null; then
-  for entry in "localhost:${REGISTRY_PORT}" "registry.local:${REGISTRY_PORT}"; do
-    if ! grep -q "$entry" "$daemon_json"; then
-      tmp=$(mktemp)
-      jq --arg r "$entry" \
-        '."insecure-registries" = (."insecure-registries" // [] | . + [$r] | unique)' \
-        "$daemon_json" > "$tmp" && mv "$tmp" "$daemon_json"
-      ok "Anadido a insecure-registries: $entry"
-    else
-      warn "Ya existe en insecure-registries: $entry"
-    fi
-  done
-else
-  warn "jq no disponible -- anade manualmente a daemon.json:"
-  warn '  "insecure-registries": ["localhost:'"${REGISTRY_PORT}"'", "registry.local:'"${REGISTRY_PORT}"'"]'
-fi
-
-# =========================================================================
-# 7. Instrucciones para hosts de Windows
-# =========================================================================
-step "Para usar registry.local en lugar de localhost (solo una vez como Admin):"
 echo ""
-echo "  Ejecuta como Administrador:"
-echo "    scripts\add-registry-host.ps1"
+echo "==> Para que el HOST Windows resuelva registry.local (solo una vez como Admin):"
+echo "      scripts\\add-registry-host.ps1"
+echo "    O manualmente, en una PowerShell elevada:"
+echo "      Add-Content C:\\Windows\\System32\\drivers\\etc\\hosts '127.0.0.1 registry.local'"
 echo ""
-echo "  O manualmente en PowerShell elevada:"
-echo "    Add-Content C:\Windows\System32\drivers\etc\hosts '127.0.0.1 registry.local'"
+echo "==> Prueba de extremo a extremo:"
+echo "      docker pull hello-world:latest"
+echo "      docker tag hello-world:latest registry.local/hello-world:test"
+echo "      docker push registry.local/hello-world:test"
+echo "      curl -sk https://registry.local/v2/_catalog"
 echo ""
-
-# =========================================================================
-# 8. Resumen
-# =========================================================================
-echo "============================================================"
-echo "  Registry local -- URLs de acceso"
-echo "============================================================"
-echo ""
-echo "  EXTERNA (host / dev local):"
-echo "  localhost:30500         <-- NodePort directo (sin Traefik)"
-echo "  localhost:${REGISTRY_PORT}         <-- via Traefik TCP"
-echo "  registry.local:${REGISTRY_PORT}    <-- tras ejecutar add-registry-host.ps1"
-echo ""
-echo "  Uso con Docker:"
-echo "  docker tag  mi-imagen:tag  registry.local:${REGISTRY_PORT}/mi-imagen:tag"
-echo "  docker push registry.local:${REGISTRY_PORT}/mi-imagen:tag"
-echo ""
-echo "  INTERNA (dentro de Kubernetes / pods):"
-echo "  registry.registry.svc.cluster.local:5000"
-echo "============================================================"
+warn "Persistencia: daemon.json y registries.yaml viven dentro de la WSL"
+warn "rancher-desktop y se regeneran si haces Reset Kubernetes/Factory Reset."
+warn "Tras un reset, vuelve a ejecutar este script."

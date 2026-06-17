@@ -58,8 +58,8 @@ fi
 # ── Limpiar PID file anterior ────────────────────────────────────────────────
 rm -f "$PID_FILE"
 
-# ── Backend (Spring Boot — puerto 8080) ──────────────────────────────────────
-echo -e "${GREEN}[BACK]${NC} Arrancando Spring Boot en http://localhost:8080 ..."
+# ── Backend (Spring Boot — puerto 8079) ──────────────────────────────────────
+echo -e "${GREEN}[BACK]${NC} Arrancando Spring Boot en http://localhost:8079 ..."
 (
   cd "$BACKEND_DIR"
   mvn spring-boot:run > "$ROOT_DIR/backend.log" 2>&1
@@ -68,8 +68,8 @@ BACK_PID=$!
 echo "$BACK_PID" >> "$PID_FILE"
 echo -e "  PID backend: ${CYAN}$BACK_PID${NC} — logs en backend.log"
 
-# ── Frontend (Angular — puerto 4200) ─────────────────────────────────────────
-echo -e "${GREEN}[FRONT]${NC} Arrancando Angular en http://localhost:4200 ..."
+# ── Frontend (Angular — puerto 4199) ─────────────────────────────────────────
+echo -e "${GREEN}[FRONT]${NC} Arrancando Angular en http://localhost:4199 ..."
 (
   cd "$FRONTEND_DIR"
   npm start > "$ROOT_DIR/frontend.log" 2>&1
@@ -81,7 +81,7 @@ echo -e "  PID frontend: ${CYAN}$FRONT_PID${NC} — logs en frontend.log\n"
 # ── Esperar a que el backend esté listo ──────────────────────────────────────
 echo -e "${YELLOW}[WAIT]${NC} Esperando a que el backend arranque..."
 for i in $(seq 1 60); do
-  if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+  if curl -sf http://localhost:8079/actuator/health > /dev/null 2>&1; then
     echo -e "${GREEN}[OK]${NC} Backend listo ✓"
     break
   fi
@@ -96,7 +96,7 @@ done
 # ── Esperar a que el frontend esté listo ─────────────────────────────────────
 echo -e "${YELLOW}[WAIT]${NC} Esperando a que el frontend arranque..."
 for i in $(seq 1 30); do
-  if curl -sf http://localhost:4200 > /dev/null 2>&1; then
+  if curl -sf http://localhost:4199 > /dev/null 2>&1; then
     echo -e "${GREEN}[OK]${NC} Frontend listo ✓"
     break
   fi
@@ -112,9 +112,9 @@ done
 echo ""
 echo -e "${CYAN}============================================================${NC}"
 echo -e "${GREEN}  ✓ Todo arrancado correctamente${NC}"
-echo -e "  Backend  → ${CYAN}http://localhost:8080${NC}"
-echo -e "  Swagger  → ${CYAN}http://localhost:8080/swagger-ui/index.html${NC}"
-echo -e "  Frontend → ${CYAN}http://localhost:4200${NC}"
+echo -e "  Backend  → ${CYAN}http://localhost:8079${NC}"
+echo -e "  Swagger  → ${CYAN}http://localhost:8079/swagger-ui/index.html${NC}"
+echo -e "  Frontend → ${CYAN}http://localhost:4199${NC}"
 echo -e "${CYAN}============================================================${NC}"
 echo -e "${YELLOW}  Pulsa Ctrl+C para detener ambos servicios${NC}\n"
 

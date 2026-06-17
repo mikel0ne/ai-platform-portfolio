@@ -1,16 +1,16 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Reset DB (seed)" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="./scripts/seed-l1-copilot-db.sh" />
+    <option name="SCRIPT_TEXT" value="" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
-    <option name="SCRIPT_PATH" value="" />
-    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="SCRIPT_PATH" value="$PROJECT_DIR$/infra/scripts/run-sh-gitbash.cmd" />
+    <option name="SCRIPT_OPTIONS" value="./scripts/seed-l1-copilot-db.sh" />
     <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
     <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$" />
     <option name="INDEPENDENT_INTERPRETER_PATH" value="true" />
-    <option name="INTERPRETER_PATH" value="wsl.exe" />
-    <option name="INTERPRETER_OPTIONS" value="bash -c" />
+    <option name="INTERPRETER_PATH" value="C:\Windows\System32\cmd.exe" />
+    <option name="INTERPRETER_OPTIONS" value="/c" />
     <option name="EXECUTE_IN_TERMINAL" value="true" />
-    <option name="EXECUTE_SCRIPT_FILE" value="false" />
+    <option name="EXECUTE_SCRIPT_FILE" value="true" />
     <envs />
     <method v="2" />
   </configuration>

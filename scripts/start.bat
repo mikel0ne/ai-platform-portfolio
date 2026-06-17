@@ -62,13 +62,13 @@ if defined BASH (
 echo [INFO]  Git Bash no detectado. Abriendo ventanas CMD separadas...
 echo.
 
-echo [BACK]  Arrancando Spring Boot en http://localhost:8080
+echo [BACK]  Arrancando Spring Boot en http://localhost:8079
 start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Arrancando backend... && mvn spring-boot:run"
 
 :: Pequeña pausa para que el backend arranque antes del frontend
 timeout /t 5 /nobreak > nul
 
-echo [FRONT] Arrancando Angular en http://localhost:4200
+echo [FRONT] Arrancando Angular en http://localhost:4199
 start "Frontend - Angular" cmd /k "cd /d "%FRONTEND%" && echo Arrancando frontend... && npm start"
 
 :open_browser
@@ -78,13 +78,13 @@ echo  Esperando 20 segundos antes de abrir el navegador...
 timeout /t 20 /nobreak > nul
 
 echo  Abriendo navegador...
-start "" "http://localhost:4200"
+start "" "http://localhost:4199"
 
 echo.
 echo  ============================================================
-echo   Back  : http://localhost:8080
-echo   Swagger: http://localhost:8080/swagger-ui/index.html
-echo   Front  : http://localhost:4200
+echo   Back  : http://localhost:8079
+echo   Swagger: http://localhost:8079/swagger-ui/index.html
+echo   Front  : http://localhost:4199
 echo  ============================================================
 echo.
 echo  Puedes cerrar esta ventana. Los servicios siguen corriendo

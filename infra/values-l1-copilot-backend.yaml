@@ -12,8 +12,8 @@
 #     --from-literal=POSTGRES_PASSWORD=change-me
 #
 #   # 2) Build + push de la imagen al registry local (ver infra/INFRA.md):
-#   docker build -t localhost:30500/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile .
-#   docker push localhost:30500/l1-copilot-backend:1.0.0
+#   docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile .
+#   docker push registry.local/l1-copilot-backend:1.0.0
 #
 #   # 3) Helm install:
 #   helm upgrade --install l1-copilot-backend infra/charts/generic-app \
@@ -27,7 +27,7 @@
 namespace: l1-copilot
 
 image:
-  repository: localhost:30500/l1-copilot-backend
+  repository: registry.local/l1-copilot-backend
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 
@@ -66,10 +66,12 @@ secretEnv:
     secretKey: POSTGRES_PASSWORD
 
 probes:
+  # El backend vive bajo /api (server.servlet.context-path en application.yml),
+  # asi que el actuator queda en /api/actuator/health/*.
   readiness:
     enabled: true
     httpGet:
-      path: /actuator/health/readiness
+      path: /api/actuator/health/readiness
       port: http
     initialDelaySeconds: 30
     periodSeconds: 10
@@ -77,7 +79,7 @@ probes:
   liveness:
     enabled: true
     httpGet:
-      path: /actuator/health/liveness
+      path: /api/actuator/health/liveness
       port: http
     initialDelaySeconds: 60
     periodSeconds: 15
@@ -95,22 +97,15 @@ securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
 
-# Ingress: un único host para frontend (/) y backend (/api, /actuator/health).
-# El backend "manda" el Ingress y referencia al frontend con ingressExtraPaths.
-# *.localtest.me resuelve a 127.0.0.1 públicamente — no hay que tocar el hosts.
+# Ingress: host unico l1-copilot.local, routing por path (puerto 80 estandar).
+# El Ingress lo gestiona el script 06-setup-app-ingress.sh directamente con kubectl.
+# Aqui se deja desactivado para evitar conflictos con el recurso manual.
+#
+# URLs resultantes (anadir hosts con infra/scripts/add-copilot-host.ps1):
+#   http://l1-copilot.local/          <- Angular frontend
+#   http://l1-copilot.local/api       <- REST API
+#   http://l1-copilot.local/actuator  <- Actuator
 ingress:
-  enabled: true
-  className: traefik
-  host: copilot.localtest.me
-  paths:
-    - path: /api
-      pathType: Prefix
-    - path: /actuator/health
-      pathType: Prefix
-  # Rutas del frontend dentro del mismo Ingress (Service "l1-copilot-frontend")
-  # El nombre coincide con el release name del frontend (ver values-l1-copilot-frontend.yaml).
-ingressExtraPaths:
-  - path: /
-    pathType: Prefix
-    serviceName: l1-copilot-frontend
-    servicePort: http
+  enabled: false
+
+ingressExtraPaths: []
