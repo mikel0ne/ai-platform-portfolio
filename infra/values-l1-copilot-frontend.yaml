@@ -3,8 +3,8 @@
 # Chart: infra/charts/generic-app
 # =============================================================================
 # Despliegue:
-#   docker build -t localhost:30500/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile .
-#   docker push localhost:30500/l1-copilot-frontend:1.0.0
+#   docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile .
+#   docker push registry.local/l1-copilot-frontend:1.0.0
 #
 #   helm upgrade --install l1-copilot-frontend infra/charts/generic-app \
 #     -f infra/values-l1-copilot-frontend.yaml
@@ -16,7 +16,7 @@
 namespace: l1-copilot
 
 image:
-  repository: localhost:30500/l1-copilot-frontend
+  repository: registry.local/l1-copilot-frontend
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 

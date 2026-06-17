@@ -1,6 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Full Stack (Backend + Frontend)" type="CompoundRunConfigurationType">
-    <toRun name="Backend - Spring Boot" type="MavenRunConfiguration" />
+    <toRun name="Backend" type="Application" />
+    <toRun name="Frontend - Angular" type="ShConfigurationType" />
     <method v="2" />
   </configuration>
 </component>
