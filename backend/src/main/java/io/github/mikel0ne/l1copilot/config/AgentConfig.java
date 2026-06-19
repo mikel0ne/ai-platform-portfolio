@@ -16,11 +16,18 @@ import org.bsc.langgraph4j.checkpoint.BaseCheckpointSaver;
 import org.bsc.langgraph4j.checkpoint.MemorySaver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Wiring del agente: AiServices (router y redactor), checkpointer y grafo compilado.
+ * <p>
+ * Cada AiService se conecta al modelo con la temperatura adecuada a su tarea
+ * (ver {@link Config}): router y verificador al determinista (0.0), el redactor de
+ * tickets al de tickets (0.2), el redactor de negocio al de respuesta (0.35) y el
+ * redactor de charla informal ({@code chattyResponder}) al de chat (0.7).
  */
 @Configuration
 public class AgentConfig {
@@ -32,14 +39,25 @@ public class AgentConfig {
         return AiServices.create(IntentClassifier.class, chatModel);
     }
 
+    /** Redactor de las gestiones de negocio: temperatura media para un tono natural. */
     @Bean
-    public Responder responder(ChatModel chatModel) {
-        return AiServices.create(Responder.class, chatModel);
+    @Primary
+    public Responder responder(@Qualifier("responseChatModel") ChatModel responseChatModel) {
+        return AiServices.create(Responder.class, responseChatModel);
+    }
+
+    /**
+     * Redactor de la charla informal (modo chatty): misma interfaz que {@link #responder},
+     * pero sobre el modelo de mayor temperatura para respuestas más cálidas y variadas.
+     */
+    @Bean
+    public Responder chattyResponder(@Qualifier("chatChatModel") ChatModel chatChatModel) {
+        return AiServices.create(Responder.class, chatChatModel);
     }
 
     @Bean
-    public TicketWriter ticketWriter(ChatModel chatModel) {
-        return AiServices.create(TicketWriter.class, chatModel);
+    public TicketWriter ticketWriter(@Qualifier("ticketChatModel") ChatModel ticketChatModel) {
+        return AiServices.create(TicketWriter.class, ticketChatModel);
     }
 
     @Bean
