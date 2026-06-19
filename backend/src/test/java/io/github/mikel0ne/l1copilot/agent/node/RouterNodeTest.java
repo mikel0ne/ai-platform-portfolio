@@ -4,6 +4,7 @@ import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier.RouterDecision;
+import io.github.mikel0ne.l1copilot.config.ConversationHistoryProperties;
 import org.bsc.langgraph4j.state.AgentState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,14 +27,14 @@ import static org.mockito.Mockito.when;
 class RouterNodeTest {
 
     private final IntentClassifier classifier = mock(IntentClassifier.class);
-    private final RouterNode router = new RouterNode(classifier);
+    private final RouterNode router = new RouterNode(classifier, new ConversationHistoryProperties(null, null));
 
     private SupportState state(Map<String, Object> data) {
         return new SupportState(new HashMap<>(data));
     }
 
     private void decision(RouterDecision d) {
-        when(classifier.classify(any(), any(), any(), any(), any())).thenReturn(d);
+        when(classifier.classify(any(), any(), any(), any(), any(), any())).thenReturn(d);
     }
 
     @Test
@@ -49,18 +50,21 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Cambio explícito: si el usuario nombra OTRO pedido, se cambia el foco y se descarta el menú")
+    @DisplayName("Cambio explícito: si el usuario nombra OTRO pedido (gestión fresca), se PROPONE el foco (lo confirma verify)")
     void explicitDifferentOrderSwitchesFocus() {
         decision(new RouterDecision("TRACKING", 456L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "awaiting", "NOTHING")));
 
-        assertThat(updates).containsEntry("orderId", 456L);
-        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
+        // No se compromete el foco antes de validar: el router lo propone y verify lo ascenderá
+        // (y descartará el menú) solo si aprueba la acción. El foco real sigue intacto aquí.
+        assertThat(updates).containsEntry("proposedOrderId", 456L);
+        assertThat(updates).doesNotContainKey("orderId");
+        assertThat(updates).doesNotContainKey("candidates");
     }
 
     @Test
-    @DisplayName("Elección del menú: en ORDER_CHOICE se fija el pedido elegido y se cierra la pregunta")
+    @DisplayName("Elección del menú: en ORDER_CHOICE se propone el pedido elegido y se cierra la pregunta (verify lo confirma)")
     void menuChoiceResolvesOrder() {
         decision(new RouterDecision("TRACKING", 789L, "NONE", "NONE"));
 
@@ -68,7 +72,8 @@ class RouterNodeTest {
                 "awaiting", "ORDER_CHOICE",
                 "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("orderId", 789L);
+        assertThat(updates).containsEntry("proposedOrderId", 789L);
+        assertThat(updates).doesNotContainKey("orderId");
         assertThat(updates).containsEntry("awaiting", "NOTHING");
     }
 
@@ -109,6 +114,45 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
         // A diferencia de BACK_TO_LIST, siempre cae en OTHER → fallback (menú de capacidades)
+        assertThat(updates).containsEntry("intent", "OTHER");
+    }
+
+    @Test
+    @DisplayName("'atrás' (BACK) con un pedido en foco: sube un nivel al listado")
+    void backWithFocusGoesToList() {
+        // "atrás", "volver", "anterior"... no los clasifica una lista de palabras: el LLM emite
+        // BACK (subir un nivel) y el router decide el destino según el nivel real. Con foco → listado.
+        decision(new RouterDecision("TRACKING", null, "NONE", "BACK"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "atrás",
+                "orderId", 789L,
+                "intent", "TRACKING")));
+
+        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        // Con foco, BACK sube al listado (vía TRACKING → resolve_order)
+        assertThat(updates).containsEntry("intent", "TRACKING");
+    }
+
+    @Test
+    @DisplayName("'atrás' (BACK) estando ya en el listado (sin foco): sube al menú, NO re-lista")
+    void backOnListWithoutFocusGoesToMenu() {
+        // El usuario está en el listado eligiendo (ORDER_CHOICE, hay candidatos pero NINGÚN foco).
+        // Un "atrás" aquí debe SUBIR al menú, no volver a pintar el mismo listado (el bucle que veía
+        // el usuario). Lo decide el router por el nivel: sin foco → BACK_TO_MENU → fallback.
+        decision(new RouterDecision("OTHER", null, "NONE", "BACK"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "atrás",
+                "awaiting", "ORDER_CHOICE",
+                "intent", "TRACKING",
+                "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
+
+        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        // Sin foco, BACK cae en OTHER → fallback (menú de capacidades), no en resolve_order
         assertThat(updates).containsEntry("intent", "OTHER");
     }
 
@@ -156,7 +200,8 @@ class RouterNodeTest {
 
         assertThat(updates).containsEntry("suspendedIntent", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("intent", "TRACKING");
-        assertThat(updates).containsEntry("orderId", 123L);
+        // Gestión fresca tras la digresión: el foco se PROPONE (lo confirma verify), no se fija ya
+        assertThat(updates).containsEntry("proposedOrderId", 123L);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
     }
 
