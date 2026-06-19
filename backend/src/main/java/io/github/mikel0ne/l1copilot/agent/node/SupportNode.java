@@ -112,10 +112,10 @@ public class SupportNode implements NodeAction<SupportState> {
         card.put("status", ticket.status());
         card.put("createdAt", ticket.createdAt().toString());
 
-        updates.put("toolResult", "Ticket de soporte " + code + " creado ('"
-                + ticket.subject() + "', estado " + ticket.status()
-                + "). Un agente humano contactará con el usuario. La interfaz muestra debajo "
-                + "un enlace al ticket que el usuario puede abrir para ver el detalle.");
+        updates.put("toolResult", String.format(
+                "Ticket de soporte %s creado ('%s', estado %s). Un agente humano contactará con el "
+                + "usuario. La interfaz muestra debajo un enlace al ticket que el usuario puede "
+                + "abrir para ver el detalle.", code, ticket.subject(), ticket.status()));
         updates.put("ticketCards", List.of(card));
         updates.put("resolved", true);
         updates.put("awaiting", Awaiting.NOTHING.name());

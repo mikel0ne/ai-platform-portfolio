@@ -61,14 +61,14 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
                 "candidates", candidates,
                 "orderCards", orderCards,
                 "awaiting", Awaiting.ORDER_CHOICE.name(),
-                "toolResult", "El usuario tiene varios pedidos recientes: " + listing
-                        + ". Hay que preguntarle sobre cuál quiere actuar.");
+                "toolResult", String.format(
+                        "El usuario tiene varios pedidos recientes: %s. Hay que preguntarle sobre "
+                        + "cuál quiere actuar.", listing));
     }
 
     private static String describeCandidate(OrderSummary order) {
-        return "#" + order.id() + " " + order.description()
-                + " (" + order.status()
-                + (order.orderDate() != null ? ", pedido el " + order.orderDate() : "")
-                + ")";
+        return String.format("#%d %s (%s%s)",
+                order.id(), order.description(), order.status(),
+                order.orderDate() != null ? ", pedido el " + order.orderDate() : "");
     }
 }
