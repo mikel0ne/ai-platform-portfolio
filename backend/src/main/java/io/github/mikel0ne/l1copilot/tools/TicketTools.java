@@ -7,12 +7,14 @@ import io.github.mikel0ne.l1copilot.domain.TicketStatus;
 import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
 import io.github.mikel0ne.l1copilot.domain.repository.TicketRepository;
 import io.github.mikel0ne.l1copilot.dto.tools.TicketCreated;
+import io.github.mikel0ne.l1copilot.dto.tools.TicketSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Herramienta de escalado: crea tickets para que un agente humano atienda
@@ -25,6 +27,17 @@ public class TicketTools {
 
     private final TicketRepository ticketRepository;
     private final OrderRepository orderRepository;
+
+    @Tool("Lista las incidencias (tickets de soporte) abiertas por el usuario, de la más reciente a la más antigua")
+    @Transactional(readOnly = true)
+    public List<TicketSummary> listTickets(String userId) {
+        List<TicketSummary> tickets = ticketRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(t -> new TicketSummary(t.getId(), t.getSubject(), t.getStatus().name(),
+                        t.getOrderId(), t.getCreatedAt()))
+                .toList();
+        log.debug("Consulta de incidencias del usuario {}: {} ticket(s)", userId, tickets.size());
+        return tickets;
+    }
 
     @Tool("Crea un ticket de soporte para que un agente humano atienda la incidencia")
     @Transactional
