@@ -7,7 +7,7 @@ export interface UserDto {
   formal: boolean;
 }
 
-export type Intent = 'TRACKING' | 'CANCEL' | 'SUPPORT' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
+export type Intent = 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
 
 /** Acción de confirmación (botones) para una operación irreversible, p. ej. cancelar un pedido. */
 export interface ConfirmAction {
@@ -45,6 +45,28 @@ export interface TicketDetail {
   createdAt: string;
 }
 
+/** Tarjeta de devolución: enlace clicable a la etiqueta de devolución (/returns/{id}). */
+export interface ReturnCard {
+  id: number;
+  code: string;
+  description: string;
+  status: string;
+  createdAt: string;
+}
+
+/** Etiqueta de devolución para la página /returns/{id}. */
+export interface ReturnLabel {
+  id: number;
+  code: string;
+  orderDescription: string;
+  status: string;
+  carrier: string;
+  destinationName: string;
+  destinationAddress: string;
+  barcode: string;
+  createdAt: string;
+}
+
 export interface ChatRequest {
   conversationId: string;
   message: string;
@@ -57,6 +79,7 @@ export interface ChatResponse {
   resolved: boolean;
   orders?: OrderCard[];
   tickets?: TicketCard[];
+  returns?: ReturnCard[];
   confirm?: ConfirmAction | null;
 }
 
@@ -67,5 +90,6 @@ export interface ChatMessage {
   at: Date;
   orders?: OrderCard[];
   tickets?: TicketCard[];
+  returns?: ReturnCard[];
   confirm?: ConfirmAction | null;
 }

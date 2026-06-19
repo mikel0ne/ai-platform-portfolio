@@ -11,10 +11,11 @@ import java.util.List;
  * @param orders   lista estructurada de tarjetas de pedido para renderizado HTML
  *                 (presente cuando el agente muestra un listado o el detalle de un pedido)
  * @param tickets  tarjetas de ticket (enlaces clicables al detalle) creadas en el turno
+ * @param returns  tarjetas de devolución (enlaces clicables a la etiqueta) creadas en el turno
  * @param confirm  acción de confirmación (botones) cuando el turno espera una
  *                 autorización irreversible; null en caso contrario
  */
 public record ChatResponse(String conversationId, String reply, String intent, boolean resolved,
                            List<OrderCardDto> orders, List<TicketCardDto> tickets,
-                           ConfirmActionDto confirm) {
+                           List<ReturnCardDto> returns, ConfirmActionDto confirm) {
 }

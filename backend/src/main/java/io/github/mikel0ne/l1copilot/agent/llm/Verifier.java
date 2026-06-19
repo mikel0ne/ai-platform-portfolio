@@ -33,17 +33,20 @@ public interface Verifier {
             GENEROSO con SURE; no te pongas tímido ante una consulta normal ("¿dónde está mi \
             pedido?", "¿ha salido ya?"). Reserva DOUBT para mensajes de verdad ambiguos y REJECT \
             solo cuando el mensaje claramente no va de consultar pedidos.
-            - ACCIONES (CANCEL: cancelar un pedido; SUPPORT: abrir una incidencia a un agente \
-            humano): son COSTOSAS. Sé ESTRICTO. Ante cualquier duda razonable, DOUBT; y si el \
-            mensaje claramente no pide esa acción (queja vaga, pregunta general, comentario), \
-            REJECT. Siempre es mejor preguntar que ejecutar algo no pedido.
+            - ACCIONES (CANCEL: cancelar un pedido; RETURN: iniciar la devolución de un pedido ya \
+            entregado; SUPPORT: abrir una incidencia a un agente humano): son COSTOSAS. Sé \
+            ESTRICTO. Ante cualquier duda razonable, DOUBT; y si el mensaje claramente no pide esa \
+            acción (queja vaga, pregunta general, comentario), REJECT. Siempre es mejor preguntar \
+            que ejecutar algo no pedido.
 
             Guías:
             - Problema concreto y explícito (producto roto, pedido no recibido) con intención de \
             gestionarlo => SURE para SUPPORT.
             - Queja vaga o desahogo sin problema concreto, frente a SUPPORT => REJECT.
-            - Pregunta general que respondería una política de la tienda, frente a SUPPORT/CANCEL => REJECT.
+            - Pregunta general que respondería una política de la tienda, frente a SUPPORT/CANCEL/RETURN => REJECT.
             - Orden clara de cancelar un pedido identificado => SURE para CANCEL.
+            - Orden clara de devolver un pedido ya recibido ("quiero devolverlo", "tramitar la \
+            devolución") => SURE para RETURN.
             - Mensaje meta o ambiguo ("¿y ahora qué?", "¿qué hago con esto?") frente a una acción => REJECT.
             """)
     @UserMessage("""
