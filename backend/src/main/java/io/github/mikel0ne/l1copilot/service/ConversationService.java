@@ -8,6 +8,7 @@ import io.github.mikel0ne.l1copilot.config.TreatmentPolicy;
 import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
 import io.github.mikel0ne.l1copilot.dto.ConfirmActionDto;
 import io.github.mikel0ne.l1copilot.dto.OrderCardDto;
+import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
 import io.github.mikel0ne.l1copilot.dto.TicketCardDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,13 +55,20 @@ public class ConversationService {
         input.put("history", List.of("USER: " + message));
         input.put("confirmation", "NONE");
         input.put("tentative", false);
+        // Efímero: solo lo activa el router al detectar una navegación (volver al listado/menú).
+        input.put("navigating", false);
+        // Efímero: foco propuesto por el router a la espera de que verify lo confirme.
+        input.put("proposedOrderId", 0L);
         input.put("toolResult", "");
         input.put("reply", "");
         input.put("resolved", false);
         input.put("orderCards", List.of());
         input.put("ticketCards", List.of());
+        input.put("returnCards", List.of());
         // Efímero: solo lo (re)activa cancel_check en el turno que pide confirmar.
         input.put("pendingCancelId", 0L);
+        // Efímero: solo lo (re)activa return_check en el turno que pide confirmar.
+        input.put("pendingReturnId", 0L);
 
         SupportState state;
         try {
@@ -96,8 +104,20 @@ public class ConversationService {
                         String.valueOf(m.get("createdAt"))))
                 .toList();
 
+        List<ReturnCardDto> returns = state.returnCards().stream()
+                .map(m -> new ReturnCardDto(
+                        m.get("id") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(m.get("id"))),
+                        String.valueOf(m.get("code")),
+                        String.valueOf(m.get("description")),
+                        String.valueOf(m.get("status")),
+                        String.valueOf(m.get("createdAt"))))
+                .toList();
+
+        // Una operación irreversible distinta puede estar a la espera de confirmación:
+        // la cancelación o la devolución; nunca ambas en el mismo turno.
         ConfirmActionDto confirm = state.pendingCancelId()
                 .map(id -> cancelConfirmation(id, state.treatment()))
+                .or(() -> state.pendingReturnId().map(id -> returnConfirmation(id, state.treatment())))
                 .orElse(null);
 
         String reply = stripThoughts(state.reply());
@@ -110,20 +130,33 @@ public class ConversationService {
                 orders.size(), tickets.size(), state.resolved(), reply));
 
         return new ChatResult(reply, state.intent().name(),
-                state.resolved(), orders, tickets, confirm);
+                state.resolved(), orders, tickets, returns, confirm);
     }
 
     /** Acción de confirmación (botones) para cancelar el pedido, con el tratamiento adecuado. */
     private static ConfirmActionDto cancelConfirmation(long orderId, Treatment treatment) {
         String title = treatment == Treatment.USTED
-                ? "¿Confirma la cancelación del pedido #" + orderId + "?"
-                : "¿Confirmas la cancelación del pedido #" + orderId + "?";
+                ? String.format("¿Confirma la cancelación del pedido #%d?", orderId)
+                : String.format("¿Confirmas la cancelación del pedido #%d?", orderId);
         return new ConfirmActionDto(
                 orderId,
                 title,
                 "Esta acción no se puede deshacer.",
                 "Sí, cancelar el pedido", UiAction.confirmCancel(orderId),
                 "No, conservarlo", UiAction.abortCancel(orderId));
+    }
+
+    /** Acción de confirmación (botones) para iniciar la devolución del pedido. */
+    private static ConfirmActionDto returnConfirmation(long orderId, Treatment treatment) {
+        String title = treatment == Treatment.USTED
+                ? String.format("¿Confirma que desea iniciar la devolución del pedido #%d?", orderId)
+                : String.format("¿Confirmas que quieres iniciar la devolución del pedido #%d?", orderId);
+        return new ConfirmActionDto(
+                orderId,
+                title,
+                "Se generará una etiqueta de devolución para este pedido.",
+                "Sí, iniciar la devolución", UiAction.confirmReturn(orderId),
+                "No, conservarlo", UiAction.abortReturn(orderId));
     }
 
     /**
@@ -150,7 +183,7 @@ public class ConversationService {
     /** Resultado de un turno, listo para mapear al DTO de la API. */
     public record ChatResult(String reply, String intent, boolean resolved,
                              List<OrderCardDto> orders, List<TicketCardDto> tickets,
-                             ConfirmActionDto confirm) {
+                             List<ReturnCardDto> returns, ConfirmActionDto confirm) {
     }
 
     /** El modelo (Gemini) no está disponible o agotó la cuota. */

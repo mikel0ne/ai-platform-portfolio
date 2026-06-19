@@ -12,7 +12,10 @@ public final class SupportRouting {
     public static final String TO_TRACKING = "tracking";
     public static final String TO_CANCEL_CHECK = "cancel_check";
     public static final String TO_CANCEL_EXEC = "execute";
+    public static final String TO_RETURN_CHECK = "return_check";
+    public static final String TO_RETURN_EXEC = "return_exec";
     public static final String TO_SUPPORT = "support";
+    public static final String TO_TICKETS = "tickets";
     public static final String TO_FAQ = "faq";
     public static final String TO_CHATTY = "chatty";
     public static final String TO_FALLBACK = "fallback";
@@ -39,7 +42,11 @@ public final class SupportRouting {
             case CANCEL -> needsVerify(state)
                     ? TO_VERIFY
                     : (state.orderId().isPresent() ? TO_CANCEL_CHECK : TO_RESOLVE_ORDER);
+            case RETURN -> needsVerify(state)
+                    ? TO_VERIFY
+                    : (state.orderId().isPresent() ? TO_RETURN_CHECK : TO_RESOLVE_ORDER);
             case SUPPORT -> needsVerify(state) ? TO_VERIFY : TO_SUPPORT;
+            case TICKETS -> TO_TICKETS;
             case FAQ -> TO_FAQ;
             case CHATTY -> TO_CHATTY;
             default -> TO_FALLBACK;
@@ -48,11 +55,16 @@ public final class SupportRouting {
 
     /**
      * ¿Hay que pasar la gestión por verify? Solo en peticiones frescas: sin pregunta
-     * pendiente y sin una incidencia ya en curso. Así una respuesta a un gate (elegir
-     * pedido, confirmar cancelación, describir la incidencia) NO se re-verifica.
+     * pendiente, sin una incidencia ya en curso y que NO sean una navegación. Así una
+     * respuesta a un gate (elegir pedido, confirmar cancelación, describir la incidencia)
+     * o una navegación explícita ("volver al listado") NO se re-verifican: la navegación
+     * fuerza TRACKING/CANCEL solo para re-listar, no para ejecutar nada, y el verificador
+     * la rechazaría al re-leer el "volver atrás" como si fuera una consulta de pedidos.
      */
     private static boolean needsVerify(SupportState state) {
-        return state.awaiting() == Awaiting.NOTHING && state.ticketDraft().isBlank();
+        return state.awaiting() == Awaiting.NOTHING
+                && state.ticketDraft().isBlank()
+                && !state.navigating();
     }
 
     /**
@@ -69,17 +81,29 @@ public final class SupportRouting {
     public static String fromVerify(SupportState state) {
         Verdict verdict = state.verdict();
         Intent intent = state.intent();
-        boolean action = intent == Intent.CANCEL || intent == Intent.SUPPORT;
 
-        if (verdict == Verdict.REJECT || (verdict == Verdict.DOUBT && action)) {
+        if (!proceedsAfterVerify(verdict, intent)) {
             return TO_CLARIFY;
         }
         return switch (intent) {
             case TRACKING -> state.orderId().isPresent() ? TO_TRACKING : TO_RESOLVE_ORDER;
             case CANCEL -> state.orderId().isPresent() ? TO_CANCEL_CHECK : TO_RESOLVE_ORDER;
+            case RETURN -> state.orderId().isPresent() ? TO_RETURN_CHECK : TO_RESOLVE_ORDER;
             case SUPPORT -> TO_SUPPORT;
             default -> TO_FALLBACK;
         };
+    }
+
+    /**
+     * ¿El veredicto deja seguir adelante con la gestión (en vez de ir a {@code clarify})?
+     * REJECT siempre frena; DOUBT frena solo en ACCIONES (CANCEL/RETURN/SUPPORT), porque tocar
+     * algo irreversible ante la duda es caro; en una LECTURA (TRACKING) la duda sigue adelante con
+     * tono tentativo. Es la condición que comparten la arista {@link #fromVerify} y el commit
+     * diferido del foco en {@code VerifyNode}: ambos deben coincidir en "seguir o no seguir".
+     */
+    public static boolean proceedsAfterVerify(Verdict verdict, Intent intent) {
+        boolean action = intent == Intent.CANCEL || intent == Intent.RETURN || intent == Intent.SUPPORT;
+        return !(verdict == Verdict.REJECT || (verdict == Verdict.DOUBT && action));
     }
 
     /** Tras buscar candidatos: si hay pedido único sigue el flujo; si no, preguntar. */
@@ -87,7 +111,11 @@ public final class SupportRouting {
         if (state.orderId().isEmpty()) {
             return TO_ASK_USER;
         }
-        return state.intent() == Intent.CANCEL ? TO_CANCEL_CHECK : TO_TRACKING;
+        return switch (state.intent()) {
+            case CANCEL -> TO_CANCEL_CHECK;
+            case RETURN -> TO_RETURN_CHECK;
+            default -> TO_TRACKING;
+        };
     }
 
     /**
@@ -97,6 +125,16 @@ public final class SupportRouting {
     public static String fromCancelCheck(SupportState state) {
         return state.cancellable() && "YES".equals(state.confirmation())
                 ? TO_CANCEL_EXEC
+                : TO_ASK_USER;
+    }
+
+    /**
+     * Tras comprobar la devolución: solo se inicia si las reglas lo permiten
+     * Y el usuario confirmó explícitamente en este turno (mismo criterio que la cancelación).
+     */
+    public static String fromReturnCheck(SupportState state) {
+        return state.returnable() && "YES".equals(state.confirmation())
+                ? TO_RETURN_EXEC
                 : TO_ASK_USER;
     }
 }

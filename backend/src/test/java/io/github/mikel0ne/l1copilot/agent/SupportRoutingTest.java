@@ -79,6 +79,20 @@ class SupportRoutingTest {
                 .isEqualTo(SupportRouting.TO_FALLBACK);
     }
 
+    @Test
+    @DisplayName("Navegación 'volver al listado' NO re-verifica: va directo a resolve_order")
+    void navigationSkipsVerify() {
+        // El router fuerza TRACKING/CANCEL para re-listar, pero marca navigating=true: la
+        // navegación no es una petición fresca, así que NO debe pasar por verify (que re-leería
+        // el "volver atrás" como una consulta y lo rechazaría → clarify en bucle).
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "TRACKING", "navigating", true))))
+                .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "CANCEL", "navigating", true))))
+                .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+    }
+
     // ---- fromVerify ----
 
     @Test
@@ -133,6 +147,16 @@ class SupportRoutingTest {
     void faqRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "FAQ"))))
                 .isEqualTo(SupportRouting.TO_FAQ);
+    }
+
+    @Test
+    @DisplayName("TICKETS (consulta de incidencias) es una lectura: va directa, sin verify")
+    void ticketsRouting() {
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TICKETS"))))
+                .isEqualTo(SupportRouting.TO_TICKETS);
+        // No es una acción: ni siquiera una petición fresca pasa por verify
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TICKETS", "awaiting", "NOTHING"))))
+                .isEqualTo(SupportRouting.TO_TICKETS);
     }
 
     @Test

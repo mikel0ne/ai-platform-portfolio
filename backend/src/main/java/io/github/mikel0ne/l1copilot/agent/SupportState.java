@@ -90,12 +90,29 @@ public class SupportState extends AgentState {
                 .toList();
     }
 
+    /**
+     * Pedido que el router PROPONE como nuevo foco este turno, todavía SIN comprometer.
+     * El router no toca el foco real ({@code orderId}) de una acción fresca: lo deja aquí y
+     * es {@code verify} quien lo asciende a foco SOLO si aprueba la acción. Así nunca se
+     * cambia de pedido para un camino que luego se descarta. Efímero: se reinicia cada turno.
+     */
+    public Optional<Long> proposedOrderId() {
+        return this.<Number>value("proposedOrderId")
+                .map(Number::longValue)
+                .filter(id -> id > 0);
+    }
+
     public Awaiting awaiting() {
         return Awaiting.fromState(this.value("awaiting", Awaiting.NOTHING.name()));
     }
 
     public boolean cancellable() {
         return this.value("cancellable", false);
+    }
+
+    /** Resultado de la última comprobación de devolución (¿el pedido admite devolución?). */
+    public boolean returnable() {
+        return this.value("returnable", false);
     }
 
     /**
@@ -117,6 +134,17 @@ public class SupportState extends AgentState {
     }
 
     /**
+     * El turno es una navegación explícita del usuario (BACK_TO_LIST / BACK_TO_MENU):
+     * soltar el foco y volver al listado o al menú. NO es una acción de negocio fresca,
+     * así que NO debe re-validarse en {@code verify} (el verificador re-leería el "volver
+     * atrás" como si fuera una consulta y lo rechazaría). Efímero por turno: lo reinicia
+     * el servicio y solo lo activa {@code RouterNode} al detectar la navegación.
+     */
+    public boolean navigating() {
+        return this.value("navigating", false);
+    }
+
+    /**
      * Turnos consecutivos en que el usuario ha dicho algo poco claro (OTHER) teniendo
      * una gestión en curso. Gobierna la escalada del modo aclaración: a partir de 2 se
      * sugiere volver al menú principal. Se reinicia en cuanto el turno es claro.
@@ -132,6 +160,18 @@ public class SupportState extends AgentState {
      */
     public Optional<Long> pendingCancelId() {
         return this.<Number>value("pendingCancelId")
+                .map(Number::longValue)
+                .filter(id -> id > 0);
+    }
+
+    /**
+     * Pedido cuya devolución está pendiente de confirmación por el usuario este turno.
+     * Vacío salvo cuando {@code return_check} acaba de pedir confirmación: dispara el
+     * botón de confirmación en la interfaz. Es efímero (se reinicia cada turno). Es el
+     * equivalente, para devoluciones, de {@link #pendingCancelId()}.
+     */
+    public Optional<Long> pendingReturnId() {
+        return this.<Number>value("pendingReturnId")
                 .map(Number::longValue)
                 .filter(id -> id > 0);
     }
@@ -165,6 +205,11 @@ public class SupportState extends AgentState {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> ticketCards() {
         return this.value("ticketCards", List::of);
+    }
+
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> returnCards() {
+        return this.value("returnCards", List::of);
     }
 
     private static String candidateLabel(Object candidate) {
