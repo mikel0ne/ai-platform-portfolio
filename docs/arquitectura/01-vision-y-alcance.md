@@ -12,7 +12,7 @@ Un **agente de soporte de nivel 1 autónomo** para un e-commerce ficticio. No es
 
 El objetivo del prototipo es demostrar dominio de: enrutamiento semántico, ciclos con LangGraph4j, tool-calling seguro desde Java y una arquitectura full-stack realista.
 
-## Las tres habilidades (Skills)
+## Las habilidades (Skills)
 
 ### 1. Seguimiento de pedidos — informacional (`TRACKING`)
 
@@ -29,11 +29,21 @@ El usuario quiere cancelar un pedido. El agente:
 
 1. Detecta la intención `CANCEL`.
 2. Resuelve el `orderId` igual que en seguimiento (con el mismo subflujo reutilizable de desambiguación).
-3. Valida **reglas de negocio en código Java** (no en el prompt): solo se puede cancelar si el pedido está en estado `CREATED` o `PAID`. Si ya está `SHIPPED`/`DELIVERED`, la tool devuelve el motivo del rechazo y el agente lo explica.
+3. Valida **reglas de negocio en código Java** (no en el prompt): solo se puede cancelar si el pedido está en estado `CREATED` o `PAID`. Si ya está `SHIPPED`, la tool devuelve el motivo del rechazo (la vía es esperar y devolver); si ya está `DELIVERED`, el agente reconduce hacia una **devolución**.
 4. Pide **confirmación explícita** antes de ejecutar la cancelación (acción destructiva → human-in-the-loop).
 5. Ejecuta `cancelOrder(orderId)` y confirma el resultado.
 
-### 3. Soporte técnico / incidencias — escalado (`SUPPORT`)
+### 3. Devolución — transaccional (`RETURN`)
+
+El usuario quiere **devolver un pedido que ya ha recibido**. Es el espejo de la cancelación para la otra punta del ciclo de vida. El agente:
+
+1. Detecta la intención `RETURN` (distinta de CANCEL: "cancelar" un pedido ya entregado se trata como devolución; un producto recibido **defectuoso** es `SUPPORT`, no una devolución normal).
+2. Resuelve el `orderId` con el mismo subflujo de desambiguación.
+3. Valida en **código Java** que el pedido admite devolución (`isReturnable()` ⇔ estado `DELIVERED`).
+4. Pide **confirmación explícita** (botón). Una devolución **nunca** se gestiona abriendo una incidencia: tiene su propia vía.
+5. Ejecuta `requestReturn(orderId)`, pone el pedido en estado `RETURN_REQUESTED` y entrega un enlace a la **etiqueta de devolución** (dirección del almacén, referencia `RET-####` y código de barras).
+
+### 4. Soporte técnico / incidencias — escalado (`SUPPORT`)
 
 El usuario reporta un problema (producto roto, no funciona…). El agente:
 
