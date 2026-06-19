@@ -1,6 +1,6 @@
 # Arquitectura — L1 Support Copilot
 
-Documentación exhaustiva de diseño y código del **Agente de Soporte de Nivel 1 Autónomo** (L1 Support Copilot): un agente conversacional construido con **Spring Boot + LangChain4j + LangGraph4j + Gemini (Google AI Studio)** y frontend **Angular**, capaz de enrutar de forma autónoma entre tres habilidades (seguimiento de pedidos, cancelación y soporte técnico), manejar ambigüedad y mantener estado conversacional mediante ciclos de grafo.
+Documentación exhaustiva de diseño y código del **Agente de Soporte de Nivel 1 Autónomo** (L1 Support Copilot): un agente conversacional construido con **Spring Boot + LangChain4j + LangGraph4j + Gemini (Google AI Studio)** y frontend **Angular**, capaz de enrutar de forma autónoma entre sus habilidades (seguimiento de pedidos, cancelación, devolución y soporte técnico), manejar ambigüedad y mantener estado conversacional mediante ciclos de grafo.
 
 > Esta documentación está pensada para ejecutarse **en conversaciones/sesiones separadas**: cada documento es autocontenido y el [plan de implementación](09-plan-implementacion.md) trocea el trabajo en fases independientes.
 

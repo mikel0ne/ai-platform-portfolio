@@ -34,8 +34,20 @@ Semántica de los campos:
 |---|---|
 | `conversationId` | UUID generado por el **frontend** en el primer mensaje y repetido en los siguientes; es el `threadId` del checkpointer |
 | `reply` | texto del agente para mostrar en el chat |
-| `intent` | intención vigente (`TRACKING`/`CANCEL`/`SUPPORT`/`OTHER`) — útil para depurar y para pintar un badge en la UI |
-| `resolved` | `true` cuando la gestión del turno cerró el caso (envío informado, pedido cancelado, ticket creado) — la UI puede mostrar "¿algo más?" |
+| `intent` | intención vigente (`TRACKING`/`CANCEL`/`RETURN`/`SUPPORT`/`TICKETS`/`FAQ`/`CHATTY`/`OTHER`) — útil para depurar y para pintar un badge en la UI |
+| `resolved` | `true` cuando la gestión del turno cerró el caso (envío informado, pedido cancelado, devolución iniciada, ticket creado) — la UI puede mostrar "¿algo más?" |
+| `orders` | tarjetas de pedido para renderizar (menú de elección o ilustración del pedido informado) |
+| `tickets` | tarjetas-enlace a incidencias creadas en el turno (abren `/tickets/{id}`) |
+| `returns` | tarjetas-enlace a devoluciones iniciadas en el turno (abren la etiqueta `/returns/{id}`) |
+| `confirm` | acción de confirmación (botones) de una operación irreversible pendiente —cancelación o devolución—; `null` si no hay ninguna |
+
+### `GET /api/copilot/tickets/{id}` — detalle de una incidencia
+
+De solo lectura y público (sin `X-User-Id`): alimenta la página `/tickets/{id}` que se abre al pulsar la tarjeta de un ticket.
+
+### `GET /api/copilot/returns/{id}` — etiqueta de devolución
+
+De solo lectura y público: alimenta la página `/returns/{id}` (la **etiqueta de devolución**) que se abre al pulsar la tarjeta de una devolución. Devuelve `ReturnLabelDto` con el código `RET-####`, el almacén de destino, el transportista y el valor del código de barras.
 
 ### `GET /api/copilot/users` — usuarios de demo
 
@@ -60,7 +72,9 @@ public record ChatRequest(
         @NotBlank @Size(max = 64) String conversationId,
         @NotBlank @Size(max = 2000) String message) {}
 
-public record ChatResponse(String conversationId, String reply, String intent, boolean resolved) {}
+public record ChatResponse(String conversationId, String reply, String intent, boolean resolved,
+                           List<OrderCardDto> orders, List<TicketCardDto> tickets,
+                           List<ReturnCardDto> returns, ConfirmActionDto confirm) {}
 
 public record UserDto(String id, String name) {}
 ```
@@ -85,7 +99,8 @@ public class ChatController {
     public ChatResponse chat(@RequestHeader("X-User-Id") String userId,
                              @Valid @RequestBody ChatRequest request) {
         ChatResult result = conversationService.chat(userId, request.conversationId(), request.message());
-        return new ChatResponse(request.conversationId(), result.reply(), result.intent(), result.resolved());
+        return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
+                result.resolved(), result.orders(), result.tickets(), result.returns(), result.confirm());
     }
 
     @GetMapping("/users")

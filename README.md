@@ -5,8 +5,9 @@ Agente de soporte de nivel 1 **autónomo** para un e-commerce, construido con
 
 No es un bot de comandos: el agente enruta semánticamente la conversación, maneja
 ambigüedad de forma proactiva, mantiene estado conversacional entre turnos mediante
-un grafo de estado con checkpointing, ejecuta acciones reales contra base de datos a
-través de herramientas Java deterministas y escala a un humano creando tickets.
+un grafo de estado con checkpointing, ejecuta acciones reales contra base de datos
+(consultar envíos, cancelar pedidos, iniciar devoluciones) y escala a un humano
+creando tickets.
 
 ```text
 Usuario:  ¿Dónde está mi pedido?
@@ -29,13 +30,16 @@ graph TB
     router -->|sin orderId| resolve_order["resolve_order<br/>(desambiguación proactiva)"]
     router -->|TRACKING| tracking["tracking<br/>(trackShipment)"]
     router -->|CANCEL| cancel_check["cancel_check<br/>(reglas + confirmación)"]
+    router -->|RETURN| return_check["return_check<br/>(reglas + confirmación)"]
     router -->|SUPPORT| support["support<br/>(recopila y crea ticket)"]
     router -->|OTHER| fallback[fallback]
-    resolve_order --> tracking & cancel_check
+    resolve_order --> tracking & cancel_check & return_check
     resolve_order -->|ambiguo| respond
     cancel_check -->|confirmado| cancel_exec["cancel_exec<br/>(cancelOrder)"]
     cancel_check -->|pedir sí/no| respond
-    tracking & cancel_exec & support & fallback --> respond["respond<br/>(única redacción al usuario)"]
+    return_check -->|confirmado| return_exec["return_exec<br/>(requestReturn)"]
+    return_check -->|pedir sí/no| respond
+    tracking & cancel_exec & return_exec & support & fallback --> respond["respond<br/>(única redacción al usuario)"]
     respond --> END((END))
 ```
 

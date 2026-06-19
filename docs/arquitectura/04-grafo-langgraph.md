@@ -10,9 +10,10 @@ graph TB
 
     router{{"router<br/>(LLM: clasifica intención<br/>+ extrae orderId si aparece)"}}
 
-    router -->|TRACKING / CANCEL<br/>sin orderId| resolve_order
+    router -->|TRACKING / CANCEL / RETURN<br/>sin orderId| resolve_order
     router -->|TRACKING con orderId| tracking
     router -->|CANCEL con orderId| cancel_check
+    router -->|RETURN con orderId| return_check
     router -->|SUPPORT| support
     router -->|FAQ| faq
     router -->|CHATTY| chatty
@@ -21,6 +22,7 @@ graph TB
     resolve_order["resolve_order<br/>(tool: getRecentOrders<br/>o mapea respuesta del usuario)"]
     resolve_order -->|resuelto e intent=TRACKING| tracking
     resolve_order -->|resuelto e intent=CANCEL| cancel_check
+    resolve_order -->|resuelto e intent=RETURN| return_check
     resolve_order -->|ambiguo: preguntar| respond
 
     tracking["tracking<br/>(tool: trackShipment)"] --> respond
@@ -30,6 +32,12 @@ graph TB
     cancel_check -->|confirmado por usuario| cancel_exec
     cancel_check -->|no cancelable| respond
     cancel_exec["cancel_exec<br/>(tool: cancelOrder)"] --> respond
+
+    return_check["return_check<br/>(tool: checkReturnable)"]
+    return_check -->|devolvible, sin confirmar| respond
+    return_check -->|confirmado por usuario| return_exec
+    return_check -->|no devolvible| respond
+    return_exec["return_exec<br/>(tool: requestReturn)"] --> respond
 
     support["support<br/>(recopila datos del ticket<br/>tool: createTicket cuando completo)"] --> respond
 
@@ -45,7 +53,7 @@ graph TB
 Puntos clave:
 
 - **Cada turno HTTP recorre el grafo de `START` a `END`** (ADR-2). El "ciclo" conversacional se materializa entre turnos: el grafo termina con una pregunta, el checkpointer conserva el estado y el siguiente mensaje del usuario reentra por `router`, que ahora ve en el estado que hay una clarificación pendiente.
-- `resolve_order` es el **subflujo reutilizable de desambiguación**: lo comparten TRACKING y CANCEL.
+- `resolve_order` es el **subflujo reutilizable de desambiguación**: lo comparten TRACKING, CANCEL y RETURN.
 - `respond` es el único nodo que redacta texto para el usuario: centraliza tono, idioma y formato.
 
 ## El estado: `SupportState`
@@ -58,13 +66,14 @@ public class SupportState extends AgentState {
     public static final Map<String, Channel<?>> SCHEMA = Map.of(
         "messages",        Channels.appender(ArrayList::new), // historial ChatMessage serializado
         "userId",          Channels.base(() -> ""),
-        "intent",          Channels.base(() -> Intent.NONE.name()), // TRACKING|CANCEL|SUPPORT|FAQ|CHATTY|OTHER|NONE
+        "intent",          Channels.base(() -> Intent.NONE.name()), // TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE
         "suspendedIntent", Channels.base(() -> (String) null),       // gestión en pausa por una digresión (FAQ/CHATTY)
         "clarifyAttempts", Channels.base(() -> 0),                   // turnos ambiguos seguidos con gestión en curso
         "orderId",         Channels.base(() -> (Long) null),
         "candidateOrders", Channels.base(List::of),           // List<OrderSummary> ofrecidos al usuario
-        "awaiting",        Channels.base(() -> Awaiting.NOTHING.name()), // NOTHING|ORDER_CHOICE|CANCEL_CONFIRM|TICKET_CONFIRM|TICKET_INFO
+        "awaiting",        Channels.base(() -> Awaiting.NOTHING.name()), // NOTHING|ORDER_CHOICE|CANCEL_CONFIRM|RETURN_CONFIRM|TICKET_CONFIRM|TICKET_INFO
         "pendingCancelId", Channels.base(() -> 0L),                   // pedido a la espera de confirmar cancelación (botón)
+        "pendingReturnId", Channels.base(() -> 0L),                   // pedido a la espera de confirmar devolución (botón)
         "ticketDraft",     Channels.base(() -> (String) null),
         "toolResult",      Channels.base(() -> (String) null), // resultado serializado de la última tool
         "resolved",        Channels.base(() -> false)
@@ -86,8 +95,8 @@ public class SupportState extends AgentState {
 Enums de control (decisiones de flujo **en Java**, no en prompts):
 
 ```java
-public enum Intent  { TRACKING, CANCEL, SUPPORT, FAQ, CHATTY, OTHER, NONE }
-public enum Awaiting { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, TICKET_CONFIRM, TICKET_INFO }
+public enum Intent  { TRACKING, CANCEL, RETURN, SUPPORT, TICKETS, FAQ, CHATTY, OTHER, NONE }
+public enum Awaiting { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TICKET_CONFIRM, TICKET_INFO }
 ```
 
 `awaiting` es la pieza que implementa el ciclo: indica **qué pregunta dejó pendiente el turno anterior**, para que el router del turno siguiente interprete el mensaje del usuario como respuesta a esa pregunta y no como una petición nueva (aunque también debe detectar cambios de tema: "déjalo, mejor cancela el otro").
@@ -106,6 +115,8 @@ public class SupportAgentGraph {
     private final TrackingNode trackingNode;
     private final CancelCheckNode cancelCheckNode;
     private final CancelExecNode cancelExecNode;
+    private final ReturnCheckNode returnCheckNode;
+    private final ReturnExecNode returnExecNode;
     private final SupportNode supportNode;
     private final FaqNode faqNode;
     private final FallbackNode fallbackNode;
@@ -118,6 +129,8 @@ public class SupportAgentGraph {
             .addNode("tracking",      node_async(trackingNode))
             .addNode("cancel_check",  node_async(cancelCheckNode))
             .addNode("cancel_exec",   node_async(cancelExecNode))
+            .addNode("return_check",  node_async(returnCheckNode))
+            .addNode("return_exec",   node_async(returnExecNode))
             .addNode("support",       node_async(supportNode))
             .addNode("faq",           node_async(faqNode))
             .addNode("chatty",        node_async(chattyNode))
@@ -132,6 +145,7 @@ public class SupportAgentGraph {
                     "resolve_order", "resolve_order",
                     "tracking",      "tracking",
                     "cancel_check",  "cancel_check",
+                    "return_check",  "return_check",
                     "support",       "support",
                     "faq",           "faq",
                     "chatty",        "chatty",
@@ -142,6 +156,7 @@ public class SupportAgentGraph {
                 Map.of(
                     "tracking",     "tracking",
                     "cancel_check", "cancel_check",
+                    "return_check", "return_check",
                     "ask_user",     "respond"))
 
             .addEdge("tracking", "respond")
@@ -152,7 +167,14 @@ public class SupportAgentGraph {
                     "execute",  "cancel_exec",
                     "ask_user", "respond"))
 
+            .addConditionalEdges("return_check",
+                edge_async(this::routeFromReturnCheck),
+                Map.of(
+                    "return_exec", "return_exec",
+                    "ask_user",    "respond"))
+
             .addEdge("cancel_exec", "respond")
+            .addEdge("return_exec", "respond")
             .addEdge("support",  "respond")
             .addEdge("faq",      "respond")
             .addEdge("fallback", "respond")
@@ -165,6 +187,7 @@ public class SupportAgentGraph {
         return switch (s.intent()) {
             case TRACKING -> s.orderId().isPresent() ? "tracking" : "resolve_order";
             case CANCEL   -> s.orderId().isPresent() ? "cancel_check" : "resolve_order";
+            case RETURN   -> s.orderId().isPresent() ? "return_check" : "resolve_order";
             case SUPPORT  -> "support";
             case FAQ      -> "faq";
             case CHATTY   -> "chatty";
@@ -174,7 +197,11 @@ public class SupportAgentGraph {
 
     private String routeFromResolveOrder(SupportState s) {
         if (s.orderId().isEmpty()) return "ask_user";          // sigue ambiguo → preguntar
-        return s.intent() == Intent.CANCEL ? "cancel_check" : "tracking";
+        return switch (s.intent()) {
+            case CANCEL -> "cancel_check";
+            case RETURN -> "return_check";
+            default     -> "tracking";
+        };
     }
 
     private String routeFromCancelCheck(SupportState s) {
@@ -182,6 +209,12 @@ public class SupportAgentGraph {
         boolean confirmed = s.awaiting() == Awaiting.NOTHING; // el nodo limpia awaiting al recibir confirmación
         boolean cancellable = s.<Boolean>value("cancellable").orElse(false);
         return (cancellable && confirmed) ? "execute" : "ask_user";
+    }
+
+    private String routeFromReturnCheck(SupportState s) {
+        // return_check deja en el estado si el pedido es devolvible y si el usuario ya confirmó
+        boolean returnable = s.<Boolean>value("returnable").orElse(false);
+        return (returnable && "YES".equals(s.confirmation())) ? "return_exec" : "ask_user";
     }
 }
 ```
@@ -252,18 +285,19 @@ Una vez resuelto el pedido, `orderId` es el **foco** de la conversación y es *p
 
 1. **Elección del menú** — `awaiting == ORDER_CHOICE`: el usuario elige uno de los candidatos ofrecidos.
 2. **Cambio explícito** — el usuario nombra **otro** pedido (por número o descripción inequívoca); el router devuelve ese `orderId` y descarta el menú anterior.
-3. **Salida explícita del foco** — `navigation == BACK_TO_LIST` o `BACK_TO_MENU`: se suelta el foco (`orderId`, `candidates` y `ticketDraft` a `MARK_FOR_REMOVAL`), pero con destinos distintos.
+3. **Salida explícita del foco** — `navigation == BACK_TO_LIST`, `BACK_TO_MENU` o `BACK`: se suelta el foco (`orderId`, `candidates` y `ticketDraft` a `MARK_FOR_REMOVAL`), pero con destinos distintos.
 
 Dos invariantes lo sostienen: el router recibe el foco actual y, si el usuario no nombra otro pedido, devuelve `orderId = null` (conservar foco); y **los `candidates` se descartan en cuanto una skill resuelve** (tracking, cancelación o ticket), para que el router no pueda "reelegir" del menú anterior por parecido temático. Esto es lo que evitaba el salto observado en la demo (`#789` consultado → "no lo he recibido" → el modelo reelegía `#123` del menú aún presente). Cubierto por `RouterNodeTest` y los escenarios de foco de `SupportAgentFlowTest`.
 
-##### `BACK_TO_LIST` vs `BACK_TO_MENU`
+##### Navegación jerárquica: `BACK_TO_LIST`, `BACK_TO_MENU` y `BACK`
 
-Son las dos salidas del foco, con destino distinto en `fromRouter`:
+La conversación tiene tres niveles: **Menú principal** (capacidades) → **Listado de pedidos** → **Pedido concreto (foco)**. Hay tres señales de navegación:
 
-- **`BACK_TO_LIST`** ("mis pedidos", "ver todos", "otro pedido", "enséñame el listado"): el router fuerza `intent=TRACKING` (o `CANCEL` si la gestión en curso era una cancelación), de modo que con `orderId` vacío la arista cae en `resolve_order`, que re-ofrece el listado de pedidos.
-- **`BACK_TO_MENU`** ("menú principal", "volver al inicio", "qué puedo hacer", "ayuda", "empezar de nuevo"): el router fuerza `intent=OTHER`, de modo que `fromRouter` cae siempre en `fallback`, que presenta de nuevo las capacidades del asistente (incluida la invitación a hacer preguntas generales tipo FAQ).
+- **`BACK_TO_LIST`** (explícito: "mis pedidos", "ver todos", "otro pedido", "enséñame el listado"): el router fuerza `intent=TRACKING` (o `CANCEL` si la gestión en curso era una cancelación), de modo que con `orderId` vacío la arista cae en `resolve_order`, que re-ofrece el listado de pedidos.
+- **`BACK_TO_MENU`** (explícito: "menú principal", "volver al inicio", "empezar de nuevo"): el router fuerza `intent=OTHER`, de modo que `fromRouter` cae siempre en `fallback`, que presenta de nuevo las capacidades del asistente (incluida la invitación a hacer preguntas generales tipo FAQ).
+- **`BACK`** ("atrás" / "volver" a secas, sin decir destino): significa **subir exactamente un nivel**. El LLM **no** decide el destino; lo resuelve `RouterNode.resolveNavigation(...)` según el nivel real: **con un pedido en foco** → `BACK_TO_LIST` (se vuelve al listado); **sin foco** (ya se está en el listado, o en el menú) → `BACK_TO_MENU` (se sube al menú).
 
-Antes de separar ambas, cualquier "volver al menú principal" recibía el mismo trato que "ver mis pedidos" y siempre terminaba en `resolve_order` listando pedidos — nunca llegaba a `fallback`.
+Antes, el LLM decidía el destino de un "atrás" según *foco **o** candidatos presentes*. Eso provocaba el bug reportado: estando **ya en el listado** (hay candidatos pero ningún foco), un "atrás" se clasificaba como `BACK_TO_LIST` y **re-pintaba el mismo listado** en bucle, sin subir nunca al menú. Al delegar el nivel al router (que conoce el estado real con certeza), "atrás" siempre sube un nivel y nunca se queda atascado. Además el LLM ya no tiene que adivinar el destino —solo detectar la intención de volver—, lo que evita el caso en que devolvía `navigation=NONE` y el agente respondía "pero ¿entonces qué quieres?".
 
 > **"volver"/"atrás" a secas NO es navegación.** `BACK_TO_MENU` solo se dispara con peticiones explícitas de reseteo ("menú principal", "volver al inicio", "empezar de nuevo"). Frases como "¿qué puedo hacer?", "ayuda" o un "volver" suelto en mitad de una gestión **no** son navegación: normalmente el usuario pregunta qué puede hacer *con el pedido en cuestión*. (Antes "qué puedo hacer" disparaba `BACK_TO_MENU` y secuestraba la conversación hacia el menú.)
 
@@ -298,6 +332,7 @@ No todo lo que llega como "mensaje del usuario" es lenguaje natural. Algunos men
 
 - **Selección de pedido** — al pulsar una tarjeta, la UI envía `#<id>`. Si hay un menú activo (`awaiting=ORDER_CHOICE`) y el id está entre los candidatos, el router fija el foco de forma determinista, conservando la intención (tracking/cancelación) con la que se ofreció el menú. Antes esto dependía de que el LLM extrajera el id; si fallaba, el foco se desmoronaba y la conversación volvía a `resolve_order`.
 - **Confirmación de cancelación** — una acción **irreversible** no debe depender de interpretar "sí/cancélalo/confirmo" con NLU (era frágil: el modelo a veces devolvía `NONE` y se entraba en un bucle de "¿me lo confirmas?"). Cuando `cancel_check` necesita confirmación, marca `pendingCancelId`; `ConversationService` lo traduce en un `ConfirmActionDto` (título, aviso de irreversibilidad y dos botones). Cada botón lleva un `payload` (`action:confirm-cancel:<id>` / `action:abort-cancel:<id>`) que el router interpreta como `confirmation=YES/NO` sin tocar el modelo. El clic ES la autorización.
+- **Confirmación de devolución** — idéntico mecanismo para la skill `RETURN`. Cuando `return_check` necesita confirmación, marca `pendingReturnId`; `ConversationService` genera el `ConfirmActionDto` con los botones `action:confirm-return:<id>` / `action:abort-return:<id>`, que el router resuelve de forma determinista como `RETURN` + `confirmation=YES/NO`. Misma convención `UiAction` a ambos lados.
 
 Patrón **human-in-the-loop** clásico: la decisión crítica se materializa como una acción explícita del usuario, determinista y testeable, no como una inferencia probabilística. Cubierto por `RouterNodeTest` (comandos y selección) y `SupportAgentFlowTest.cancellationViaButtonIsDeterministic`.
 
@@ -327,11 +362,12 @@ public Map<String, Object> apply(SupportState state) {
 }
 ```
 
-### `tracking`, `cancel_check`, `cancel_exec`, `support`
+### `tracking`, `cancel_check`, `cancel_exec`, `return_check`, `return_exec`, `support`
 
-Mismo patrón: invocan la tool Java correspondiente, vuelcan el resultado tipado en `toolResult` (y flags como `cancellable`, `resolved`), y actualizan `awaiting`:
+Mismo patrón: invocan la tool Java correspondiente, vuelcan el resultado tipado en `toolResult` (y flags como `cancellable`, `returnable`, `resolved`), y actualizan `awaiting`:
 
-- `cancel_check`: si el pedido es cancelable y `awaiting != CANCEL_CONFIRM`, deja `awaiting=CANCEL_CONFIRM` (pedirá confirmación). Si el usuario ya confirmó (el router detectó un "sí" con `awaiting=CANCEL_CONFIRM`), limpia `awaiting` y la arista manda a `cancel_exec`.
+- `cancel_check`: si el pedido es cancelable y `awaiting != CANCEL_CONFIRM`, deja `awaiting=CANCEL_CONFIRM` (pedirá confirmación). Si el usuario ya confirmó (el router detectó un "sí" con `awaiting=CANCEL_CONFIRM`), limpia `awaiting` y la arista manda a `cancel_exec`. Si el pedido **ya está entregado**, cancelar no aplica: el nodo instruye a `respond` para que reconduzca hacia una **devolución** (no hacia una incidencia).
+- `return_check` / `return_exec`: **réplica exacta del flujo de cancelación, pero para devoluciones** (intención `RETURN`, pedidos en estado `DELIVERED`). `return_check` valida la regla `isReturnable()` en Java; si procede y aún no hay confirmación, marca `pendingReturnId` y deja `awaiting=RETURN_CONFIRM` para que la UI muestre el botón de confirmación. Tras el clic, `return_exec` llama a `requestReturn`, pone el pedido en estado `RETURN_REQUESTED` y emite una **tarjeta-enlace a la etiqueta de devolución** (`returnCards`), igual que `support` emite el enlace al ticket. Si el pedido **ya está en devolución** (`RETURN_REQUESTED`) —el usuario vuelve sobre él o pide "muéstrame la etiqueta"— `return_check` no reinicia nada pero **re-emite la tarjeta-enlace** para que pueda abrir o reimprimir la etiqueta. Una devolución **nunca** se gestiona como incidencia: tiene su propia vía.
 - `support`: **nunca crea la incidencia "a lo loco"**; sigue un human-in-the-loop con gate de confirmación, igual que la cancelación. En el primer turno con intención `SUPPORT` no llama a ninguna tool: guarda el mensaje que disparó el tema como semilla en `ticketDraft` y deja `awaiting=TICKET_CONFIRM`, proponiendo abrir la incidencia y pidiendo que el usuario confirme y describa el problema con detalle. Si el usuario sigue adelante, **une** la semilla con lo que cuente ahora; si aún falta detalle deja `awaiting=TICKET_INFO` para ampliarlo, y cuando hay material suficiente llama a `createTicket` y marca `resolved=true`. Si el usuario rechaza la incidencia o pide otra cosa, el **router** descarta el borrador (`ticketDraft`) y reencamina el turno: el nodo `support` ni se entra.
 
 ### `respond` — redacción única de la respuesta

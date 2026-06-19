@@ -19,7 +19,7 @@ erDiagram
         bigint id PK
         varchar user_id FK
         varchar description "ej. Portátil Lenovo ThinkPad"
-        varchar status "CREATED|PAID|SHIPPED|IN_DELIVERY|DELIVERED|CANCELLED"
+        varchar status "CREATED|PAID|SHIPPED|IN_DELIVERY|DELIVERED|CANCELLED|RETURN_REQUESTED"
         date order_date
         date estimated_delivery
         varchar tracking_carrier "nullable"
@@ -44,7 +44,7 @@ Notas de diseño:
 ## Ciclo de vida del pedido y reglas de negocio
 
 ```
-CREATED ──> PAID ──> SHIPPED ──> IN_DELIVERY ──> DELIVERED
+CREATED ──> PAID ──> SHIPPED ──> IN_DELIVERY ──> DELIVERED ──> RETURN_REQUESTED
    │          │
    └──────────┴────> CANCELLED
 ```
@@ -52,6 +52,8 @@ CREATED ──> PAID ──> SHIPPED ──> IN_DELIVERY ──> DELIVERED
 | Regla | Implementación |
 |---|---|
 | Solo se puede cancelar en `CREATED` o `PAID` | `OrderTools.cancelOrder` — validación Java, devuelve resultado tipado con motivo del rechazo |
+| Solo se puede devolver un pedido `DELIVERED` | `OrderTools.requestReturn` — validación Java (`isReturnable()`); pasa el pedido a `RETURN_REQUESTED` |
+| Cancelar y devolver son excluyentes | se cancela antes del envío y se devuelve tras la entrega; "cancelar" un pedido entregado se reconduce a devolución |
 | Un pedido `CANCELLED` no se puede volver a cancelar | misma validación |
 | El seguimiento de un pedido `CANCELLED` informa de la cancelación, no de envío | `OrderTools.trackShipment` |
 | Un usuario solo ve/opera sus propios pedidos | todas las queries filtran por `user_id` tomado del `AgentState`, ver [05 — Tools](05-tools-java.md) |
@@ -60,10 +62,14 @@ La enumeración Java:
 
 ```java
 public enum OrderStatus {
-    CREATED, PAID, SHIPPED, IN_DELIVERY, DELIVERED, CANCELLED;
+    CREATED, PAID, SHIPPED, IN_DELIVERY, DELIVERED, CANCELLED, RETURN_REQUESTED;
 
     public boolean isCancellable() {
         return this == CREATED || this == PAID;
+    }
+
+    public boolean isReturnable() {
+        return this == DELIVERED;
     }
 }
 ```

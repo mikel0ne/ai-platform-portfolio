@@ -10,8 +10,10 @@ Las herramientas son **código Java determinista** invocado desde los nodos del 
 |---|---|---|---|---|
 | `getRecentOrders` | común | `userId` | `List<OrderSummary>` (máx. 3) | solo pedidos del usuario |
 | `trackShipment` | TRACKING | `orderId`, `userId` | `ShipmentStatus` | el pedido debe pertenecer al usuario |
-| `checkCancellable` | CANCEL | `orderId`, `userId` | `CancellationResult` (sin ejecutar) | cancelable ⇔ `CREATED\|PAID` |
+| `checkCancellable` | CANCEL | `orderId`, `userId` | `CancellationCheck` (sin ejecutar) | cancelable ⇔ `CREATED\|PAID` |
 | `cancelOrder` | CANCEL | `orderId`, `userId` | `CancellationResult` | revalida y ejecuta en transacción |
+| `checkReturnable` | RETURN | `orderId`, `userId` | `ReturnCheck` (sin ejecutar) | devolvible ⇔ `DELIVERED` |
+| `requestReturn` | RETURN | `orderId`, `userId` | `ReturnResult` | revalida, pone el pedido en `RETURN_REQUESTED` y emite la referencia de la etiqueta |
 | `createTicket` | SUPPORT | `userId`, `orderId?`, `subject`, `description` | `TicketCreated` | si hay `orderId`, debe ser del usuario |
 
 ## `OrderTools`
@@ -62,12 +64,36 @@ public class OrderTools {
         return new CancellationResult(orderId, true, "Cancelado correctamente");
     }
 
+    @Tool("Comprueba si un pedido admite devolución según las reglas de negocio, sin iniciarla")
+    public ReturnCheck checkReturnable(Long orderId, String userId) {
+        Order o = ownedOrder(orderId, userId);
+        // devolvible ⇔ el pedido está ENTREGADO (OrderStatus.isReturnable())
+        return new ReturnCheck(orderId, o.getStatus().isReturnable(),
+                o.getStatus().name(), descripcionDe(o));
+    }
+
+    @Tool("Inicia la devolución de un pedido del usuario si las reglas de negocio lo permiten")
+    @Transactional
+    public ReturnResult requestReturn(Long orderId, String userId) {
+        Order o = ownedOrder(orderId, userId);
+        if (!o.getStatus().isReturnable())                 // revalida: el estado pudo cambiar
+            return new ReturnResult(orderId, false, null,
+                    "Rechazada: estado actual " + o.getStatus());
+        o.setStatus(OrderStatus.RETURN_REQUESTED);
+        orderRepository.save(o);
+        String reference = ReturnCardDto.code(orderId);    // RET-0789
+        log.info("Devolución del pedido {} iniciada por usuario {}", orderId, userId);
+        return new ReturnResult(orderId, true, reference, "Devolución iniciada correctamente");
+    }
+
     private Order ownedOrder(Long orderId, String userId) {
         return orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
     }
 }
 ```
+
+> **Ciclo de vida del pedido y reglas de dominio.** `OrderStatus` añade `RETURN_REQUESTED` al final del ciclo (`… DELIVERED → RETURN_REQUESTED`) y dos reglas en código Java, no en el prompt: `isCancellable()` (⇔ `CREATED|PAID`) e `isReturnable()` (⇔ `DELIVERED`). Son excluyentes: un pedido se cancela **antes** de enviarse y se devuelve **después** de entregarse; "cancelar" un pedido entregado se reconduce a una devolución. La **etiqueta de devolución** se sirve por `GET /api/copilot/returns/{id}` (`ReturnLabelDto`: código `RET-####`, almacén de destino, transportista y código de barras determinista), análoga al detalle de ticket.
 
 ## `TicketTools`
 
@@ -111,7 +137,7 @@ Defensas en capas:
 1. **El `userId` nunca sale del texto.** Entra por la petición HTTP (sesión simulada), se fija en el `AgentState` al inicio del turno y las tools lo reciben **del estado**, no de la salida del LLM. El `IntentClassifier` ni siquiera tiene un campo `userId` en su salida estructurada.
 2. **Queries de propiedad obligatoria.** Todos los accesos por id usan `findByIdAndUserId`. Aunque el LLM extrajera/alucinara un `orderId` ajeno (p.ej. #201 de u-002), la tool lanza `OrderNotFoundException` y el agente responde "no encuentro ese pedido entre los tuyos".
 3. **El LLM nunca redacta datos que no estén en `toolResult`.** El nodo `respond` instruye al modelo a usar solo el resultado de la tool; si está vacío, debe decir que no tiene la información.
-4. **Acciones transaccionales con confirmación.** `cancelOrder` solo se alcanza tras el ciclo de confirmación (`awaiting=CANCEL_CONFIRM`), y revalida las reglas en el momento de ejecutar (el estado pudo cambiar entre turnos).
+4. **Acciones transaccionales con confirmación.** `cancelOrder` solo se alcanza tras el ciclo de confirmación (`awaiting=CANCEL_CONFIRM`), y revalida las reglas en el momento de ejecutar (el estado pudo cambiar entre turnos). `requestReturn` sigue el mismo patrón (`awaiting=RETURN_CONFIRM`) y revalida `isReturnable()` antes de iniciar la devolución.
 
 ## Manejo de errores
 

@@ -20,17 +20,21 @@ frontend/
 ├── proxy.conf.json                  # { "/api": { "target": "http://localhost:8080" } }
 ├── src/app/
 │   ├── app.component.ts             # shell: header con usuario activo + router-outlet
-│   ├── app.routes.ts                # '' → LoginComponent, 'chat' → ChatComponent (guard: hay usuario)
+│   ├── app.routes.ts                # '' → Login, 'chat' → Chat (guard), 'tickets/:id' → detalle, 'returns/:id' → etiqueta de devolución
 │   ├── core/
 │   │   ├── auth.service.ts          # usuario simulado (signal<UserDto|null>, sessionStorage)
 │   │   ├── auth.interceptor.ts      # añade X-User-Id a toda petición /api
-│   │   └── chat-api.service.ts      # POST /api/copilot/chat, GET /api/copilot/users
+│   │   └── chat-api.service.ts      # POST /api/copilot/chat, GET /api/copilot/{users,tickets/:id,returns/:id}
 │   ├── login/
 │   │   └── login.component.ts       # tarjetas de usuarios demo → "entrar"
+│   ├── ticket/
+│   │   └── ticket-detail.component.ts   # página /tickets/:id (popup desde la tarjeta de ticket)
+│   ├── returns/
+│   │   └── return-label.component.ts    # página /returns/:id: etiqueta de devolución (dirección, referencia, código de barras)
 │   └── chat/
 │       ├── chat.component.ts        # orquesta la conversación
 │       ├── chat-store.ts            # signals: messages[], sending, conversationId
-│       ├── message-bubble.component.ts
+│       ├── message-bubble.component.ts   # texto + tarjetas de pedido/ticket/devolución + botones de confirmación
 │       └── typing-indicator.component.ts
 ```
 
@@ -43,14 +47,22 @@ export interface ChatRequest { conversationId: string; message: string; }
 export interface ChatResponse {
   conversationId: string;
   reply: string;
-  intent: 'TRACKING' | 'CANCEL' | 'SUPPORT' | 'OTHER';
+  intent: 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'TICKETS' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
   resolved: boolean;
+  orders?: OrderCard[];     // tarjetas de pedido (menú o ilustración)
+  tickets?: TicketCard[];   // enlaces a incidencias creadas (popup /tickets/:id)
+  returns?: ReturnCard[];   // enlaces a devoluciones iniciadas (popup /returns/:id)
+  confirm?: ConfirmAction | null;  // botones de una operación irreversible (cancelación o devolución)
 }
 export interface ChatMessage {            // modelo de UI
   from: 'user' | 'agent';
   text: string;
   intent?: ChatResponse['intent'];
   at: Date;
+  orders?: OrderCard[];
+  tickets?: TicketCard[];
+  returns?: ReturnCard[];
+  confirm?: ConfirmAction | null;
 }
 ```
 
@@ -66,6 +78,14 @@ export class ChatApiService {
 
   send(req: ChatRequest): Observable<ChatResponse> {
     return this.http.post<ChatResponse>('/api/copilot/chat', req);
+  }
+
+  ticket(id: number): Observable<TicketDetail> {
+    return this.http.get<TicketDetail>(`/api/copilot/tickets/${id}`);
+  }
+
+  returnLabel(id: number): Observable<ReturnLabel> {
+    return this.http.get<ReturnLabel>(`/api/copilot/returns/${id}`);
   }
 }
 ```
