@@ -54,7 +54,7 @@ class RouterEvalTest {
         for (GoldenCase c : cases) {
             // Peticiones frescas: sin foco, sin nada pendiente, sin candidatos.
             RouterDecision decision = classifier.classify(
-                    c.message(), "NONE", "NOTHING", "(ninguno)", "(ninguno)");
+                    c.message(), "NONE", "NOTHING", "(ninguno)", "(ninguno)", "(sin historial previo)");
             Intent got = Intent.fromLlm(decision.intent());
             boolean ok = got == Intent.fromLlm(c.expectedIntent());
             if (ok) {

@@ -43,10 +43,31 @@ langchain4j:
     model-name: gemini-3.1-flash-lite
     timeout: 30s
     max-retries: 2
+    # Temperatura por rol del LLM (creatividad según la tarea). Ajustables sin recompilar.
+    # - deterministic: router + verificador → 0.0 (clasifican/juzgan; misma entrada → misma salida)
+    # - ticket: redacción de incidencias → baja (limpia el texto sin inventar datos)
+    # - response: respuestas de negocio → media (tono natural, fiel a los datos)
+    # - chat: charla informal (modo chatty) → alta (calidez y variedad)
+    temperatures:
+      deterministic: 0.0
+      ticket: 0.2
+      response: 0.35
+      chat: 0.7
 
 # Agente de soporte L1 (LangGraph4j)
 copilot:
   max-recent-orders: 3
+  # Memoria conversacional inyectada en los prompts del LLM. El historial ya se
+  # acumula en el estado; aquí se decide cuánto ve cada LLM, de forma independiente.
+  # - enabled=false  → ese consumidor no recibe historial (prompt = "(sin historial previo)")
+  # - size           → nº máximo de mensajes recientes (USER/AGENT) incluidos en la ventana
+  history:
+    classifier:        # el router: ayuda a resolver referencias e intención según el hilo
+      enabled: true
+      size: 6
+    responder:         # el redactor: coherencia del hilo y referencias ("eso", "lo de antes")
+      enabled: true
+      size: 6
 
 # Tratamiento del asistente: a partir de esta edad se trata de usted (amable);
 # por debajo, se tutea (simpático). Aplica a mensajes generados y hardcodeados.
