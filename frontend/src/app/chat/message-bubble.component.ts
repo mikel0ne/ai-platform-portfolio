@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, EventEmitter, Input, Output } from '@angular/core';
-import { ChatMessage, OrderCard, TicketCard } from '../core/models';
+import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
 
 @Component({
   selector: 'app-message-bubble',
@@ -46,6 +46,22 @@ import { ChatMessage, OrderCard, TicketCard } from '../core/models';
                 </span>
               </span>
               <span class="ticket-open" aria-hidden="true">↗</span>
+            </a>
+          }
+        </div>
+      }
+
+      @if (msg.returns && msg.returns.length > 0) {
+        <div class="return-cards">
+          @for (ret of msg.returns; track ret.id) {
+            <a class="return-link" href="javascript:void(0)" (click)="openReturn(ret)">
+              <span class="return-icon">🏷️</span>
+              <span class="return-body">
+                <span class="return-code">[{{ ret.code }}]</span>
+                <span class="return-title">Etiqueta de devolución · {{ ret.description }}</span>
+                <span class="return-status">Devolución iniciada</span>
+              </span>
+              <span class="return-open" aria-hidden="true">↗</span>
             </a>
           }
         </div>
@@ -183,6 +199,7 @@ import { ChatMessage, OrderCard, TicketCard } from '../core/models';
     .status-in_delivery { background: #ede9fe; color: #6d28d9; }
     .status-delivered  { background: #d1fae5; color: #065f46; }
     .status-cancelled  { background: #fee2e2; color: #b91c1c; }
+    .status-return_requested { background: #ccfbf1; color: #0f766e; }
 
     /* ── Ticket link card ────────────────────────────────────────────────── */
     .ticket-cards {
@@ -250,6 +267,71 @@ import { ChatMessage, OrderCard, TicketCard } from '../core/models';
       flex-shrink: 0;
     }
 
+    /* ── Return label card ───────────────────────────────────────────────── */
+    .return-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-top: 0.65rem;
+    }
+    .return-link {
+      display: flex;
+      align-items: center;
+      gap: 0.7rem;
+      background: #fff;
+      border: 1.5px solid #99f6e4;
+      border-left: 4px solid #0d9488;
+      border-radius: 10px;
+      padding: 0.55rem 0.75rem;
+      text-decoration: none;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .return-link:hover {
+      box-shadow: 0 2px 8px rgba(13,148,136,0.18);
+      transform: translateY(-1px);
+    }
+    .return-link:active { transform: translateY(0); }
+    .return-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .return-body {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1;
+    }
+    .return-code {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #0f766e;
+      letter-spacing: 0.04em;
+    }
+    .return-title {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: #1f2328;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .return-status {
+      display: inline-block;
+      font-size: 0.66rem;
+      font-weight: 700;
+      padding: 1px 7px;
+      border-radius: 20px;
+      align-self: flex-start;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      background: #ccfbf1;
+      color: #0f766e;
+    }
+    .return-open {
+      font-size: 1.1rem;
+      color: #0d9488;
+      flex-shrink: 0;
+    }
+
     /* ── Meta row ────────────────────────────────────────────────────────── */
     .meta {
       display: flex;
@@ -269,6 +351,7 @@ import { ChatMessage, OrderCard, TicketCard } from '../core/models';
     }
     .intent-tracking { background: #dbeafe; color: #1d4ed8; }
     .intent-cancel   { background: #fee2e2; color: #b91c1c; }
+    .intent-return   { background: #ccfbf1; color: #0f766e; }
     .intent-support  { background: #ede9fe; color: #6d28d9; }
     .intent-faq      { background: #cffafe; color: #0e7490; }
     .intent-chatty   { background: #fce7f3; color: #be185d; }
@@ -320,6 +403,12 @@ export class MessageBubbleComponent {
     window.open(`/tickets/${ticket.id}`, `ticket-${ticket.id}`, features);
   }
 
+  /** Abre la etiqueta de devolución en una ventana emergente. */
+  openReturn(ret: ReturnCard): void {
+    const features = 'width=520,height=720,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes';
+    window.open(`/returns/${ret.id}`, `return-${ret.id}`, features);
+  }
+
   ticketStatusLabel(status: string): string {
     const labels: Record<string, string> = {
       OPEN:        'Abierto',
@@ -337,6 +426,7 @@ export class MessageBubbleComponent {
       IN_DELIVERY: 'En reparto',
       DELIVERED:   'Entregado',
       CANCELLED:   'Cancelado',
+      RETURN_REQUESTED: 'En devolución',
     };
     return labels[status] ?? status;
   }

@@ -55,6 +55,10 @@ class SupportAgentFlowTest {
     @MockitoBean
     private Responder responder;
 
+    /** Redactor de charla informal (modo chatty): mismo eco que el responder de negocio. */
+    @MockitoBean(name = "chattyResponder")
+    private Responder chattyResponder;
+
     @MockitoBean
     private TicketWriter ticketWriter;
 
@@ -72,7 +76,11 @@ class SupportAgentFlowTest {
 
     @BeforeEach
     void echoResponder() {
-        when(responder.write(any(), any(), any(), any(), anyBoolean(), any(), any(), anyBoolean()))
+        when(responder.write(any(), any(), any(), any(), anyBoolean(), any(), any(), anyBoolean(), any()))
+                .thenAnswer(inv -> "ECHO[" + inv.getArgument(2) + "]");
+        // El redactor de charla informal refleja igual el toolResult: las aserciones de chatty
+        // comprueban qué llegó a redacción, no el tono real del modelo.
+        when(chattyResponder.write(any(), any(), any(), any(), anyBoolean(), any(), any(), anyBoolean(), any()))
                 .thenAnswer(inv -> "ECHO[" + inv.getArgument(2) + "]");
         // Por defecto el verificador da el visto bueno (SURE): los escenarios que prueban el
         // flujo de la gestión no se ven afectados. Los tests de DOUBT/REJECT lo sobreescriben.
@@ -83,7 +91,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Escenario de referencia: ambigüedad → desambiguación proactiva → ciclo → tracking")
     void referenceScenario_trackingWithDisambiguation() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 // turno 1: intención clara, pedido desconocido
                 .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"))
                 // turno 2: "el portátil" resuelto contra los candidatos del estado
@@ -105,7 +113,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Cancelación con human-in-the-loop: pide confirmación y solo ejecuta tras el sí")
     void cancellationRequiresConfirmation() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("CANCEL", 200L, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("CANCEL", null, "YES", "NONE"));
 
@@ -129,7 +137,7 @@ class SupportAgentFlowTest {
     void cancellationViaButtonIsDeterministic() {
         // El router solo se consulta en el turno 1 (CANCEL del 202). En el turno 2, el comando
         // del botón se resuelve en el fast-path del router, sin tocar el clasificador.
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("CANCEL", 202L, "NONE", "NONE"));
 
         var turn1 = conversationService.chat("u-002", "conv-cancel-btn", "quiero cancelar el 202");
@@ -156,7 +164,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Tras cancelar un pedido, el siguiente turno vuelve a ofrecer los pedidos restantes")
     void cancellationClearsOrderContextForNextTurn() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("CANCEL", 456L, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("CANCEL", null, "YES", "NONE"))
                 .thenReturn(new RouterDecision("CANCEL", null, "NONE", "NONE"));
@@ -176,9 +184,36 @@ class SupportAgentFlowTest {
     }
 
     @Test
+    @DisplayName("Anular la cancelación NO suelta el foco: el pedido sigue activo para el siguiente turno")
+    void abortingCancellationKeepsFocus() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("CANCEL", 456L, "NONE", "NONE"))
+                .thenReturn(new RouterDecision("CANCEL", null, "NO", "NONE"))
+                .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"));
+
+        var turn1 = conversationService.chat("u-001", "conv-cancel-abort", "Cancela el pedido 456");
+        assertThat(turn1.resolved()).isFalse();
+        assertThat(turn1.reply()).contains("puede cancelarse");
+
+        // El usuario se echa atrás: NO cancela. El pedido sigue en su estado normal (PAID).
+        var turn2 = conversationService.chat("u-001", "conv-cancel-abort", "No, consérvalo");
+        assertThat(turn2.resolved()).isTrue();
+        assertThat(turn2.reply()).contains("descartada");
+        assertThat(orderRepository.findById(456L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.PAID);
+
+        // Foco conservado: una consulta sin id (TRACKING) actúa sobre el #456, en lugar de
+        // volver a ofrecer el menú de pedidos. El usuario "conservarlo" sigue sobre ese pedido.
+        var turn3 = conversationService.chat("u-001", "conv-cancel-abort", "¿y dónde está?");
+        assertThat(turn3.resolved()).isTrue();
+        assertThat(turn3.reply()).contains("#456").contains("Ratón");
+        assertThat(turn3.reply()).doesNotContain("#123").doesNotContain("#789");
+    }
+
+    @Test
     @DisplayName("La cancelación de un pedido enviado la rechaza el código de negocio")
     void cancellationOfShippedOrderIsRejected() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("CANCEL", 201L, "NONE", "NONE"));
 
         var turn = conversationService.chat("u-002", "conv-cancel-ko", "Cancela el pedido 201");
@@ -192,7 +227,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Soporte: propone la incidencia (no la crea), pide detalle y la crea al confirmarla")
     void supportProposesThenCreatesTicket() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
         // El redactor LLM limpia el texto en bruto en un asunto y descripción coherentes
@@ -237,7 +272,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Soporte: ni un primer mensaje largo y airado crea la incidencia de golpe; primero la propone")
     void supportDoesNotAutoCreateOnFirstLongMessage() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
 
         var turn = conversationService.chat("u-001", "conv-support-long",
@@ -252,7 +287,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Soporte: si el usuario rechaza la incidencia en el gate, no se crea nada y se reencamina")
     void supportDeclineAtGateCreatesNothingAndReroutes() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 // turno 1: parece una incidencia → propuesta (gate TICKET_CONFIRM)
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"))
                 // turno 2: el usuario rechaza y en realidad quiere otra cosa
@@ -274,7 +309,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Soporte: si en el gate el usuario pide cancelar, se descarta la incidencia y va a cancelación")
     void supportPivotToCancelAtGateDropsTicket() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 // turno 1: parece incidencia → propuesta
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"))
                 // turno 2: en realidad quiere cancelar el pedido 200
@@ -295,7 +330,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Verify con DOUBT en una acción: en vez de actuar, pregunta (clarify) y no crea nada")
     void verifyDoubtAsksInsteadOfActing() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
         // El verificador no lo ve claro: el turno debe ir a clarify, no a crear el ticket
         when(verifier.verify(any(), any(), any()))
@@ -313,7 +348,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Verify con REJECT en una acción: pregunta liderando con alternativas, sin sembrar el ticket")
     void verifyRejectLeadsWithAlternatives() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
         when(verifier.verify(any(), any(), any()))
                 .thenReturn(new Verifier.Decision("REJECT", "es una pregunta general, no una incidencia"));
@@ -329,7 +364,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Verify con DOUBT en una LECTURA: sigue adelante con tono tentativo (no frena)")
     void verifyDoubtOnReadProceedsTentatively() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"));
         when(verifier.verify(any(), any(), any()))
                 .thenReturn(new Verifier.Decision("DOUBT", "no está claro si quiere el envío"));
@@ -338,13 +373,13 @@ class SupportAgentFlowTest {
 
         // Lectura inocua: NO frena, ofrece los pedidos (desambiguación), pero en tono tentativo
         assertThat(turn.reply()).contains("#123").contains("#456");
-        verify(responder).write(any(), any(), any(), any(), anyBoolean(), any(), any(), eq(true));
+        verify(responder).write(any(), any(), any(), any(), anyBoolean(), any(), any(), eq(true), any());
     }
 
     @Test
     @DisplayName("Verify DOUBT → el usuario confirma la incidencia: se crea SIN volver a preguntar")
     void clarifyThenConfirmCreatesTicketWithoutReasking() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 // turno 1: el router cree SUPPORT pero verify duda → clarify
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"))
                 // turno 2: el usuario confirma y describe; sigue siendo SUPPORT
@@ -377,7 +412,7 @@ class SupportAgentFlowTest {
         // turno 1: consulta el #789. turnos 2-3: el usuario sigue hablando del mismo pedido
         // (reporta una incidencia) SIN nombrar ninguno: el router devuelve orderId=null y el
         // foco debe conservarse en 789 — nunca saltar a otro pedido del listado.
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
@@ -409,7 +444,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Volver al listado: con un pedido en foco, 'ver mis pedidos' suelta el foco y re-ofrece todos")
     void backToListReleasesFocusAndReListsOrders() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
                 // navigation=BACK_TO_LIST: da igual la intención que adivine el modelo
                 .thenReturn(new RouterDecision("OTHER", null, "NONE", "BACK_TO_LIST"));
@@ -426,7 +461,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Volver al menú principal: con un pedido en foco, vuelve a fallback sin re-listar pedidos")
     void backToMenuReleasesFocusAndShowsCapabilities() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
                 // navigation=BACK_TO_MENU: a diferencia de BACK_TO_LIST, cae siempre en OTHER
                 .thenReturn(new RouterDecision("OTHER", null, "NONE", "BACK_TO_MENU"));
@@ -441,9 +476,39 @@ class SupportAgentFlowTest {
     }
 
     @Test
+    @DisplayName("No se actúa antes de validar: un CANCEL que verify rechaza NO llega a mover el foco")
+    void rejectedActionNeverCommitsFocus() {
+        // El foco está en #789. En el turno 2 el router cree que el usuario quiere cancelar OTRO
+        // pedido (#123), pero NO toca el foco: lo deja propuesto. La validación (verify) lo rechaza,
+        // así que el foco nunca se mueve (no se comete estado para un camino que se descarta).
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
+                .thenReturn(new RouterDecision("CANCEL", 123L, "NONE", "NONE"))
+                // turno 3: foco pegajoso (sin id) → debe seguir en #789, no en #123
+                .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"));
+        when(verifier.verify(any(), any(), any()))
+                .thenReturn(new Verifier.Decision("SURE", "consulta clara"))
+                .thenReturn(new Verifier.Decision("REJECT", "no pide cancelar nada"))
+                .thenReturn(new Verifier.Decision("SURE", "consulta clara"));
+
+        var turn1 = conversationService.chat("u-001", "conv-defer", "Estado del pedido 789");
+        assertThat(turn1.reply()).contains("DELIVERED").contains("MRW");
+
+        // verify rechaza: no se ejecuta nada y se pregunta (clarify)
+        var turn2 = conversationService.chat("u-001", "conv-defer", "cancela el 123 digo no sé");
+        assertThat(turn2.resolved()).isFalse();
+        assertThat(turn2.reply()).contains("CLARIFY");
+
+        // Prueba dura: sin nombrar pedido, el foco sigue en #789 (el #123 nunca se llegó a fijar)
+        var turn3 = conversationService.chat("u-001", "conv-defer", "¿y por dónde va?");
+        assertThat(turn3.reply()).contains("DELIVERED").contains("MRW");
+        assertThat(turn3.reply()).doesNotContain("IN_DELIVERY").doesNotContain("SEUR");
+    }
+
+    @Test
     @DisplayName("FAQ: una pregunta general se responde con la base de conocimiento de la tienda")
     void faqAnswersFromKnowledgeBase() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
         var turn = conversationService.chat("u-001", "conv-faq", "¿Cuál es la política de devoluciones?");
@@ -455,7 +520,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Digresión: una FAQ a mitad de elegir pedido se responde y luego se retoma la elección")
     void faqDigressionDuringOrderChoiceResumes() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 // turno 1: tracking sin pedido → desambiguación (awaiting=ORDER_CHOICE)
                 .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"))
                 // turno 2: en vez de elegir, pregunta una FAQ (digresión)
@@ -481,7 +546,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Foco pegajoso: una FAQ no roba el foco del pedido en curso")
     void faqKeepsOrderFocus() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 // turno 1: consulta el #789 (queda en foco, sin nada pendiente)
                 .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
                 // turno 2: pregunta general; al no haber awaiting, es FAQ normal (no digresión)
@@ -506,7 +571,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Smalltalk: el camino por defecto presenta capacidades sin tocar datos")
     void smalltalkFallsBackToCapabilities() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
         var turn = conversationService.chat("u-001", "conv-hi", "Hola, ¿qué tal?");
@@ -519,7 +584,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("No cancelable: conserva el foco para que el siguiente turno siga sobre ese pedido")
     void nonCancellableKeepsFocus() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("CANCEL", 201L, "NONE", "NONE"))
                 // turno 2: sin nombrar pedido; el foco debe seguir en 201, no re-listar
                 .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"));
@@ -537,7 +602,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Chatty: la charla informal se responde sin tocar el foco ni el negocio")
     void chattyDoesNotTouchBusiness() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("CHATTY", null, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("TRACKING", null, "NONE", "NONE"));
@@ -558,7 +623,7 @@ class SupportAgentFlowTest {
     @Test
     @DisplayName("Ambigüedad con foco: aclara en vez de volcar el menú, y escala al repetirse")
     void ambiguousWithFocusClarifiesThenEscalates() {
-        when(classifier.classify(any(), any(), any(), any(), any()))
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("OTHER", null, "NONE", "NONE"))
                 .thenReturn(new RouterDecision("OTHER", null, "NONE", "NONE"));
@@ -576,5 +641,153 @@ class SupportAgentFlowTest {
         // 2ª ambigüedad seguida → escala sugiriendo el menú principal
         var turn3 = conversationService.chat("u-001", "conv-clarify", "no sé, lo que sea");
         assertThat(turn3.reply()).contains("menú principal");
+    }
+
+    @Test
+    @DisplayName("Devolución con human-in-the-loop: propone, muestra el botón y solo inicia la devolución tras confirmar")
+    void returnRequiresConfirmationViaButton() {
+        // #789 (Monitor Dell) de u-001 está ENTREGADO → admite devolución. El router solo se
+        // consulta en el turno 1; el clic del botón se resuelve en el fast-path, sin tocar el LLM.
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("RETURN", 789L, "NONE", "NONE"));
+        try {
+            var turn1 = conversationService.chat("u-001", "conv-return", "quiero devolver el monitor 789");
+            assertThat(turn1.resolved()).isFalse();
+            assertThat(turn1.reply()).contains("admite devolución");
+            // Se ofrece el botón de confirmación con sus payloads deterministas
+            assertThat(turn1.confirm()).isNotNull();
+            assertThat(turn1.confirm().orderId()).isEqualTo(789L);
+            assertThat(turn1.confirm().confirmPayload()).isEqualTo(UiAction.confirmReturn(789L));
+            assertThat(turn1.confirm().cancelPayload()).isEqualTo(UiAction.abortReturn(789L));
+            // Nada se ha tocado todavía: el pedido sigue ENTREGADO
+            assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                    .isEqualTo(OrderStatus.DELIVERED);
+
+            // El clic del botón inicia la devolución sin pasar por el LLM
+            var turn2 = conversationService.chat("u-001", "conv-return", UiAction.confirmReturn(789L));
+            assertThat(turn2.resolved()).isTrue();
+            assertThat(turn2.confirm()).isNull();
+            // El pedido pasa a RETURN_REQUESTED y se entrega la tarjeta-enlace a la etiqueta
+            assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                    .isEqualTo(OrderStatus.RETURN_REQUESTED);
+            assertThat(turn2.returns()).hasSize(1);
+            assertThat(turn2.returns().get(0).id()).isEqualTo(789L);
+            assertThat(turn2.returns().get(0).code()).isEqualTo("RET-0789");
+            assertThat(turn2.reply()).contains("RET-0789");
+        } finally {
+            // Restaura el estado del pedido: el suite no re-siembra la BD entre tests y varios
+            // escenarios asumen #789 como DELIVERED.
+            var o = orderRepository.findById(789L).orElseThrow();
+            o.setStatus(OrderStatus.DELIVERED);
+            orderRepository.save(o);
+        }
+    }
+
+    @Test
+    @DisplayName("Devolución por botón de descarte: el usuario no devuelve y no se toca nada")
+    void abortingReturnChangesNothing() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("RETURN", 789L, "NONE", "NONE"));
+
+        var turn1 = conversationService.chat("u-001", "conv-return-abort", "devolver el 789");
+        assertThat(turn1.resolved()).isFalse();
+        assertThat(turn1.confirm()).isNotNull();
+
+        // El usuario descarta la devolución con el botón "No": nada cambia en la BD
+        var turn2 = conversationService.chat("u-001", "conv-return-abort", UiAction.abortReturn(789L));
+        assertThat(turn2.resolved()).isTrue();
+        assertThat(turn2.reply()).contains("descartada");
+        assertThat(turn2.returns()).isEmpty();
+        assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.DELIVERED);
+    }
+
+    @Test
+    @DisplayName("Devolución de un pedido aún no entregado: la rechaza el código de negocio")
+    void returnOfNonDeliveredOrderIsRejected() {
+        // #123 (portátil) está IN_DELIVERY: todavía no se puede devolver
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("RETURN", 123L, "NONE", "NONE"));
+
+        var turn = conversationService.chat("u-001", "conv-return-ko", "quiero devolver el 123");
+
+        assertThat(turn.resolved()).isTrue();
+        assertThat(turn.returns()).isEmpty();
+        assertThat(turn.confirm()).isNull();
+        // Se explica que la devolución solo es posible una vez ENTREGADO; nada se ha tocado
+        assertThat(turn.reply()).contains("ENTREGADO");
+        assertThat(orderRepository.findById(123L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.IN_DELIVERY);
+    }
+
+    @Test
+    @DisplayName("Cancelar un pedido ya entregado reconduce a la devolución (no a una incidencia)")
+    void cancelOfDeliveredOrderRedirectsToReturn() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("CANCEL", 789L, "NONE", "NONE"));
+
+        var turn = conversationService.chat("u-001", "conv-cancel-delivered", "cancela el 789");
+
+        // El nodo de cancelación reconduce hacia una DEVOLUCIÓN, sin tocar el pedido
+        assertThat(turn.reply()).contains("DEVOLUCIÓN");
+        assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.DELIVERED);
+    }
+
+    @Test
+    @DisplayName("Devolución ya iniciada: pedir la etiqueta re-emite la tarjeta-enlace sin iniciar nada de nuevo")
+    void alreadyReturningReoffersLabel() {
+        // Dejamos #789 como una devolución ya en marcha
+        var order = orderRepository.findById(789L).orElseThrow();
+        order.setStatus(OrderStatus.RETURN_REQUESTED);
+        orderRepository.save(order);
+        try {
+            when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                    .thenReturn(new RouterDecision("RETURN", 789L, "NONE", "NONE"));
+
+            var turn = conversationService.chat("u-001", "conv-return-label",
+                    "enséñame la etiqueta de devolución del 789");
+
+            // Se re-ofrece la etiqueta (tarjeta-enlace), sin volver a "iniciar" la devolución
+            assertThat(turn.returns()).hasSize(1);
+            assertThat(turn.returns().get(0).id()).isEqualTo(789L);
+            assertThat(turn.returns().get(0).code()).isEqualTo("RET-0789");
+            assertThat(turn.reply()).contains("etiqueta");
+            // No hay botón de confirmación y el pedido sigue exactamente igual
+            assertThat(turn.confirm()).isNull();
+            assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                    .isEqualTo(OrderStatus.RETURN_REQUESTED);
+        } finally {
+            var o = orderRepository.findById(789L).orElseThrow();
+            o.setStatus(OrderStatus.DELIVERED);
+            orderRepository.save(o);
+        }
+    }
+
+    @Test
+    @DisplayName("Tracking de un pedido en devolución: muestra la etiqueta, no la ficha de envío ni la fecha")
+    void trackingOrderInReturnShowsLabel() {
+        // #789 está en devolución; consultarlo (tracking) debe surfacar la etiqueta, no el envío
+        var order = orderRepository.findById(789L).orElseThrow();
+        order.setStatus(OrderStatus.RETURN_REQUESTED);
+        orderRepository.save(order);
+        try {
+            when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                    .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"));
+
+            var turn = conversationService.chat("u-001", "conv-track-return", "¿dónde está el 789?");
+
+            // Aparece la tarjeta-enlace a la etiqueta, NO la ficha de pedido (orderCards)
+            assertThat(turn.returns()).hasSize(1);
+            assertThat(turn.returns().get(0).code()).isEqualTo("RET-0789");
+            assertThat(turn.orders()).isEmpty();
+            // El texto se centra en la etiqueta y NO en la fecha de entrega del envío original
+            assertThat(turn.reply()).contains("etiqueta");
+            assertThat(turn.reply()).doesNotContain("entrega estimada");
+        } finally {
+            var o = orderRepository.findById(789L).orElseThrow();
+            o.setStatus(OrderStatus.DELIVERED);
+            orderRepository.save(o);
+        }
     }
 }

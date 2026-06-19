@@ -15,5 +15,9 @@ export const routes: Routes = [
     path: 'tickets/:id',
     loadComponent: () => import('./ticket/ticket-detail.component').then(m => m.TicketDetailComponent),
   },
+  {
+    path: 'returns/:id',
+    loadComponent: () => import('./returns/return-label.component').then(m => m.ReturnLabelComponent),
+  },
   { path: '**', redirectTo: '' },
 ];

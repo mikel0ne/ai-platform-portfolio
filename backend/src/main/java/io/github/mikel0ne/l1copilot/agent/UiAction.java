@@ -18,6 +18,10 @@ public final class UiAction {
     public static final String CONFIRM_CANCEL = "action:confirm-cancel:";
     /** Descartar la cancelación del pedido indicado: {@code action:abort-cancel:<id>}. */
     public static final String ABORT_CANCEL = "action:abort-cancel:";
+    /** Confirmar la devolución del pedido indicado: {@code action:confirm-return:<id>}. */
+    public static final String CONFIRM_RETURN = "action:confirm-return:";
+    /** Descartar la devolución del pedido indicado: {@code action:abort-return:<id>}. */
+    public static final String ABORT_RETURN = "action:abort-return:";
 
     private UiAction() {
     }
@@ -30,6 +34,16 @@ public final class UiAction {
     /** Payload que la UI debe enviar para descartar la cancelación de un pedido. */
     public static String abortCancel(long orderId) {
         return ABORT_CANCEL + orderId;
+    }
+
+    /** Payload que la UI debe enviar para confirmar la devolución de un pedido. */
+    public static String confirmReturn(long orderId) {
+        return CONFIRM_RETURN + orderId;
+    }
+
+    /** Payload que la UI debe enviar para descartar la devolución de un pedido. */
+    public static String abortReturn(long orderId) {
+        return ABORT_RETURN + orderId;
     }
 
     /** El id de pedido de un comando con el prefijo dado, si el mensaje lo es. */

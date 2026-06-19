@@ -12,7 +12,9 @@ herramientas de seguimiento y cancelación.
 - **Envío express**: 24-48h laborables, disponible para pedidos realizados
   antes de las 14:00 (días laborables) en península y Baleares.
 - **Gastos de envío**: gratuitos a partir de 39€ de compra. Por debajo de ese
-  importe, 3,95€ para envío estándar y 6,95€ para express.
+  importe, 3,95€ para envío estándar y 6,95€ para express. Estos importes son los
+  del envío de una compra y no tienen relación con las devoluciones, que son
+  siempre gratuitas (ver "Devoluciones y reembolsos").
 - Los plazos empiezan a contar desde que el pedido cambia a estado "En
   preparación", no desde el momento de la compra. La preparación del pedido
   suele tardar entre 24 y 48h.
@@ -32,9 +34,15 @@ herramientas de seguimiento y cancelación.
 - Dispones de **30 días naturales** desde la entrega para devolver cualquier
   artículo, siempre que esté en su estado original, sin usar y con el
   embalaje y etiquetas originales.
-- Las devoluciones son **gratuitas**: genera la etiqueta desde "Mis pedidos >
-  Devolver artículo" y entrégala en cualquier punto del transportista
-  colaborador.
+- Las devoluciones **no tienen coste para ti**: son gratuitas, sin gastos de
+  envío de devolución. Puedes pedir la devolución directamente a este asistente
+  indicando el pedido (que debe estar ya **entregado**): comprobará que admite
+  devolución, te pedirá confirmación y, al confirmarla, generará la **etiqueta de
+  devolución** con la dirección del almacén y el código de barras para que
+  entregues el paquete en cualquier punto del transportista colaborador.
+- Una devolución NO se tramita abriendo una incidencia: tiene su propia vía. Las
+  incidencias son solo para problemas concretos del pedido recibido (llegó roto,
+  defectuoso, equivocado…).
 - El reembolso se emite al método de pago original en un plazo de **5-7 días
   laborables** desde que recibimos el paquete en nuestro almacén. El cargo en
   tu banco puede tardar 2-3 días adicionales en reflejarse según la entidad.

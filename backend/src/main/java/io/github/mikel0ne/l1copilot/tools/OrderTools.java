@@ -5,9 +5,12 @@ import dev.langchain4j.agent.tool.Tool;
 import io.github.mikel0ne.l1copilot.domain.Order;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
 import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
+import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
 import io.github.mikel0ne.l1copilot.dto.tools.CancellationCheck;
 import io.github.mikel0ne.l1copilot.dto.tools.CancellationResult;
 import io.github.mikel0ne.l1copilot.dto.tools.OrderSummary;
+import io.github.mikel0ne.l1copilot.dto.tools.ReturnCheck;
+import io.github.mikel0ne.l1copilot.dto.tools.ReturnResult;
 import io.github.mikel0ne.l1copilot.dto.tools.ShipmentStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,10 +67,10 @@ public class OrderTools {
     public CancellationCheck checkCancellable(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
         String description = o.getStatus().isCancellable()
-                ? "El pedido '" + o.getDescription() + "' está en estado " + o.getStatus()
-                        + " y puede cancelarse"
-                : "El pedido '" + o.getDescription() + "' está en estado " + o.getStatus()
-                        + " y ya no puede cancelarse";
+                ? String.format("El pedido '%s' está en estado %s y puede cancelarse",
+                        o.getDescription(), o.getStatus())
+                : String.format("El pedido '%s' está en estado %s y ya no puede cancelarse",
+                        o.getDescription(), o.getStatus());
         return new CancellationCheck(orderId, o.getStatus().isCancellable(),
                 o.getStatus().name(), description);
     }
@@ -78,14 +81,44 @@ public class OrderTools {
         Order o = ownedOrder(orderId, userId);
         // Revalida en el momento de ejecutar: el estado pudo cambiar entre turnos
         if (!o.getStatus().isCancellable()) {
-            return new CancellationResult(orderId, false,
-                    "Rechazada: el pedido está en estado " + o.getStatus());
+            return new CancellationResult(orderId, false, String.format(
+                    "Rechazada: el pedido está en estado %s", o.getStatus()));
         }
         o.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(o);
         log.info("Pedido {} cancelado por el usuario {}", orderId, userId);
-        return new CancellationResult(orderId, true,
-                "El pedido '" + o.getDescription() + "' se ha cancelado correctamente");
+        return new CancellationResult(orderId, true, String.format(
+                "El pedido '%s' se ha cancelado correctamente", o.getDescription()));
+    }
+
+    @Tool("Comprueba si un pedido admite devolución según las reglas de negocio, sin iniciarla")
+    @Transactional(readOnly = true)
+    public ReturnCheck checkReturnable(Long orderId, String userId) {
+        Order o = ownedOrder(orderId, userId);
+        String description = o.getStatus().isReturnable()
+                ? String.format("El pedido '%s' está en estado %s y admite devolución",
+                        o.getDescription(), o.getStatus())
+                : String.format("El pedido '%s' está en estado %s y no admite una devolución",
+                        o.getDescription(), o.getStatus());
+        return new ReturnCheck(orderId, o.getStatus().isReturnable(),
+                o.getStatus().name(), description);
+    }
+
+    @Tool("Inicia la devolución de un pedido del usuario si las reglas de negocio lo permiten")
+    @Transactional
+    public ReturnResult requestReturn(Long orderId, String userId) {
+        Order o = ownedOrder(orderId, userId);
+        // Revalida en el momento de ejecutar: el estado pudo cambiar entre turnos
+        if (!o.getStatus().isReturnable()) {
+            return new ReturnResult(orderId, false, null, String.format(
+                    "Rechazada: el pedido está en estado %s", o.getStatus()));
+        }
+        o.setStatus(OrderStatus.RETURN_REQUESTED);
+        orderRepository.save(o);
+        String reference = ReturnCardDto.code(orderId);
+        log.info("Devolución del pedido {} iniciada por el usuario {}", orderId, userId);
+        return new ReturnResult(orderId, true, reference, String.format(
+                "La devolución del pedido '%s' se ha iniciado correctamente", o.getDescription()));
     }
 
     private Order ownedOrder(Long orderId, String userId) {
