@@ -59,14 +59,25 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("SUPPORT fresco pasa por verify; con gate en curso va directo a support")
+    @DisplayName("SUPPORT NO pasa por verify: genérica al gate; sobre un pedido sin foco identifica primero")
     void supportRouting() {
+        // Incidencia genérica (orderRelated=false): directa al gate de incidencia, sin verify
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT"))))
-                .isEqualTo(SupportRouting.TO_VERIFY);
-        // Borrador a medias o pregunta pendiente → ya preguntamos, no se re-verifica
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+        // Sobre un pedido sin foco → identificar el pedido primero (como CANCEL/RETURN)
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "orderRelated", true))))
+                .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
+        // Sobre un pedido pero con foco ya resuelto → directa al gate, sin re-preguntar
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "SUPPORT", "orderRelated", true, "orderId", 300L))))
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+        // En el gate (borrador o pregunta pendiente): directa a support, no re-identifica
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "ticketDraft", "algo"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "awaiting", "TICKET_CONFIRM"))))
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "SUPPORT", "orderRelated", true, "awaiting", "TICKET_CONFIRM"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
     }
 
@@ -182,6 +193,20 @@ class SupportRoutingTest {
                 .isEqualTo(SupportRouting.TO_TRACKING);
         assertThat(SupportRouting.fromResolveOrder(state(Map.of("intent", "CANCEL", "orderId", 200L))))
                 .isEqualTo(SupportRouting.TO_CANCEL_CHECK);
+        assertThat(SupportRouting.fromResolveOrder(state(Map.of("intent", "SUPPORT", "orderId", 300L))))
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+    }
+
+    @Test
+    @DisplayName("SUPPORT sin pedidos abre incidencia genérica; con varios pendientes de elegir, pregunta")
+    void supportResolveOrderEdgeCases() {
+        // Sin pedidos que identificar (awaiting NOTHING) → incidencia genérica, no se deja sin vía
+        assertThat(SupportRouting.fromResolveOrder(state(Map.of("intent", "SUPPORT"))))
+                .isEqualTo(SupportRouting.TO_SUPPORT);
+        // Varios pedidos ofrecidos (ORDER_CHOICE): se pregunta sobre cuál es el problema
+        assertThat(SupportRouting.fromResolveOrder(state(Map.of(
+                "intent", "SUPPORT", "awaiting", "ORDER_CHOICE"))))
+                .isEqualTo(SupportRouting.TO_ASK_USER);
     }
 
     // ---- fromCancelCheck ----

@@ -298,6 +298,27 @@ class RouterNodeTest {
     }
 
     @Test
+    @DisplayName("SUPPORT: el slot orderRelated se vuelca al estado (gobierna si se identifica el pedido)")
+    void supportOrderRelatedIsDumped() {
+        decision(new RouterDecision("SUPPORT", null, "NONE", "NONE", true));
+        assertThat(router.apply(state(Map.of())))
+                .containsEntry("intent", "SUPPORT")
+                .containsEntry("orderRelated", true);
+
+        // Incidencia genérica: orderRelated=false
+        decision(new RouterDecision("SUPPORT", null, "NONE", "NONE", false));
+        assertThat(router.apply(state(Map.of())))
+                .containsEntry("orderRelated", false);
+    }
+
+    @Test
+    @DisplayName("orderRelated solo se vuelca en SUPPORT; otras intenciones no lo tocan")
+    void orderRelatedOnlyForSupport() {
+        decision(new RouterDecision("TRACKING", 123L, "NONE", "NONE", true));
+        assertThat(router.apply(state(Map.of()))).doesNotContainKey("orderRelated");
+    }
+
+    @Test
     @DisplayName("Gate de incidencia: si el usuario sigue en SUPPORT, NO se descarta el borrador")
     void ticketGateKeepsDraftWhenStillSupport() {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
