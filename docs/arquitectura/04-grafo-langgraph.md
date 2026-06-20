@@ -399,6 +399,12 @@ Regla del prompt de `respond`: *"Responde únicamente con la información de TOO
 >
 > Sin esta distinción, al seleccionar un pedido del menú el modelo veía de nuevo una tarjeta "clicable" y re-preguntaba "¿sobre cuál quieres informarte?" en lugar de dar el estado del envío. Los tests de flujo no lo detectaban porque el responder de prueba (`ECHO[toolResult]`) no ejecuta el prompt real; es un riesgo conocido de redacción que vive solo en el prompt.
 
+> **Devolución sin ruido de cancelación.** Cancelación y devolución son vías separadas, y el prompt las cruza **solo en la dirección que el usuario plantea**:
+> - Usuario pide **cancelar** un pedido ya entregado → cancelar no aplica; el responder le hace ver que ese procedimiento ya no es posible y le ofrece la **devolución** (regla derivada de `cancel_check`, ver arriba).
+> - Usuario pide **devolver** y no ha mencionado la cancelación → el responder va **directo** a la vía de devolución y **no** introduce el tema de la cancelación. Anticipar "ya no se puede cancelar" cuando nadie lo ha pedido solo confunde.
+>
+> Esta es la **regla simétrica** añadida al system prompt de `Responder`. Importante: el `toolResult` de `return_check` ya era correcto (solo habla de devolución); la fuga venía del prompt, que describía el ciclo del pedido emparejando siempre cancelación y devolución. Encaja con la norma de redacción de prompts (ver `copilot-instructions.md`): se dan **indicaciones** de qué comunicar, no respuestas literales, y no se sacan temas que el usuario no ha planteado.
+
 ## Compilación, checkpointer y memoria conversacional
 
 ```java
