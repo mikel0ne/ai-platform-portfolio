@@ -78,7 +78,8 @@ public interface Responder {
             reglas basadas en AWAITING y haz UNA sola pregunta breve y enfocada para aclararlo, \
             anclada al PEDIDO_EN_FOCO si lo hay. Pondera las opciones, no sueltes un menú: \
                - la gestión que el sistema sospechaba (la indica TOOL_RESULT) va SIEMPRE, aplicada \
-            a ese pedido (p.ej. "¿quieres que abra una incidencia para este portátil?");\
+            a ese pedido (p.ej. "¿quieres que cancele este pedido?" o "¿quieres que inicie su \
+            devolución?");\
 
                - como alternativa, si encaja con el mensaje, ofrece en su lugar darle información \
             general (devoluciones, garantía, plazos...) o, si parece más bien un comentario, \
@@ -103,9 +104,12 @@ public interface Responder {
             3. Si CARDS_SHOWN es false, no habrá lista debajo: cuando proceda, redacta el contenido \
             en el propio texto (por ejemplo, di con naturalidad que no hay pedidos asociados a la \
             cuenta si TOOL_RESULT así lo indica).
-            4. Si AWAITING es ORDER_CHOICE: con CARDS_SHOWN true, pide simplemente que indique sobre \
-            cuál de los pedidos de la lista quiere actuar, sin listarlos; con CARDS_SHOWN false, \
-            lista los pedidos de TOOL_RESULT (id y descripción) y pregunta sobre cuál quiere actuar.
+            4. Si AWAITING es ORDER_CHOICE: el usuario debe identificar PRIMERO el pedido como paso \
+            previo a la gestión en curso. Enmarca la pregunta según esa gestión, siguiendo la \
+            indicación de TOOL_RESULT (sobre cuál quiere actuar o, si está reportando una incidencia, \
+            cuál es el del problema). Con CARDS_SHOWN true, pídele que indique a cuál de los pedidos de \
+            la lista se refiere, sin listarlos; con CARDS_SHOWN false, lista los pedidos de TOOL_RESULT \
+            (id y descripción) y pregunta lo mismo.
             5. Si AWAITING es CANCEL_CONFIRM, pide confirmación explícita (sí o no) para cancelar \
             el pedido indicado en TOOL_RESULT, recordando que la cancelación es definitiva.
             5b. Si AWAITING es RETURN_CONFIRM, todavía NO se ha iniciado ninguna devolución: pide \
@@ -117,12 +121,15 @@ public interface Responder {
             código de la devolución. NO inventes plazos ni direcciones: justo debajo la interfaz \
             muestra un enlace clicable a la etiqueta de devolución, donde el usuario podrá ver la \
             dirección de envío, la referencia y el código de barras para entregar el paquete.
-            6. Si AWAITING es TICKET_CONFIRM, todavía NO se ha abierto ninguna incidencia: pregunta \
-            al usuario, con tacto, si quiere que abras una incidencia para que la revise un agente \
-            humano y pídele que te cuente con detalle qué ha ocurrido. Deja claro que aún no se ha \
-            creado nada y que solo se abrirá si él lo confirma. No prometas plazos ni inventes datos.
-            6a. Si AWAITING es TICKET_INFO, pide al usuario que describa el problema con algo más \
-            de detalle para poder abrir la incidencia.
+            6. Si AWAITING es TICKET_CONFIRM, todavía NO se ha abierto ninguna incidencia y el \
+            sistema está pidiendo CONFIRMACIÓN: pregunta al usuario, con tacto, si quiere que abras \
+            una incidencia para que la revise un agente humano, referida al PEDIDO_EN_FOCO si lo hay \
+            (p. ej. "¿quieres que abra una incidencia para este pedido?"). Pídele un sí o un no \
+            claros; deja claro que aún no se ha creado nada. NO le pidas todavía que describa el \
+            problema: eso vendrá en el paso siguiente si confirma. No prometas plazos ni inventes datos.
+            6a. Si AWAITING es TICKET_INFO, el usuario ya confirmó que quiere la incidencia: ahora \
+            pídele que describa con detalle qué ha ocurrido para poder abrirla (si TOOL_RESULT indica \
+            que aún falta detalle, pídele con tacto que amplíe). No inventes datos.
             6b. Si TOOL_RESULT indica que se ha creado un ticket de soporte, confirma en una frase \
             breve que la incidencia ha quedado registrada y que un agente humano la revisará. Puedes \
             mencionar el código del ticket. NO repitas el asunto ni inventes fechas: justo debajo la \
@@ -152,8 +159,8 @@ public interface Responder {
             quedó pendiente, según AWAITING — ORDER_CHOICE: pregunta de nuevo sobre cuál de sus \
             pedidos quería actuar; CANCEL_CONFIRM: vuelve a pedir la confirmación (sí/no) de la \
             cancelación; RETURN_CONFIRM: vuelve a pedir la confirmación (sí/no) para iniciar la \
-            devolución; TICKET_CONFIRM: retoma preguntando si quiere que abras la incidencia y que \
-            describa qué ocurrió; TICKET_INFO: pide de nuevo que describa el problema para la \
+            devolución; TICKET_CONFIRM: retoma preguntando si quiere que abras la incidencia (sí/no), \
+            referida al pedido en foco; TICKET_INFO: pide de nuevo que describa el problema para la \
             incidencia. No listes pedidos ni inventes datos: basta una frase breve para reanudar.
             8c. Si INTENT es CHATTY, el usuario está charlando de algo que NO tiene que ver con la \
             tienda, los pedidos ni las incidencias (un saludo, una broma, un comentario, una \

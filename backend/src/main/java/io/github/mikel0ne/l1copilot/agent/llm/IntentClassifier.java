@@ -65,8 +65,12 @@ public interface IntentClassifier {
 
             Reglas:
             1. Si AWAITING es ORDER_CHOICE y el usuario está eligiendo uno de los pedidos \
-            ofrecidos (por número o por descripción, p.ej. "el portátil"), mantén la intención \
-            vigente y devuelve en orderId el id del pedido elegido.
+            ofrecidos (por número o por descripción inequívoca, p.ej. "el portátil", "el #123"), \
+            mantén la intención vigente y devuelve en orderId el id del pedido elegido. OJO: las \
+            expresiones VAGAS que NO señalan un pedido concreto ("uno de los pedidos", "uno de \
+            ellos", "cualquiera", "uno cualquiera") NO son una selección: devuelve orderId=null (el \
+            usuario podrá pulsar una tarjeta o precisar cuál). Nunca conviertas un número que no es \
+            claramente un id de pedido (p.ej. el "1" de "1 de los pedidos") en orderId.
             2. Si el usuario menciona explícitamente un número de pedido, devuélvelo en orderId.
             3. FOCO PEGAJOSO: si ya hay un pedido en foco (foco distinto de "(ninguno)") y AWAITING \
             es NOTHING, NO devuelvas orderId salvo que el usuario mencione EXPLÍCITAMENTE otro \
@@ -74,9 +78,10 @@ public interface IntentClassifier {
             hablando del mismo pedido —aunque cambie de intención (p.ej. "no me ha llegado", \
             "quiero cancelarlo")—, devuelve orderId=null para conservar el foco. Nunca elijas un \
             pedido por parecido temático con su descripción o estado.
-            4. Si AWAITING es CANCEL_CONFIRM o RETURN_CONFIRM, interpreta si el usuario confirma \
-            (confirmation=YES), rechaza (confirmation=NO) o dice otra cosa (confirmation=NONE). \
-            Mantén en ese caso la intención vigente (CANCEL o RETURN respectivamente).
+            4. Si AWAITING es CANCEL_CONFIRM, RETURN_CONFIRM o TICKET_CONFIRM, interpreta si el \
+            usuario confirma (confirmation=YES), rechaza (confirmation=NO) o dice otra cosa \
+            (confirmation=NONE). Con CANCEL_CONFIRM/RETURN_CONFIRM mantén la intención vigente \
+            (CANCEL o RETURN); para TICKET_CONFIRM aplica además la regla 4c.
             4b. PRUDENCIA CON LAS ACCIONES: CANCEL, RETURN y SUPPORT disparan acciones reales \
             (cancelar un pedido, iniciar una devolución, abrir una incidencia a un agente humano). \
             Solo elígelas cuando el usuario las pida de forma CLARA e inequívoca. Ante la duda entre \
@@ -85,11 +90,13 @@ public interface IntentClassifier {
             Siempre es mejor preguntar o informar que abrir una incidencia que el usuario no ha \
             pedido. No confundas RETURN (devolver un pedido recibido) con SUPPORT (reportar un \
             problema concreto): si solo quiere devolver un producto sin defecto, es RETURN.
-            4c. Si AWAITING es TICKET_CONFIRM o TICKET_INFO, ya se le propuso abrir una incidencia y \
-            se espera que confirme y describa el problema. Si confirma o aporta la descripción del \
-            problema, devuelve intent=SUPPORT. Si la rechaza ("no", "déjalo", "olvídalo") o pide \
-            otra cosa, NO uses SUPPORT: clasifica su intención real (OTHER, CANCEL, TRACKING, FAQ…) \
-            para que el sistema descarte la incidencia y le atienda lo que de verdad quiere.
+            4c. Si AWAITING es TICKET_CONFIRM, se le pidió que CONFIRME si quiere abrir la incidencia \
+            (todavía NO se le pidió que la describa). Si acepta ("sí", "vale", "ábrela", "adelante") \
+            devuelve intent=SUPPORT y confirmation=YES; si en ese mismo mensaje ya describe el \
+            problema, también intent=SUPPORT. Si la rechaza ("no", "déjalo", "olvídalo") o pide otra \
+            cosa, NO uses SUPPORT: clasifica su intención real (OTHER, CANCEL, TRACKING, FAQ…) para \
+            que el sistema descarte la incidencia y le atienda lo que de verdad quiere. Si AWAITING \
+            es TICKET_INFO, el mensaje es la descripción del problema → intent=SUPPORT.
             5. La intención puede cambiar libremente (tracking, cancelar, incidencia, FAQ); el \
             foco se mantiene salvo que el usuario lo cambie según la regla 3.
             5b. DIGRESIÓN: aunque AWAITING indique algo pendiente (estás esperando que elija un \
@@ -120,6 +127,13 @@ public interface IntentClassifier {
             el pedido?" es TRACKING, navigation=NONE).
             En cualquier otro caso, navigation=NONE.
             7. orderId debe ser null si no hay un pedido claramente identificado. Nunca lo inventes.
+            8. orderRelated (SOLO relevante si intent=SUPPORT): marca true cuando la incidencia trata \
+            de un PEDIDO, PRODUCTO, ENTREGA o COBRO concretos —lo habitual: algo llegó roto, no llegó, \
+            era el artículo equivocado, un cargo de una compra…—. Marca false SOLO cuando el problema \
+            claramente NO va de ningún pedido: no puede acceder a su cuenta, un error de la web sin \
+            compra de por medio, una duda de facturación genérica. ANTE LA DUDA, true: es mejor \
+            identificar el pedido antes de abrir la incidencia que crear un ticket suelto sin pedido. \
+            Para el resto de intenciones el valor es indiferente (deja false).
 
             Ejemplos (mensaje → intención correcta):
             - "¿dónde está mi pedido?" → TRACKING
@@ -128,7 +142,13 @@ public interface IntentClassifier {
             - "ya no lo quiero, os lo devuelvo" (sobre un pedido entregado) → RETURN
             - "quiero cancelar el pedido" (sobre un pedido YA entregado) → RETURN (cancelar ya no \
             aplica; la vía es la devolución)
-            - "el monitor que pedí llegó con la pantalla rota" → SUPPORT (problema concreto)
+            - "el monitor que pedí llegó con la pantalla rota" → SUPPORT (problema concreto, orderRelated=true)
+            - "tengo un problema con un pedido, me lo perdieron hace meses" → SUPPORT (orderRelated=true; \
+            primero hay que identificar de qué pedido se trata)
+            - "no me llega el correo de confirmación de mi cuenta" → SUPPORT (orderRelated=false; no va \
+            de ningún pedido)
+            - "uno de los pedidos" / "cualquiera de ellos" (en ORDER_CHOICE) → orderId=null (no señala \
+            un pedido concreto; no inventes un id)
             - "¿puedo ver mis incidencias?" / "¿cómo va mi última incidencia?" → TICKETS (consulta de tickets ya abiertos)
             - "¿en qué estado está la incidencia 0004?" → TICKETS
             - "¿cuánto tardan las devoluciones?" → FAQ (lo responde una política, no es incidencia)
@@ -163,7 +183,16 @@ public interface IntentClassifier {
      * @param navigation   NONE | BACK_TO_LIST | BACK_TO_MENU | BACK — el usuario pide volver al
      *                     listado de pedidos, al menú principal, o "atrás/volver" a secas (BACK,
      *                     cuyo nivel destino resuelve {@code RouterNode} según el foco actual)
+     * @param orderRelated solo relevante si intent=SUPPORT: ¿la incidencia es sobre un pedido
+     *                     concreto? Si lo es y aún no hay foco, el grafo identifica el pedido antes
+     *                     de abrir el ticket; si no, se abre una incidencia genérica (sin pedido)
      */
-    record RouterDecision(String intent, Long orderId, String confirmation, String navigation) {
+    record RouterDecision(String intent, Long orderId, String confirmation, String navigation,
+                          boolean orderRelated) {
+
+        /** Conveniencia para gestiones que no son incidencias: orderRelated es indiferente (false). */
+        public RouterDecision(String intent, Long orderId, String confirmation, String navigation) {
+            this(intent, orderId, confirmation, navigation, false);
+        }
     }
 }
