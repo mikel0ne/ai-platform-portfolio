@@ -13,17 +13,12 @@ import java.util.Map;
 
 /**
  * Nodo clarify: se llega cuando {@code verify} no está seguro de la acción que
- * eligió el router. No ejecuta NADA; prepara para {@code respond} una pregunta
- * aclaratoria enfocada. La valla (qué opciones existen) la pone el código; el
- * peso y la redacción (cuáles ofrecer y cómo, ancladas al pedido en foco) los
- * hace el {@code Responder} dentro de esa valla.
- * <p>
- * Para no preguntar dos veces por una incidencia: si lo sospechado era SUPPORT,
- * se siembra el borrador y se deja {@code awaiting=TICKET_CONFIRM}. Así, si el
- * usuario confirma, el siguiente turno crea el ticket directamente (el router no
- * vuelve a verificar y el nodo support ya está "en el gate"), y si cambia de idea
- * la lógica de abandono del router descarta el borrador. La cancelación, en
- * cambio, NO se pre-arma: conserva su confirmación irreversible aparte.
+ * eligió el router. Atiende dudas sobre CANCEL y RETURN (SUPPORT no pasa por
+ * verify/clarify: su salvaguarda es el gate de confirmación del propio nodo
+ * support). No ejecuta NADA ni deja nada pendiente; prepara para {@code respond}
+ * una pregunta aclaratoria enfocada. La valla (qué opciones existen) la pone el
+ * código; el peso y la redacción (cuáles ofrecer y cómo, ancladas al pedido en
+ * foco) los hace el {@code Responder} dentro de esa valla.
  */
 @Component
 @Slf4j
@@ -40,7 +35,7 @@ public class ClarifyNode implements NodeAction<SupportState> {
 
         String guess = switch (suspected) {
             case CANCEL -> "cancelar un pedido";
-            case SUPPORT -> "abrir una incidencia para un agente humano";
+            case RETURN -> "iniciar la devolución de un pedido";
             default -> "esa gestión";
         };
 
@@ -58,16 +53,9 @@ public class ClarifyNode implements NodeAction<SupportState> {
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("toolResult", instruction);
-
-        // Solo se pre-arma el gate de incidencia cuando la sospecha es razonable (DOUBT):
-        // así, si el usuario confirma, se crea sin volver a preguntar. En REJECT no se siembra
-        // nada (liderar con alternativas sería incoherente con dejar el ticket a medias).
-        if (suspected == Intent.SUPPORT && lead) {
-            updates.put("ticketDraft", state.userMessage().trim());
-            updates.put("awaiting", Awaiting.TICKET_CONFIRM.name());
-        } else {
-            updates.put("awaiting", Awaiting.NOTHING.name());
-        }
+        // clarify solo atiende dudas sobre CANCEL/RETURN; no deja nada pendiente. (SUPPORT no pasa
+        // por verify/clarify: su propio gate de confirmación es la salvaguarda.)
+        updates.put("awaiting", Awaiting.NOTHING.name());
         return updates;
     }
 }

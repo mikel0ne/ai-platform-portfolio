@@ -43,36 +43,6 @@ public class VerifyNode implements NodeAction<SupportState> {
                 ? orderTools.findOrder(focusId, state.userId())
                 : Optional.empty();
 
-        // Cortocircuito de negocio: una cancelación sobre un pedido que YA no es cancelable
-        // (típicamente porque ya está CANCELLED, o porque ya se envió) no se debe "verificar"
-        // ni preguntar "¿quieres cancelar?": no hay nada que cancelar. Se deja seguir hasta
-        // cancel_check, el único que conoce las reglas de negocio, para que explique la
-        // situación con claridad (ya cancelado / no se puede deshacer) y ofrezca alternativas.
-        // Sin esto, verify dudaría y clarify ofrecería de nuevo cancelar, a ciegas del estado.
-        if (state.intent() == Intent.CANCEL && focus.isPresent() && !isCancellable(focus.get())) {
-            log.debug("---VERIFY--- CANCEL sobre pedido no cancelable (#{} {}): se omite la "
-                    + "verificación y se delega en cancel_check", focusId, focus.get().status());
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("verdict", Verdict.SURE.name());
-            updates.put("tentative", false);
-            commitProposedFocus(state, updates);
-            return updates;
-        }
-
-        // Mismo cortocircuito para la devolución: si el pedido en foco NO admite devolución
-        // (no se ha entregado, ya está en devolución, etc.) no se "verifica" ni se pregunta
-        // "¿quieres devolverlo?": se delega en return_check, que conoce las reglas de negocio
-        // y explicará la situación (esperar a recibirlo, devolución ya iniciada...).
-        if (state.intent() == Intent.RETURN && focus.isPresent() && !isReturnable(focus.get())) {
-            log.debug("---VERIFY--- RETURN sobre pedido no devolvible (#{} {}): se omite la "
-                    + "verificación y se delega en return_check", focusId, focus.get().status());
-            Map<String, Object> updates = new HashMap<>();
-            updates.put("verdict", Verdict.SURE.name());
-            updates.put("tentative", false);
-            commitProposedFocus(state, updates);
-            return updates;
-        }
-
         Verifier.Decision decision = verifier.verify(
                 state.userMessage(), state.intent().name(), describeFocus(focus));
 
