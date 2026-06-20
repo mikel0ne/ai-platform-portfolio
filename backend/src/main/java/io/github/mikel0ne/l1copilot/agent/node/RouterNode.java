@@ -100,6 +100,14 @@ public class RouterNode implements NodeAction<SupportState> {
             updates.put("intent", intent.name());
         }
 
+        // Slot de SUPPORT: ¿la incidencia es sobre un pedido concreto? Gobierna si se identifica el
+        // pedido (resolve_order) antes de abrir el ticket. Solo aplica a SUPPORT; en el resto es
+        // indiferente. Si el usuario declina el pedido en mitad de la identificación, el clasificador
+        // mantiene SUPPORT con orderRelated=false y el routing cae solo en la incidencia genérica.
+        if (intent == Intent.SUPPORT) {
+            updates.put("orderRelated", decision.orderRelated());
+        }
+
         // GATE DE INCIDENCIA: se había propuesto abrir una incidencia (awaiting
         // TICKET_CONFIRM/TICKET_INFO) y el usuario, en vez de seguir adelante, pide otra cosa
         // —su intención ya no es SUPPORT (las digresiones FAQ/CHATTY se resolvieron arriba)—.
@@ -142,9 +150,11 @@ public class RouterNode implements NodeAction<SupportState> {
             }
         }
 
-        // La confirmación solo se honra si realmente había una pendiente:
-        // un "sí" suelto en el primer turno jamás dispara una cancelación o una devolución.
-        if (state.awaiting() == Awaiting.CANCEL_CONFIRM || state.awaiting() == Awaiting.RETURN_CONFIRM) {
+        // La confirmación solo se honra si realmente había una pendiente: un "sí" suelto en el
+        // primer turno jamás dispara nada. Incluye TICKET_CONFIRM para que el gate de incidencia
+        // distinga un "sí" escueto (→ pedir descripción) de un mensaje que ya describe el problema.
+        if (state.awaiting() == Awaiting.CANCEL_CONFIRM || state.awaiting() == Awaiting.RETURN_CONFIRM
+                || state.awaiting() == Awaiting.TICKET_CONFIRM) {
             String confirmation = decision.confirmation() == null
                     ? "NONE" : decision.confirmation().trim().toUpperCase();
             updates.put("confirmation", CONFIRMATIONS.contains(confirmation) ? confirmation : "NONE");
@@ -241,8 +251,11 @@ public class RouterNode implements NodeAction<SupportState> {
      * para decidir si el nuevo foco debe PROPONERSE (lo confirma verify) o fijarse ya.
      */
     private boolean routesToVerify(Intent intent, Map<String, Object> updates, SupportState state) {
+        // SUPPORT NO pasa por verify (su salvaguarda es el gate de confirmación): por eso no es
+        // "verifiable" aquí y, cuando una incidencia nombra un pedido, el foco se fija directamente
+        // en vez de PROPONERSE (no hay verify que ascienda el foco propuesto).
         boolean verifiable = intent == Intent.TRACKING || intent == Intent.CANCEL
-                || intent == Intent.RETURN || intent == Intent.SUPPORT;
+                || intent == Intent.RETURN;
         return verifiable && effectiveAwaiting(updates, state) == Awaiting.NOTHING && effectiveTicketBlank(updates, state);
     }
 

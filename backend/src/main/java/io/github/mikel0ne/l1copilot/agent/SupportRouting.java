@@ -45,7 +45,10 @@ public final class SupportRouting {
             case RETURN -> needsVerify(state)
                     ? TO_VERIFY
                     : (state.orderId().isPresent() ? TO_RETURN_CHECK : TO_RESOLVE_ORDER);
-            case SUPPORT -> needsVerify(state) ? TO_VERIFY : TO_SUPPORT;
+            // SUPPORT NO pasa por verify: su salvaguarda es el propio gate de confirmación
+            // humano-en-el-bucle (proponer → confirmar → describir). Si es sobre un pedido sin foco,
+            // primero se identifica el pedido (resolve_order); si no, va directo al gate.
+            case SUPPORT -> supportNeedsOrder(state) ? TO_RESOLVE_ORDER : TO_SUPPORT;
             case TICKETS -> TO_TICKETS;
             case FAQ -> TO_FAQ;
             case CHATTY -> TO_CHATTY;
@@ -68,15 +71,34 @@ public final class SupportRouting {
     }
 
     /**
+     * Una incidencia identifica primero el pedido (igual que CANCEL/RETURN/TRACKING) SOLO cuando es
+     * sobre un pedido ({@code orderRelated}) y aún no hay foco, con la gestión fresca (sin gate de
+     * incidencia ni borrador en curso). A diferencia de cancelación/devolución —que SIEMPRE son
+     * sobre un pedido— un ticket de soporte puede ser genérico (cuenta, web, facturación sin pedido):
+     * en ese caso ({@code orderRelated == false}) NO se identifica nada y se abre la incidencia suelta.
+     */
+    private static boolean supportNeedsOrder(SupportState state) {
+        return state.intent() == Intent.SUPPORT
+                && state.orderRelated()
+                && state.orderId().isEmpty()
+                && state.awaiting() == Awaiting.NOTHING
+                && state.ticketDraft().isBlank();
+    }
+
+    /**
      * Tras verify, respuesta graduada según el veredicto y el riesgo de la gestión:
      * <ul>
      *   <li>REJECT ("ni de coña") → {@code clarify}, sea lectura o acción.</li>
-     *   <li>DOUBT en una ACCIÓN (CANCEL/SUPPORT) → {@code clarify}: se pregunta antes de
+     *   <li>DOUBT en una ACCIÓN (CANCEL/RETURN) → {@code clarify}: se pregunta antes de
      *   tocar nada.</li>
      *   <li>DOUBT en una LECTURA (TRACKING) → se sigue adelante (con tono tentativo, que
      *   fija verify); ser inocua hace barato equivocarse.</li>
      *   <li>SURE → flujo normal de la gestión.</li>
      * </ul>
+     * Nota: SUPPORT no pasa por el nodo {@code verify} del grafo (el router lo envía directamente
+     * a {@code support}), pero SupportNode llama internamente al Verifier; esta arista cubre el
+     * caso en que SUPPORT llegase a verify por otra ruta futura y garantiza coherencia en los tests
+     * unitarios de routing.
      */
     public static String fromVerify(SupportState state) {
         Verdict verdict = state.verdict();
@@ -97,8 +119,8 @@ public final class SupportRouting {
     /**
      * ¿El veredicto deja seguir adelante con la gestión (en vez de ir a {@code clarify})?
      * REJECT siempre frena; DOUBT frena solo en ACCIONES (CANCEL/RETURN/SUPPORT), porque tocar
-     * algo irreversible ante la duda es caro; en una LECTURA (TRACKING) la duda sigue adelante con
-     * tono tentativo. Es la condición que comparten la arista {@link #fromVerify} y el commit
+     * algo irreversible ante la duda es caro; en una LECTURA (TRACKING) la duda sigue adelante
+     * con tono tentativo. Es la condición que comparten la arista {@link #fromVerify} y el commit
      * diferido del foco en {@code VerifyNode}: ambos deben coincidir en "seguir o no seguir".
      */
     public static boolean proceedsAfterVerify(Verdict verdict, Intent intent) {
@@ -109,11 +131,18 @@ public final class SupportRouting {
     /** Tras buscar candidatos: si hay pedido único sigue el flujo; si no, preguntar. */
     public static String fromResolveOrder(SupportState state) {
         if (state.orderId().isEmpty()) {
+            // SUPPORT que llegó aquí pero el usuario no tiene pedidos que identificar (awaiting
+            // NOTHING, no un menú pendiente): se abre una incidencia genérica en vez de dejarle
+            // sin vía. El caso de varios pedidos (awaiting ORDER_CHOICE) sí cae en ask_user.
+            if (state.intent() == Intent.SUPPORT && state.awaiting() == Awaiting.NOTHING) {
+                return TO_SUPPORT;
+            }
             return TO_ASK_USER;
         }
         return switch (state.intent()) {
             case CANCEL -> TO_CANCEL_CHECK;
             case RETURN -> TO_RETURN_CHECK;
+            case SUPPORT -> TO_SUPPORT;
             default -> TO_TRACKING;
         };
     }

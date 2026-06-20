@@ -116,6 +116,16 @@ public class SupportState extends AgentState {
     }
 
     /**
+     * ¿La incidencia (SUPPORT) que se está gestionando es sobre un pedido concreto? Lo fija el
+     * router desde la decisión del clasificador. Cuando es true y aún no hay foco, el grafo
+     * identifica el pedido (vía {@code resolve_order}) antes de abrir el ticket; cuando es false,
+     * la incidencia es genérica (sin pedido asociado). Efímero por turno; solo importa en SUPPORT.
+     */
+    public boolean orderRelated() {
+        return this.value("orderRelated", false);
+    }
+
+    /**
      * Veredicto del nodo verify sobre la decisión del router (SURE/DOUBT/REJECT).
      * Lo fija verify cada vez que corre; por defecto SURE para no bloquear un flujo
      * que no pasó por verify.
