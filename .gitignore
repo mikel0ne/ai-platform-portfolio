@@ -44,6 +44,10 @@ gradle-app.setting
 logs/
 log.txt
 
+# Artefactos de herramientas locales (Playwright MCP, salidas de build)
+.playwright-mcp/
+build_out.txt
+
 # Scripts de arranque — ficheros de estado
 .running.pids
 
