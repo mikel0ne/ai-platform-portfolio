@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -36,6 +37,15 @@ import static org.mockito.Mockito.when;
  * <p>
  * El Responder fake devuelve "ECHO[toolResult]": así cada aserción comprueba
  * qué información llegó realmente al nodo de redacción.
+ * <p>
+ * <b>Aislamiento:</b> la clase es {@code @Transactional}, así que cada test corre
+ * en su propia transacción y Spring hace rollback al terminar. El grafo se invoca
+ * de forma síncrona en el hilo del test y las tools (cancel/return/createTicket)
+ * usan propagación {@code REQUIRED}, por lo que se unen a esa transacción y sus
+ * escrituras nunca se confirman: la BD H2 vuelve al seed entre tests sin restaurar
+ * nada a mano. Cada test usa además un {@code conversationId} propio, de modo que
+ * el checkpointer en memoria tampoco filtra estado entre tests (independencia del
+ * orden de ejecución).
  */
 @SpringBootTest(properties = {
         "langchain4j.gemini.api-key=test-key",
@@ -43,6 +53,7 @@ import static org.mockito.Mockito.when;
         // en el test no queremos ni fichero ni tabla de por medio.
         "copilot.turn-log.file.enabled=false",
         "copilot.turn-log.db.enabled=false"})
+@Transactional
 class SupportAgentFlowTest {
 
     /** Se mockea también el modelo base: el test es hermético (cero red). */
@@ -73,16 +84,6 @@ class SupportAgentFlowTest {
 
     @Autowired
     private TicketRepository ticketRepository;
-
-    @BeforeEach
-    void resetOrderStates() {
-        // Los tests comparten la misma BD H2; algunos tests cancelan pedidos y no los restauran.
-        // Se restablecen los estados semilla antes de cada test para garantizar aislamiento.
-        orderRepository.findById(200L).ifPresent(o -> { o.setStatus(OrderStatus.CREATED); orderRepository.save(o); });
-        orderRepository.findById(202L).ifPresent(o -> { o.setStatus(OrderStatus.PAID); orderRepository.save(o); });
-        orderRepository.findById(456L).ifPresent(o -> { o.setStatus(OrderStatus.PAID); orderRepository.save(o); });
-        orderRepository.findById(789L).ifPresent(o -> { o.setStatus(OrderStatus.DELIVERED); orderRepository.save(o); });
-    }
 
     @BeforeEach
     void echoResponder() {
@@ -685,37 +686,30 @@ class SupportAgentFlowTest {
         // consulta en el turno 1; el clic del botón se resuelve en el fast-path, sin tocar el LLM.
         when(classifier.classify(any(), any(), any(), any(), any(), any()))
                 .thenReturn(new RouterDecision("RETURN", 789L, "NONE", "NONE"));
-        try {
-            var turn1 = conversationService.chat("u-001", "conv-return", "quiero devolver el monitor 789");
-            assertThat(turn1.resolved()).isFalse();
-            assertThat(turn1.reply()).contains("admite devolución");
-            // Se ofrece el botón de confirmación con sus payloads deterministas
-            assertThat(turn1.confirm()).isNotNull();
-            assertThat(turn1.confirm().orderId()).isEqualTo(789L);
-            assertThat(turn1.confirm().confirmPayload()).isEqualTo(UiAction.confirmReturn(789L));
-            assertThat(turn1.confirm().cancelPayload()).isEqualTo(UiAction.abortReturn(789L));
-            // Nada se ha tocado todavía: el pedido sigue ENTREGADO
-            assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
-                    .isEqualTo(OrderStatus.DELIVERED);
 
-            // El clic del botón inicia la devolución sin pasar por el LLM
-            var turn2 = conversationService.chat("u-001", "conv-return", UiAction.confirmReturn(789L));
-            assertThat(turn2.resolved()).isTrue();
-            assertThat(turn2.confirm()).isNull();
-            // El pedido pasa a RETURN_REQUESTED y se entrega la tarjeta-enlace a la etiqueta
-            assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
-                    .isEqualTo(OrderStatus.RETURN_REQUESTED);
-            assertThat(turn2.returns()).hasSize(1);
-            assertThat(turn2.returns().get(0).id()).isEqualTo(789L);
-            assertThat(turn2.returns().get(0).code()).isEqualTo("RET-0789");
-            assertThat(turn2.reply()).contains("RET-0789");
-        } finally {
-            // Restaura el estado del pedido: el suite no re-siembra la BD entre tests y varios
-            // escenarios asumen #789 como DELIVERED.
-            var o = orderRepository.findById(789L).orElseThrow();
-            o.setStatus(OrderStatus.DELIVERED);
-            orderRepository.save(o);
-        }
+        var turn1 = conversationService.chat("u-001", "conv-return", "quiero devolver el monitor 789");
+        assertThat(turn1.resolved()).isFalse();
+        assertThat(turn1.reply()).contains("admite devolución");
+        // Se ofrece el botón de confirmación con sus payloads deterministas
+        assertThat(turn1.confirm()).isNotNull();
+        assertThat(turn1.confirm().orderId()).isEqualTo(789L);
+        assertThat(turn1.confirm().confirmPayload()).isEqualTo(UiAction.confirmReturn(789L));
+        assertThat(turn1.confirm().cancelPayload()).isEqualTo(UiAction.abortReturn(789L));
+        // Nada se ha tocado todavía: el pedido sigue ENTREGADO
+        assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.DELIVERED);
+
+        // El clic del botón inicia la devolución sin pasar por el LLM
+        var turn2 = conversationService.chat("u-001", "conv-return", UiAction.confirmReturn(789L));
+        assertThat(turn2.resolved()).isTrue();
+        assertThat(turn2.confirm()).isNull();
+        // El pedido pasa a RETURN_REQUESTED y se entrega la tarjeta-enlace a la etiqueta
+        assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.RETURN_REQUESTED);
+        assertThat(turn2.returns()).hasSize(1);
+        assertThat(turn2.returns().get(0).id()).isEqualTo(789L);
+        assertThat(turn2.returns().get(0).code()).isEqualTo("RET-0789");
+        assertThat(turn2.reply()).contains("RET-0789");
     }
 
     @Test
@@ -776,27 +770,22 @@ class SupportAgentFlowTest {
         var order = orderRepository.findById(789L).orElseThrow();
         order.setStatus(OrderStatus.RETURN_REQUESTED);
         orderRepository.save(order);
-        try {
-            when(classifier.classify(any(), any(), any(), any(), any(), any()))
-                    .thenReturn(new RouterDecision("RETURN", 789L, "NONE", "NONE"));
 
-            var turn = conversationService.chat("u-001", "conv-return-label",
-                    "enséñame la etiqueta de devolución del 789");
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("RETURN", 789L, "NONE", "NONE"));
 
-            // Se re-ofrece la etiqueta (tarjeta-enlace), sin volver a "iniciar" la devolución
-            assertThat(turn.returns()).hasSize(1);
-            assertThat(turn.returns().get(0).id()).isEqualTo(789L);
-            assertThat(turn.returns().get(0).code()).isEqualTo("RET-0789");
-            assertThat(turn.reply()).contains("etiqueta");
-            // No hay botón de confirmación y el pedido sigue exactamente igual
-            assertThat(turn.confirm()).isNull();
-            assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
-                    .isEqualTo(OrderStatus.RETURN_REQUESTED);
-        } finally {
-            var o = orderRepository.findById(789L).orElseThrow();
-            o.setStatus(OrderStatus.DELIVERED);
-            orderRepository.save(o);
-        }
+        var turn = conversationService.chat("u-001", "conv-return-label",
+                "enséñame la etiqueta de devolución del 789");
+
+        // Se re-ofrece la etiqueta (tarjeta-enlace), sin volver a "iniciar" la devolución
+        assertThat(turn.returns()).hasSize(1);
+        assertThat(turn.returns().get(0).id()).isEqualTo(789L);
+        assertThat(turn.returns().get(0).code()).isEqualTo("RET-0789");
+        assertThat(turn.reply()).contains("etiqueta");
+        // No hay botón de confirmación y el pedido sigue exactamente igual
+        assertThat(turn.confirm()).isNull();
+        assertThat(orderRepository.findById(789L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.RETURN_REQUESTED);
     }
 
     @Test
@@ -806,23 +795,18 @@ class SupportAgentFlowTest {
         var order = orderRepository.findById(789L).orElseThrow();
         order.setStatus(OrderStatus.RETURN_REQUESTED);
         orderRepository.save(order);
-        try {
-            when(classifier.classify(any(), any(), any(), any(), any(), any()))
-                    .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"));
 
-            var turn = conversationService.chat("u-001", "conv-track-return", "¿dónde está el 789?");
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("TRACKING", 789L, "NONE", "NONE"));
 
-            // Aparece la tarjeta-enlace a la etiqueta, NO la ficha de pedido (orderCards)
-            assertThat(turn.returns()).hasSize(1);
-            assertThat(turn.returns().get(0).code()).isEqualTo("RET-0789");
-            assertThat(turn.orders()).isEmpty();
-            // El texto se centra en la etiqueta y NO en la fecha de entrega del envío original
-            assertThat(turn.reply()).contains("etiqueta");
-            assertThat(turn.reply()).doesNotContain("entrega estimada");
-        } finally {
-            var o = orderRepository.findById(789L).orElseThrow();
-            o.setStatus(OrderStatus.DELIVERED);
-            orderRepository.save(o);
-        }
+        var turn = conversationService.chat("u-001", "conv-track-return", "¿dónde está el 789?");
+
+        // Aparece la tarjeta-enlace a la etiqueta, NO la ficha de pedido (orderCards)
+        assertThat(turn.returns()).hasSize(1);
+        assertThat(turn.returns().get(0).code()).isEqualTo("RET-0789");
+        assertThat(turn.orders()).isEmpty();
+        // El texto se centra en la etiqueta y NO en la fecha de entrega del envío original
+        assertThat(turn.reply()).contains("etiqueta");
+        assertThat(turn.reply()).doesNotContain("entrega estimada");
     }
 }
