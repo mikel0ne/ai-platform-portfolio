@@ -13,10 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Subflujo reutilizable de desambiguación (lo comparten TRACKING y CANCEL).
- * En vez de pedir el id a ciegas, busca proactivamente los pedidos recientes
- * del usuario: si hay uno solo lo autoselecciona; si hay varios, los ofrece
- * y el turno terminará preguntando.
+ * Subflujo reutilizable de desambiguación (lo comparten TRACKING, CANCEL, RETURN
+ * y las incidencias SUPPORT que son sobre un pedido). En vez de pedir el id a
+ * ciegas, busca proactivamente los pedidos recientes del usuario: si hay uno solo
+ * lo autoselecciona; si hay varios, los ofrece y el turno terminará preguntando.
  */
 @Component
 @RequiredArgsConstructor
@@ -62,8 +62,9 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
                 "orderCards", orderCards,
                 "awaiting", Awaiting.ORDER_CHOICE.name(),
                 "toolResult", String.format(
-                        "El usuario tiene varios pedidos recientes: %s. Hay que preguntarle sobre "
-                        + "cuál quiere actuar.", listing));
+                        "El usuario tiene varios pedidos recientes: %s. Hay que preguntarle a cuál de "
+                        + "ellos se refiere la gestión en curso (sobre cuál quiere actuar, o cuál es "
+                        + "el del problema si está reportando una incidencia).", listing));
     }
 
     private static String describeCandidate(OrderSummary order) {

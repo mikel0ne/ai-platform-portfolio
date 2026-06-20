@@ -35,12 +35,14 @@ import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
  * <pre>
  * START → router ──┬→ verify ─┬→ resolve_order ──┬→ tracking ──────→ respond → END
  *                  │ (CANCEL/ │                  ├→ cancel_check ─┬→ execute ──↑
- *                  │ SUPPORT, │                  └→ (ask_user) ───┼───────────→│
- *                  │ frescos) ├→ cancel_check ──── (ver arriba)   │            │
- *                  │          ├→ support ────────────────────────→│            │
+ *                  │ RETURN   │                  ├→ support ──────┼───────────→│
+ *                  │ frescos) │                  └→ (ask_user) ───┼───────────→│
+ *                  │          ├→ cancel_check ──── (ver arriba)   │            │
  *                  │          └→ clarify (DUDA) ──────────────────┼───────────→│
+ *                  ├→ resolve_order (SUPPORT sobre pedido) ───────→│            │
+ *                  ├→ support (SUPPORT: gate confirmar/describir) →│            │
  *                  ├→ tracking ───────────────────────────────────→│            │
- *                  ├→ support / cancel_check (gates en curso) ────→│            │
+ *                  ├→ cancel_check (gate en curso) ───────────────→│            │
  *                  ├→ tickets ─────────────────────────────────────┤            │
  *                  ├→ faq ─────────────────────────────────────────┤            │
  *                  ├→ chatty ──────────────────────────────────────┤            │
@@ -120,6 +122,7 @@ public class SupportAgentGraph {
                                 SupportRouting.TO_TRACKING, "tracking",
                                 SupportRouting.TO_CANCEL_CHECK, "cancel_check",
                                 SupportRouting.TO_RETURN_CHECK, "return_check",
+                                SupportRouting.TO_SUPPORT, "support",
                                 SupportRouting.TO_ASK_USER, "respond"))
 
                 .addConditionalEdges("cancel_check",
