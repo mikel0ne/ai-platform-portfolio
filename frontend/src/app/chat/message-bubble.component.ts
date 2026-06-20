@@ -13,25 +13,35 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
       @if (msg.orders && msg.orders.length > 0) {
         <div class="order-cards">
           @for (order of msg.orders; track order.id) {
-            <button class="order-card" (click)="selectOrder(order)">
-              <div class="card-img-wrap">
-                @if (order.imageUrl) {
-                  <img [src]="order.imageUrl" [alt]="order.description" class="card-img" loading="lazy" />
-                } @else {
-                  <div class="card-img-placeholder">📦</div>
-                }
+            @if (msg.ordersSelectable) {
+              <button class="order-card" (click)="selectOrder(order)">
+                <ng-container *ngTemplateOutlet="orderCardBody; context: { $implicit: order }"></ng-container>
+              </button>
+            } @else {
+              <div class="order-card static">
+                <ng-container *ngTemplateOutlet="orderCardBody; context: { $implicit: order }"></ng-container>
               </div>
-              <div class="card-body">
-                <span class="card-order-num">#{{ order.id }}</span>
-                <span class="card-desc">{{ order.description }}</span>
-                <span class="card-status" [class]="'status-' + order.status.toLowerCase()">
-                  {{ statusLabel(order.status) }}
-                </span>
-              </div>
-            </button>
+            }
           }
         </div>
       }
+
+      <ng-template #orderCardBody let-order>
+        <div class="card-img-wrap">
+          @if (order.imageUrl) {
+            <img [src]="order.imageUrl" [alt]="order.description" class="card-img" loading="lazy" />
+          } @else {
+            <div class="card-img-placeholder">📦</div>
+          }
+        </div>
+        <div class="card-body">
+          <span class="card-order-num">#{{ order.id }}</span>
+          <span class="card-desc">{{ order.description }}</span>
+          <span class="card-status" [class]="'status-' + order.status.toLowerCase()">
+            {{ statusLabel(order.status) }}
+          </span>
+        </div>
+      </ng-template>
 
       @if (msg.tickets && msg.tickets.length > 0) {
         <div class="ticket-cards">
@@ -144,6 +154,17 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
       transform: translateY(-1px);
     }
     .order-card:active { transform: translateY(0); }
+
+    /* Tarjeta de pedido en foco (detalle, no listado): informativa, no clicable. */
+    .order-card.static {
+      cursor: default;
+    }
+    .order-card.static:hover {
+      border-color: #e1e4e8;
+      box-shadow: none;
+      transform: none;
+    }
+    .order-card.static:active { transform: none; }
 
     .card-img-wrap {
       flex-shrink: 0;

@@ -47,7 +47,8 @@ public class ChatController {
         ConversationService.ChatResult result =
                 conversationService.chat(userId, request.conversationId(), request.message());
         return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
-                result.resolved(), result.orders(), result.tickets(), result.returns(), result.confirm());
+                result.resolved(), result.orders(), result.ordersSelectable(), result.tickets(),
+                result.returns(), result.confirm());
     }
 
     @Operation(summary = "Usuarios de demo para el login simulado del frontend")

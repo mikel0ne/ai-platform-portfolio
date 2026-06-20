@@ -73,11 +73,14 @@ public record ChatRequest(
         @NotBlank @Size(max = 2000) String message) {}
 
 public record ChatResponse(String conversationId, String reply, String intent, boolean resolved,
-                           List<OrderCardDto> orders, List<TicketCardDto> tickets,
+                           List<OrderCardDto> orders, boolean ordersSelectable,
+                           List<TicketCardDto> tickets,
                            List<ReturnCardDto> returns, ConfirmActionDto confirm) {}
 
 public record UserDto(String id, String name) {}
 ```
+
+> **`ordersSelectable`** distingue de forma determinista las dos situaciones en que el agente emite tarjetas de pedido: el **listado** ofrecido para elegir (`awaiting==ORDER_CHOICE` → `true`, la UI las hace clicables) frente al **detalle del pedido ya en foco** (`false`, no clicables: el usuario ya está dentro). No se infiere del número de tarjetas, porque un listado puede tener un único pedido y el detalle en foco es siempre una sola tarjeta.
 
 Validación con `jakarta.validation` (`spring-boot-starter-validation`): mensajes vacíos o desmesurados se rechazan con 400 antes de gastar tokens.
 

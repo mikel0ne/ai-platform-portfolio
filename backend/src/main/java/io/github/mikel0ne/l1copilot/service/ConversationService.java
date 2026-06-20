@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.service;
 
 import dev.langchain4j.exception.LangChain4jException;
+import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Treatment;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
@@ -122,6 +123,13 @@ public class ConversationService {
 
         String reply = stripThoughts(state.reply());
 
+        // ¿Las tarjetas de pedido son un LISTADO para elegir, o el detalle del pedido en foco?
+        // La señal determinista es awaiting==ORDER_CHOICE (estamos esperando que el usuario elija
+        // uno de los candidatos ofrecidos). NO se infiere del nº de tarjetas: un listado puede
+        // tener un solo pedido y el detalle en foco es siempre una sola tarjeta. Solo en el
+        // listado las tarjetas deben ser clicables en la UI; en el foco ya estamos dentro.
+        boolean ordersSelectable = state.awaiting() == Awaiting.ORDER_CHOICE;
+
         // Materia prima del golden-set: una línea por turno en un fichero JSONL
         // (fuera de la BD, sobrevive a reinicios de H2 y al reset del seed).
         turnLogger.record(new TurnLogger.TurnLog(
@@ -130,7 +138,7 @@ public class ConversationService {
                 orders.size(), tickets.size(), state.resolved(), reply));
 
         return new ChatResult(reply, state.intent().name(),
-                state.resolved(), orders, tickets, returns, confirm);
+                state.resolved(), orders, ordersSelectable, tickets, returns, confirm);
     }
 
     /** Acción de confirmación (botones) para cancelar el pedido, con el tratamiento adecuado. */
@@ -182,7 +190,8 @@ public class ConversationService {
 
     /** Resultado de un turno, listo para mapear al DTO de la API. */
     public record ChatResult(String reply, String intent, boolean resolved,
-                             List<OrderCardDto> orders, List<TicketCardDto> tickets,
+                             List<OrderCardDto> orders, boolean ordersSelectable,
+                             List<TicketCardDto> tickets,
                              List<ReturnCardDto> returns, ConfirmActionDto confirm) {
     }
 
