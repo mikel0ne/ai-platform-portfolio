@@ -14,7 +14,8 @@ graph TB
     router -->|TRACKING con orderId| tracking
     router -->|CANCEL con orderId| cancel_check
     router -->|RETURN con orderId| return_check
-    router -->|SUPPORT| support
+    router -->|SUPPORT sobre pedido<br/>sin orderId| resolve_order
+    router -->|SUPPORT genérica / con orderId| support
     router -->|FAQ| faq
     router -->|CHATTY| chatty
     router -->|OTHER| fallback
@@ -23,6 +24,7 @@ graph TB
     resolve_order -->|resuelto e intent=TRACKING| tracking
     resolve_order -->|resuelto e intent=CANCEL| cancel_check
     resolve_order -->|resuelto e intent=RETURN| return_check
+    resolve_order -->|resuelto e intent=SUPPORT| support
     resolve_order -->|ambiguo: preguntar| respond
 
     tracking["tracking<br/>(tool: trackShipment)"] --> respond
@@ -53,7 +55,7 @@ graph TB
 Puntos clave:
 
 - **Cada turno HTTP recorre el grafo de `START` a `END`** (ADR-2). El "ciclo" conversacional se materializa entre turnos: el grafo termina con una pregunta, el checkpointer conserva el estado y el siguiente mensaje del usuario reentra por `router`, que ahora ve en el estado que hay una clarificación pendiente.
-- `resolve_order` es el **subflujo reutilizable de desambiguación**: lo comparten TRACKING, CANCEL y RETURN.
+- `resolve_order` es el **subflujo reutilizable de desambiguación**: lo comparten TRACKING, CANCEL, RETURN y las incidencias SUPPORT que son sobre un pedido (ver [Identificar el pedido como paso previo también en SUPPORT](#identificar-el-pedido-como-paso-previo-también-en-support)).
 - `respond` es el único nodo que redacta texto para el usuario: centraliza tono, idioma y formato.
 
 ## El estado: `SupportState`
@@ -188,7 +190,9 @@ public class SupportAgentGraph {
             case TRACKING -> s.orderId().isPresent() ? "tracking" : "resolve_order";
             case CANCEL   -> s.orderId().isPresent() ? "cancel_check" : "resolve_order";
             case RETURN   -> s.orderId().isPresent() ? "return_check" : "resolve_order";
-            case SUPPORT  -> "support";
+            // SUPPORT sobre un pedido sin foco: identifica el pedido antes de abrir el ticket.
+            // Una incidencia genérica (orderRelated=false) va directa a support.
+            case SUPPORT  -> supportNeedsOrder(s) ? "resolve_order" : "support";
             case FAQ      -> "faq";
             case CHATTY   -> "chatty";
             default       -> "fallback";
@@ -200,6 +204,7 @@ public class SupportAgentGraph {
         return switch (s.intent()) {
             case CANCEL -> "cancel_check";
             case RETURN -> "return_check";
+            case SUPPORT -> "support";   // pedido identificado → retoma la incidencia
             default     -> "tracking";
         };
     }
@@ -365,6 +370,20 @@ public Map<String, Object> apply(SupportState state) {
                   "toolResult", toJson(recent));
 }
 ```
+
+### Identificar el pedido como paso previo también en SUPPORT
+
+Toda gestión **sobre un pedido** identifica primero el pedido (vía `resolve_order`) antes de actuar. Para TRACKING, CANCEL y RETURN es intrínseco: no existen sin un pedido. Una incidencia **SUPPORT**, en cambio, puede ser sobre un pedido (algo llegó roto, no llegó, artículo equivocado, cobro de una compra…) o **genérica** (no puede acceder a su cuenta, error de la web sin compra, duda de facturación). Por eso SUPPORT no puede forzar siempre la identificación: hay que **saber primero si la incidencia es sobre un pedido**.
+
+**Decisión de diseño — slot condicional, no sub-intent.** Siguiendo el patrón de la industria (Rasa *forms* con slots condicionalmente requeridos, Dialogflow *required parameters*, Lex *slot elicitation*, *function-calling* de LLMs), las **intenciones** modelan *qué quiere hacer* el usuario y los **slots** *qué datos necesita esa acción*. "Abrir incidencia" es una sola meta (intent SUPPORT); "¿sobre un pedido?" es un **atributo** de esa incidencia → un slot `orderRelated`, no un intent nuevo. Se descartó dividir en `SUPPORT_ORDER` / `SUPPORT_GENERAL` porque duplicaría toda la maquinaria común de SUPPORT (gate de 3 fases, umbral de verify, descarte de borrador, `MIN_DETAIL_LENGTH`) por un único booleano de diferencia, y obligaría al clasificador a comprometerse pronto con una categoría que a veces solo se sabe mirando los pedidos del usuario (trabajo del grafo, no del modelo). El slot encaja además con el grano del código: `confirmation` y `navigation` ya son slots secundarios emitidos junto al intent y consumidos por routing Java determinista. Si algún día los dos flujos divergen (colas humanas, SLAs, taxonomías), el slot se puede *promover* a sub-intent.
+
+El clasificador (`IntentClassifier`) emite `orderRelated` y el routing (`SupportRouting.supportNeedsOrder`) decide: `orderRelated && sin foco` → `resolve_order` (identifica) → gate de incidencia; en caso contrario → `support` directo (incidencia genérica, `orderId=null`, que `SupportNode` ya soporta). Como en CANCEL/RETURN, tras identificar el pedido (autoselección o elección del menú) el turno re-pasa por `verify` y entra en el gate ya anclado al pedido.
+
+**Refuerzos de robustez:**
+
+- **Sesgo a `orderRelated=true` ante la duda.** El coste es asimétrico: un ticket sin asociar al pedido pierde justo la información que más sirve al agente humano; preguntar "¿cuál pedido?" de más es una fricción leve que el usuario puede declinar. Y SUPPORT, por su propia definición ("problema concreto con un producto o pedido"), está sesgado a pedidos.
+- **Recuperación si el usuario lo declina.** Si en el menú de identificación dice "no es por ningún pedido, es mi cuenta", el clasificador mantiene SUPPORT con `orderRelated=false` y el routing cae solo en la incidencia genérica. No hace falta lógica extra: el slot lo resuelve.
+- **Camino DOUBT (verify → clarify).** Cuando la incidencia es plausible pero ambigua, `clarify` pre-arma el gate (siembra el borrador y deja `TICKET_CONFIRM`) para no preguntar dos veces; si además es sobre un pedido sin foco, la instrucción a `respond` pide identificar también el pedido, de modo que el ticket no quede suelto sin romper la continuidad de la confirmación.
 
 ### `tracking`, `cancel_check`, `cancel_exec`, `return_check`, `return_exec`, `support`
 
