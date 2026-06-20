@@ -75,6 +75,16 @@ class SupportAgentFlowTest {
     private TicketRepository ticketRepository;
 
     @BeforeEach
+    void resetOrderStates() {
+        // Los tests comparten la misma BD H2; algunos tests cancelan pedidos y no los restauran.
+        // Se restablecen los estados semilla antes de cada test para garantizar aislamiento.
+        orderRepository.findById(200L).ifPresent(o -> { o.setStatus(OrderStatus.CREATED); orderRepository.save(o); });
+        orderRepository.findById(202L).ifPresent(o -> { o.setStatus(OrderStatus.PAID); orderRepository.save(o); });
+        orderRepository.findById(456L).ifPresent(o -> { o.setStatus(OrderStatus.PAID); orderRepository.save(o); });
+        orderRepository.findById(789L).ifPresent(o -> { o.setStatus(OrderStatus.DELIVERED); orderRepository.save(o); });
+    }
+
+    @BeforeEach
     void echoResponder() {
         when(responder.write(any(), any(), any(), any(), anyBoolean(), any(), any(), anyBoolean(), any()))
                 .thenAnswer(inv -> "ECHO[" + inv.getArgument(2) + "]");
@@ -267,6 +277,31 @@ class SupportAgentFlowTest {
         assertThat(tickets.get(0).getDescription())
                 .doesNotContain("No funciona")
                 .contains("agrietada");
+    }
+
+    @Test
+    @DisplayName("Soporte sobre un pedido: primero identifica el pedido (menú) y luego propone la incidencia")
+    void supportOnOrderIdentifiesOrderFirst() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                // turno 1: incidencia sobre un pedido (orderRelated=true), sin pedido identificado aún
+                .thenReturn(new RouterDecision("SUPPORT", null, "NONE", "NONE", true))
+                // turno 2: el usuario elige "el portátil" del menú (sigue siendo incidencia sobre pedido)
+                .thenReturn(new RouterDecision("SUPPORT", 123L, "NONE", "NONE", true));
+
+        var turn1 = conversationService.chat("u-001", "conv-support-order",
+                "tengo un problema con un pedido, me lo perdieron hace meses");
+
+        // Aún NO se propone la incidencia: primero hay que identificar de qué pedido se trata
+        assertThat(turn1.resolved()).isFalse();
+        assertThat(turn1.tickets()).isEmpty();
+        assertThat(turn1.reply()).contains("#123").contains("#456");
+
+        var turn2 = conversationService.chat("u-001", "conv-support-order", "el portátil");
+
+        // Con el pedido ya identificado, se entra en el gate de incidencia (aún no crea nada)
+        assertThat(turn2.resolved()).isFalse();
+        assertThat(turn2.tickets()).isEmpty();
+        assertThat(turn2.reply()).contains("CONFIRMAR");
     }
 
     @Test
