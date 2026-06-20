@@ -78,6 +78,12 @@ export interface ChatResponse {
   intent: Intent;
   resolved: boolean;
   orders?: OrderCard[];
+  /**
+   * true → las tarjetas de `orders` son un LISTADO para elegir (clicables).
+   * false → son el detalle del pedido ya en foco (no clicables, ya estamos dentro).
+   * Lo decide el backend (awaiting==ORDER_CHOICE), no el tamaño de la lista.
+   */
+  ordersSelectable?: boolean;
   tickets?: TicketCard[];
   returns?: ReturnCard[];
   confirm?: ConfirmAction | null;
@@ -89,6 +95,8 @@ export interface ChatMessage {
   intent?: Intent;
   at: Date;
   orders?: OrderCard[];
+  /** Ver ChatResponse.ordersSelectable: si las tarjetas de pedido son clicables. */
+  ordersSelectable?: boolean;
   tickets?: TicketCard[];
   returns?: ReturnCard[];
   confirm?: ConfirmAction | null;

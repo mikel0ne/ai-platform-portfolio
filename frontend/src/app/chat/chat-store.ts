@@ -46,7 +46,7 @@ export class ChatStore {
       .subscribe({
         next: r => this.messages.update(m => [
           ...m,
-          { from: 'agent', text: this.stripThoughts(r.reply), intent: r.intent, at: new Date(), orders: r.orders, tickets: r.tickets, returns: r.returns, confirm: r.confirm },
+          { from: 'agent', text: this.stripThoughts(r.reply), intent: r.intent, at: new Date(), orders: r.orders, ordersSelectable: r.ordersSelectable, tickets: r.tickets, returns: r.returns, confirm: r.confirm },
         ]),
         error: () => this.messages.update(m => [
           ...m,

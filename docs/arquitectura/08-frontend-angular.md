@@ -49,7 +49,8 @@ export interface ChatResponse {
   reply: string;
   intent: 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'TICKETS' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
   resolved: boolean;
-  orders?: OrderCard[];     // tarjetas de pedido (menú o ilustración)
+  orders?: OrderCard[];     // tarjetas de pedido (listado para elegir o detalle en foco)
+  ordersSelectable?: boolean; // true → listado clicable; false → detalle en foco (no clicable)
   tickets?: TicketCard[];   // enlaces a incidencias creadas (popup /tickets/:id)
   returns?: ReturnCard[];   // enlaces a devoluciones iniciadas (popup /returns/:id)
   confirm?: ConfirmAction | null;  // botones de una operación irreversible (cancelación o devolución)
@@ -60,6 +61,7 @@ export interface ChatMessage {            // modelo de UI
   intent?: ChatResponse['intent'];
   at: Date;
   orders?: OrderCard[];
+  ordersSelectable?: boolean;
   tickets?: TicketCard[];
   returns?: ReturnCard[];
   confirm?: ConfirmAction | null;

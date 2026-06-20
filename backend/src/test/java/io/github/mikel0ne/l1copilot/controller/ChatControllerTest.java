@@ -42,7 +42,7 @@ class ChatControllerTest {
     void validTurnReturnsAgentReply() throws Exception {
         when(userRepository.existsById("u-001")).thenReturn(true);
         when(conversationService.chat(eq("u-001"), eq("conv-1"), any()))
-                .thenReturn(new ConversationService.ChatResult("Tu pedido está en reparto", "TRACKING", true, List.of(), List.of(), null));
+                .thenReturn(new ConversationService.ChatResult("Tu pedido está en reparto", "TRACKING", true, List.of(), false, List.of(), List.of(), null));
 
         mockMvc.perform(post("/copilot/chat")
                         .header("X-User-Id", "u-001")
