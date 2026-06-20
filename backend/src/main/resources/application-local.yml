@@ -16,8 +16,11 @@ spring:
   datasource:
     url: jdbc:postgresql://postgres.local:15432/l1_copilot
     driver-class-name: org.postgresql.Driver
-    username: appuser
-    password: change-me
+    # Credenciales con default explícito: el arranque local es idéntico sin
+    # configurar nada, pero se pueden sobreescribir por env var (mismo patrón que
+    # application-prod.yml) para no versionar la contraseña en claro.
+    username: ${SPRING_DATASOURCE_USERNAME:appuser}
+    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
   jpa:
     hibernate:
       ddl-auto: none          # el esquema lo crean los scripts SQL
