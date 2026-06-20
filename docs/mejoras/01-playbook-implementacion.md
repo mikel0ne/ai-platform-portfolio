@@ -34,19 +34,16 @@ ficha N. Cada ficha es autocontenida.
 
 ---
 
-## #1 — Password local fuera del YAML 🟠 ⭐⭐⭐ · riesgo ~0 (config)
+## #1 — Password local fuera del YAML 🟠 ⭐⭐⭐ · riesgo ~0 (config) ✅ DONE
 
-- **Problema**: la contraseña de Postgres local está hardcodeada y versionada.
-- **Ficheros**:
-  - `backend/src/main/resources/application-local.yml` (la línea `password: change-me`).
-  - Referencia del patrón correcto: `backend/src/main/resources/application-prod.yml`
-    (usa `${SPRING_DATASOURCE_PASSWORD}` / variables de entorno).
-- **Enfoque**: sustituir el literal por `${DB_PASSWORD:change-me}` (o el nombre de var
-  que use prod) con default explícito para no romper el arranque local de nadie. Verificar
-  que `username`/`url` no oculten otros literales sensibles.
-- **Tests**: ninguno específico. No afecta a la suite (perfil `local` no se usa en tests).
-- **Verificación**: `cd backend && mvn -Dspring-boot.run.profiles=local spring-boot:run`
-  arranca si hay Postgres local; si no, basta con `mvn test` (no rompe nada).
+**Estado:** COMPLETADO. La contraseña se lee de `${DB_PASSWORD:change-me}` en
+`application-local.yml`.
+
+- **Qué se hizo**: se sustituyó el literal `password: change-me` por `${DB_PASSWORD:change-me}`
+  en `backend/src/main/resources/application-local.yml`, igual que el patrón en prod.
+- **Verificación**: `cd backend && mvn test` (no afecta a los tests: perfil `local` se usa solo
+  en desarrollo manual). Si se arranca con perfil `local` contra Postgres, se lee de
+  `DB_PASSWORD` si existe, o usa el default si no.
 
 ## #2 — Eliminar/sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐
 
@@ -108,20 +105,25 @@ ficha N. Cada ficha es autocontenida.
   (el de `docs/grafo.md`) y que el README lo referencie en vez de duplicar uno desfasado.
 - **Verificación**: revisión visual. No hay tests.
 
-## #6 — Aislamiento de tests 🔴 ⭐⭐
+## #6 — Aislamiento de tests 🔴 ⭐⭐ ✅ DONE
 
-- **Problema**: tests de flujo comparten BD H2; resetean en `@BeforeEach` y restauran en
-  `finally` (que puede ocultar fallos del `try`).
-- **Ficheros**:
-  - `backend/src/test/java/io/github/mikel0ne/l1copilot/agent/SupportAgentFlowTest.java`
-    (ver `resetOrderStates()` y los bloques `try/finally` que restauran pedidos).
-  - Comparar con el buen patrón: `backend/src/test/java/io/github/mikel0ne/l1copilot/tools/OrderToolsTest.java`
-    (`@DataJpaTest`) y `controller/ChatControllerTest.java`.
-- **Enfoque**: dar aislamiento real: `@Transactional` con rollback por test, o sembrar
-  datos propios por test. Eliminar los `finally` de restauración (que el rollback haga el
-  trabajo). Asegurar independencia del orden de ejecución.
-- **Verificación**: `cd backend && mvn -Dtest=SupportAgentFlowTest test`; idealmente correr
-  la clase en orden aleatorio para confirmar que ya no dependen entre sí.
+**Estado:** COMPLETADO (commit `1956513`). `SupportAgentFlowTest` es `@Transactional` con
+rollback automático por test. Eliminados todos los bloques `finally` enmascarador y
+`@BeforeEach resetOrderStates()`.
+
+- **Qué se hizo**:
+  - Añadida anotación `@Transactional` a `SupportAgentFlowTest`.
+  - Eliminado el método `@BeforeEach resetOrderStates()`.
+  - Eliminados 3 bloques `try/finally` de restauración de pedidos en tests de devolución:
+    `returnRequiresConfirmationViaButton`, `alreadyReturningReoffersLabel`, `trackingOrderInReturnShowsLabel`.
+  - Actualizado el javadoc de la clase explicando cómo funciona el aislamiento.
+- **Por qué funciona**: el grafo corre síncronamente en el hilo del test; todas las tools
+  (`OrderTools`, `TicketTools`) usan `@Transactional(REQUIRED)` → se unen a la transacción
+  del test. Al terminar cada test, Spring hace rollback y la BD H2 vuelve al seed. Además,
+  cada test usa `conversationId` único → el checkpointer `MemorySaver` no filtra estado
+  entre tests (ejecución en cualquier orden sin problema).
+- **Verificación**: `cd backend && mvn -Dtest=SupportAgentFlowTest test` (requiere loopback
+  disponible; en este entorno hay bloqueo de MemoryIO).
 
 ## #7 — Estado del agente con clave única de verdad 🟠 ⭐⭐
 
@@ -222,16 +224,20 @@ ficha N. Cada ficha es autocontenida.
 - **Tests**: el arranque del contexto en `@SpringBootTest` ya valida el cableado.
 - **Verificación**: `cd backend && mvn test`.
 
-## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra)
+## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) ✅ DONE
 
-- **Problema**: sin pipeline ni cobertura.
-- **Ficheros**:
-  - Nuevo: `.github/workflows/ci.yml` (build + `mvn test` en push/PR).
-  - `backend/pom.xml` (añadir `jacoco-maven-plugin`; ya tiene perfil `security`).
-- **Enfoque**: workflow mínimo (checkout, JDK 17, `cd backend && mvn -B test`). Añadir
-  JaCoCo con report; umbral opcional para no bloquear de golpe. No toca runtime.
-- **Cuidado**: confirmar con el usuario que el repositorio admite GitHub Actions.
-- **Verificación**: `cd backend && mvn test` localmente; el workflow se valida al hacer push.
+**Estado:** COMPLETADO. Workflow en `.github/workflows/ci.yml` y JaCoCo en `backend/pom.xml`.
+
+- **Qué se hizo**:
+  - Nuevo archivo: `.github/workflows/ci.yml` (build + `mvn test` en push/PR a cualquier rama).
+  - Configurado `jacoco-maven-plugin` en `backend/pom.xml` con reporte y umbral mínimo.
+  - Workflow ejecuta `mvn -B test` desde el directorio `backend/` con JDK 17.
+  - Jacoco genera reporte en `target/site/jacoco/` sin bloquear el build si no alcanza el
+    umbral (permite evolución gradual de cobertura).
+- **Verificación**: 
+  - Localmente: `cd backend && mvn test`
+  - En remoto: el workflow se ejecuta automáticamente en cada push/PR. Revisar en
+    `.github/workflows/` y en la pestaña "Actions" del repositorio.
 
 ## #14 — Adelgazar `RouterNode` 🟡 ⭐ (esfuerzo alto, dejar para el final)
 

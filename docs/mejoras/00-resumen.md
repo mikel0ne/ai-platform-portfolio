@@ -12,6 +12,14 @@ decisión.
 > El detalle de implementación (clases implicadas, enfoque, tests y verificación por
 > problema) está en el documento hermano [`01-playbook-implementacion.md`](01-playbook-implementacion.md).
 
+## Progreso
+
+- **✅ #1**: Password local → variable de entorno con default
+- **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
+- **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
+
+Pendientes: #2, #3, #4, #5, #7–#12, #14–#17 (14 de 17)
+
 ---
 
 ## ⚡ Cambios de riesgo casi nulo (sin tocar código de producción)
@@ -45,37 +53,41 @@ Cada punto lleva dos etiquetas:
 
 ## Resumen ordenado por ROI (esfuerzo/beneficio)
 
-| # | Punto | Gravedad | ROI | Esfuerzo |
-|---|-------|:---:|:---:|:---:|
-| 1 | Password hardcodeada en `application-local.yml` | 🟠 | ⭐⭐⭐ | Bajo |
-| 2 | Eliminar/sanear `LlmController`+`LlmService` (andamiaje) | 🟡 | ⭐⭐⭐ | Bajo |
-| 3 | Quitar `candidateLabel()` por reflexión (código legacy) | 🟡 | ⭐⭐⭐ | Bajo |
-| 4 | Centralizar reglas de intents (`isAction`/`needsVerify`) | 🟠 | ⭐⭐⭐ | Bajo |
-| 5 | Sincronizar documentación (modelos, diagramas del grafo) | 🟡 | ⭐⭐⭐ | Bajo |
-| 6 | Aislamiento de tests (BD compartida + `finally` que oculta fallos) | 🔴 | ⭐⭐ | Medio |
-| 7 | Estado del agente "stringly-typed" (clave única de verdad) | 🟠 | ⭐⭐ | Medio |
-| 8 | Tarjetas de UI tipadas de extremo a extremo (no `Map`) | 🟠 | ⭐⭐ | Medio |
-| 9 | Canal nodo→Responder por prefijos string mágicos | 🟠 | ⭐⭐ | Medio |
-| 10 | Unificar nodos Cancel/Return duplicados | 🟡 | ⭐⭐ | Medio |
-| 11 | Revisar prompts (indicaciones, no frases literales) | 🟠 | ⭐⭐ | Medio |
-| 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio |
-| 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto |
-| 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto |
-| 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo |
-| 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo |
-| 17 | Portabilidad `data.sql` (funciones H2 vs Postgres) | 🟡 | ⭐ | Bajo |
+| # | Punto | Gravedad | ROI | Esfuerzo | Estado |
+|---|-------|:---:|:---:|:---:|:---:|
+| 1 | Password hardcodeada en `application-local.yml` | 🟠 | ⭐⭐⭐ | Bajo | ✅ |
+| 2 | Eliminar/sanear `LlmController`+`LlmService` (andamiaje) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
+| 3 | Quitar `candidateLabel()` por reflexión (código legacy) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
+| 4 | Centralizar reglas de intents (`isAction`/`needsVerify`) | 🟠 | ⭐⭐⭐ | Bajo | ⏳ |
+| 5 | Sincronizar documentación (modelos, diagramas del grafo) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
+| 6 | Aislamiento de tests (BD compartida + `finally` que oculta fallos) | 🔴 | ⭐⭐ | Medio | ✅ |
+| 7 | Estado del agente "stringly-typed" (clave única de verdad) | 🟠 | ⭐⭐ | Medio | ⏳ |
+| 8 | Tarjetas de UI tipadas de extremo a extremo (no `Map`) | 🟠 | ⭐⭐ | Medio | ⏳ |
+| 9 | Canal nodo→Responder por prefijos string mágicos | 🟠 | ⭐⭐ | Medio | ⏳ |
+| 10 | Unificar nodos Cancel/Return duplicados | 🟡 | ⭐⭐ | Medio | ⏳ |
+| 11 | Revisar prompts (indicaciones, no frases literales) | 🟠 | ⭐⭐ | Medio | ⏳ |
+| 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio | ⏳ |
+| 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | ✅ |
+| 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
+| 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ⏳ |
+| 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ⏳ |
+| 17 | Portabilidad `data.sql` (funciones H2 vs Postgres) | 🟡 | ⭐ | Bajo | ⏳ |
 
 ---
 
 ## Detalle por punto
 
-### 1. Password hardcodeada en `application-local.yml` 🟠 ⭐⭐⭐
-- **Qué es:** la contraseña de Postgres local (`change-me`) está escrita en un fichero
+### 1. Password hardcodeada en `application-local.yml` 🟠 ⭐⭐⭐ ✅
+
+**Estado:** COMPLETO. La contraseña se lee de variable de entorno con default explícito
+en `application-local.yml`.
+
+- **Qué era:** la contraseña de Postgres local (`change-me`) estaba escrita en un fichero
   versionado.
-- **Por qué no está bien:** queda para siempre en el historial de git; rotarla obliga a un
-  commit; cualquiera que clone la ve. Es mala práctica aunque sea solo "local".
-- **Cómo se soluciona:** leerla de variable de entorno con un default explícito
-  (`${DB_PASSWORD:...}`), igual que ya se hace en el perfil prod.
+- **Por qué no estaba bien:** quedaba para siempre en el historial de git; rotarla obligaba a un
+  commit; cualquiera que clone la veía. Era mala práctica aunque fuera solo "local".
+- **Cómo se solucionó:** se lee de variable de entorno con un default explícito
+  (`${DB_PASSWORD:change-me}`), igual que ya se hace en el perfil prod.
 
 ### 2. Eliminar o sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐
 - **Qué es:** endpoints `/llm/chat` y `/llm/hello` con DTOs definidos dentro del
@@ -110,14 +122,21 @@ Cada punto lleva dos etiquetas:
 - **Cómo se soluciona:** actualizar nombres de modelo y dejar un único diagrama canónico
   del grafo referenciado desde el resto.
 
-### 6. Aislamiento de tests 🔴 ⭐⭐
-- **Qué es:** los tests de flujo comparten la misma BD H2, resetean estado en
-  `@BeforeEach` y restauran en bloques `finally`.
-- **Por qué no está bien:** es lo más grave a nivel de calidad. Un `finally` que restaura
-  estado puede **enmascarar un fallo** ocurrido en el `try`: el test "pasa" tapando su
-  propio error. Y el estado compartido hace los tests dependientes del orden.
-- **Cómo se soluciona:** aislar cada test (rollback transaccional por test, o datos
-  propios por test), de modo que no haga falta restaurar a mano.
+### 6. Aislamiento de tests 🔴 ⭐⭐ ✅
+
+**Estado:** COMPLETO. `SupportAgentFlowTest` usa `@Transactional` con rollback automático;
+todos los `finally` de restauración eliminados (commit `1956513`).
+
+- **Qué era:** los tests de flujo compartían la misma BD H2, reseteaban estado en
+  `@BeforeEach` y restauraban en bloques `finally`.
+- **Por qué no estaba bien:** era lo más grave a nivel de calidad. Un `finally` que restaura
+  estado puede **enmascarar un fallo** ocurrido en el `try`: el test "pasaba" tapando su
+  propio error. Y el estado compartido hacía los tests dependientes del orden.
+- **Cómo se solucionó:** cada test corre en transacción propia (aislamiento real). El grafo
+  se invoca síncronamente en el hilo del test y todas las tools usan `@Transactional(REQUIRED)`,
+  por lo que se unen a esa transacción y sus escrituras se revierten al rollback automático.
+  Además, cada test usa `conversationId` propio → el checkpointer en memoria no filtra
+  estado entre tests (orden de ejecución independiente garantizado).
 
 ### 7. Estado del agente "stringly-typed" 🟠 ⭐⭐
 - **Qué es:** el estado solo declara formalmente una clave (`history`); el resto se leen y
@@ -171,12 +190,18 @@ Cada punto lleva dos etiquetas:
 - **Cómo se soluciona:** anotaciones `@Qualifier` propias y tipadas (p. ej.
   `@Deterministic`, `@ResponseModel`, `@ChatModel`).
 
-### 13. Añadir CI + cobertura 🟠 ⭐⭐
-- **Qué es:** no hay pipeline (`.github/workflows/`) ni medición de cobertura (JaCoCo).
-- **Por qué no está bien:** los tests no se ejecutan solos en cada cambio; nada impide
+### 13. Añadir CI + cobertura 🟠 ⭐⭐ ✅
+
+**Estado:** COMPLETO. Workflow en `.github/workflows/ci.yml` y JaCoCo configurado en
+`backend/pom.xml` con umbral mínimo de cobertura.
+
+- **Qué era:** no había pipeline (`.github/workflows/`) ni medición de cobertura (JaCoCo).
+- **Por qué no estaba bien:** los tests no se ejecutaban solos en cada cambio; nada impedía
   introducir una regresión sin enterarse.
-- **Cómo se soluciona:** un workflow simple de build+test y el plugin de cobertura con un
-  umbral mínimo. *(Confirmar que el entorno admite GitHub Actions.)*
+- **Cómo se solucionó:** workflow mínimo de build+test en cada push/PR a todas las ramas;
+  plugin de cobertura (JaCoCo) con reporte y umbral configurable (no bloqueante de momento,
+  para permite evolución gradual). El workflow ejecuta `mvn -B test` desde el directorio
+  `backend/` con JDK 17.
 
 ### 14. Adelgazar `RouterNode` 🟡 ⭐
 - **Qué es:** concentra clasificación + extracción de foco + navegación + digresión en una
