@@ -1,9 +1,13 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
+import io.github.mikel0ne.l1copilot.agent.Intent;
+import io.github.mikel0ne.l1copilot.agent.SupportRouting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
+import io.github.mikel0ne.l1copilot.agent.Verdict;
 import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter;
 import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter.TicketDraft;
+import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
 import io.github.mikel0ne.l1copilot.dto.TicketCardDto;
 import io.github.mikel0ne.l1copilot.dto.tools.TicketCreated;
 import io.github.mikel0ne.l1copilot.tools.OrderNotFoundException;
@@ -21,20 +25,25 @@ import java.util.Map;
 /**
  * Skill SUPPORT: abre una incidencia para un agente humano, pero NUNCA "a lo
  * loco". Crear un ticket es una acción real, así que sigue un human-in-the-loop
- * con gate de confirmación, igual que la cancelación:
+ * con un gate de confirmación de TRES pasos limpios y separados. El pedido (si la
+ * incidencia es sobre uno) ya se identificó antes en {@code resolve_order}; aquí
+ * SUPPORT no pasa por verify: este gate ES su salvaguarda.
  * <ol>
- *   <li><b>Propuesta</b> (primer turno con intención SUPPORT): no se crea nada.
- *   Se guarda el mensaje que disparó el tema como semilla de la incidencia
- *   ({@code ticketDraft}) y se pasa a {@link Awaiting#TICKET_CONFIRM}, pidiendo
- *   al usuario que confirme que quiere abrir la incidencia y describa con detalle
- *   qué ha ocurrido.</li>
- *   <li><b>Recogida</b>: el usuario sigue adelante (el router mantiene SUPPORT).
- *   Se UNE la semilla con lo que cuente ahora. Si entre ambos no hay detalle
- *   suficiente (&lt; {@value #MIN_DETAIL_LENGTH} caracteres) se pide ampliar una
- *   vez más ({@link Awaiting#TICKET_INFO}); si lo hay, se crea el ticket.</li>
+ *   <li><b>Propuesta</b> (entrada fresca): no se crea nada y NO se siembra el
+ *   borrador (el mensaje de entrada es una selección de pedido o un disparo vago,
+ *   no la descripción). Se pasa a {@link Awaiting#TICKET_CONFIRM} pidiendo SOLO
+ *   confirmación (sí/no) de abrir la incidencia, referida al pedido en foco.</li>
+ *   <li><b>Confirmación</b> ({@link Awaiting#TICKET_CONFIRM}): si confirma de forma
+ *   escueta ("sí"), se pasa a {@link Awaiting#TICKET_INFO} y se le pide la
+ *   descripción. Si en vez de un simple "sí" ya cuenta el problema, se trata como
+ *   confirmar+describir en uno.</li>
+ *   <li><b>Descripción</b> ({@link Awaiting#TICKET_INFO}): se acumula SOLO el
+ *   detalle real; si aún es corto (&lt; {@value #MIN_DETAIL_LENGTH} caracteres) se
+ *   pide ampliar, y cuando basta se crea el ticket.</li>
  * </ol>
- * Si el usuario rechaza la incidencia o pide otra cosa en el gate, el router se
- * encarga de descartar el borrador y reencaminar el turno: este nodo ni se entra.
+ * Si el usuario rechaza la incidencia o pide otra cosa en el gate, el router
+ * descarta el borrador y reencamina el turno (y este nodo trae además una red de
+ * seguridad para un "no" explícito en la confirmación).
  * <p>
  * El asunto y la descripción del ticket no son el texto en bruto del usuario:
  * un {@link TicketWriter} (LLM) los reescribe de forma limpia y profesional
@@ -52,36 +61,87 @@ public class SupportNode implements NodeAction<SupportState> {
 
     private final TicketTools ticketTools;
     private final TicketWriter ticketWriter;
+    private final Verifier verifier;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
-        log.debug("---SUPPORT--- awaiting={} draftLength={}", state.awaiting(), state.ticketDraft().length());
-
+        Awaiting awaiting = state.awaiting();
         String message = state.userMessage().trim();
-        boolean atGate = state.awaiting() == Awaiting.TICKET_CONFIRM
-                || state.awaiting() == Awaiting.TICKET_INFO
-                || !state.ticketDraft().isBlank();
+        log.debug("---SUPPORT--- awaiting={} confirmation={} draftLength={}",
+                awaiting, state.confirmation(), state.ticketDraft().length());
 
-        // FASE 1 — Propuesta: primer turno con intención de incidencia. No se crea nada:
-        // se guarda el mensaje que disparó el tema como semilla y se pide confirmación
-        // explícita + detalle. Así no se abre una incidencia por cada frase del usuario.
-        if (!atGate) {
+        // PASO 1 — Propuesta: entrada fresca sin borrador previo. El Verifier confirma que el
+        // mensaje es realmente una petición de incidencia antes de comprometerse a pedirla.
+        // Se siembra el borrador SIEMPRE (incluso en DOUBT/REJECT) para que, si el usuario
+        // confirma en el turno siguiente, PASO 1 no se repita (ticketDraft ya no está vacío).
+        if (awaiting != Awaiting.TICKET_CONFIRM && awaiting != Awaiting.TICKET_INFO
+                && state.ticketDraft().isBlank()) {
+            String ticketDraft = message;
+            String focus = state.orderId().map(id -> "#" + id).orElse("(ninguno)");
+            Verifier.Decision decision = verifier.verify(message, Intent.SUPPORT.name(), focus);
+            Verdict verdict = Verdict.fromLlm(decision.verdict());
+            log.debug("---SUPPORT--- verify verdict={} reason={}", verdict, decision.reason());
+
+            if (!SupportRouting.proceedsAfterVerify(verdict, Intent.SUPPORT)) {
+                // DOUBT o REJECT: aclarar en vez de comprometerse. El borrador queda sembrado
+                // para que el turno de confirmación caiga directamente en PASO 3.
+                String clarifyResult = verdict == Verdict.REJECT
+                        ? "CLARIFY: el sistema no interpreta esto como una petición de incidencia. "
+                          + "Pregunta con naturalidad qué necesita el usuario, ofreciendo las "
+                          + "alternativas más probables primero."
+                        : "CLARIFY: no está claro si el usuario quiere abrir una incidencia. "
+                          + "Pregunta de forma directa y breve sin asumir nada.";
+                return Map.of(
+                        "ticketDraft", ticketDraft,
+                        "toolResult", clarifyResult);
+            }
+
+            // SURE: confirmar y pedir el detalle en un solo paso (TICKET_INFO, no TICKET_CONFIRM)
             return Map.of(
-                    "ticketDraft", message,
-                    "awaiting", Awaiting.TICKET_CONFIRM.name(),
-                    "toolResult", "El usuario parece reportar un problema, pero AÚN NO se ha "
-                            + "abierto ninguna incidencia. Hay que CONFIRMAR con él si quiere que se "
-                            + "abra una incidencia para que la revise un agente humano y pedirle que "
-                            + "describa con detalle qué ha ocurrido.");
+                    "ticketDraft", ticketDraft,
+                    "awaiting", Awaiting.TICKET_INFO.name(),
+                    "toolResult", "El usuario quiere CONFIRMAR que se abra una incidencia. Confirma "
+                            + "que vas a gestionarlo y pídele que describa con detalle el problema "
+                            + "para poder registrar la incidencia correctamente.");
         }
 
-        // FASE 2 — Recogida: el usuario sigue adelante. Se UNE el mensaje que activó la
-        // incidencia con el detalle que da ahora; si entre ambos no hay material suficiente,
-        // se pide ampliar una vez más antes de crear nada.
+        // PASO 2 — Confirmación: estábamos esperando el sí/no.
+        if (awaiting == Awaiting.TICKET_CONFIRM) {
+            if ("NO".equals(state.confirmation())) {
+                // Rechazo explícito (red de seguridad: normalmente el router ya reencamina al ver
+                // que la intención dejó de ser SUPPORT). No se abre nada.
+                Map<String, Object> declined = new HashMap<>();
+                declined.put("awaiting", Awaiting.NOTHING.name());
+                declined.put("ticketDraft", AgentState.MARK_FOR_REMOVAL);
+                declined.put("resolved", true);
+                declined.put("toolResult", "El usuario NO quiere abrir la incidencia. Reconduce con "
+                        + "naturalidad hacia en qué más puedes ayudarle, sin abrir nada.");
+                return declined;
+            }
+            // Confirmación escueta (un "sí" sin detalle): ahora sí se le pide la descripción.
+            boolean briefConfirmation = "YES".equals(state.confirmation())
+                    && message.length() < MIN_DETAIL_LENGTH;
+            if (briefConfirmation) {
+                return Map.of(
+                        "awaiting", Awaiting.TICKET_INFO.name(),
+                        "toolResult", "El usuario confirma que quiere abrir la incidencia. Pídele que "
+                                + "describa con detalle qué ha ocurrido para poder abrirla. No "
+                                + "inventes datos.");
+            }
+            // El mensaje ya trae la descripción (confirmar y describir en uno): se trata como detalle.
+            return collectOrCreate(state, message);
+        }
+
+        // PASO 3 — Descripción: el usuario describe el problema. Se acumula SOLO el detalle real
+        // (sin ruido de la selección de pedido ni del "sí" de confirmación).
         String rawDescription = state.ticketDraft().isBlank()
                 ? message
                 : state.ticketDraft() + "\n" + message;
+        return collectOrCreate(state, rawDescription);
+    }
 
+    /** Con la descripción acumulada: si aún es corta pide más; si basta, crea la incidencia. */
+    private Map<String, Object> collectOrCreate(SupportState state, String rawDescription) {
         if (rawDescription.strip().length() < MIN_DETAIL_LENGTH) {
             return Map.of(
                     "ticketDraft", rawDescription,
@@ -89,7 +149,11 @@ public class SupportNode implements NodeAction<SupportState> {
                     "toolResult", "La descripción del problema sigue siendo demasiado breve. "
                             + "Hay que pedir al usuario más detalle para poder abrir la incidencia.");
         }
+        return createTicket(state, rawDescription);
+    }
 
+    /** Redacta y persiste la incidencia, emite la tarjeta-enlace y cierra la gestión. */
+    private Map<String, Object> createTicket(SupportState state, String rawDescription) {
         Long orderId = state.orderId().orElse(null);
 
         // El LLM reescribe el texto en bruto del usuario en un asunto y descripción limpios.
