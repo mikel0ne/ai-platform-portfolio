@@ -272,15 +272,29 @@ public class RouterNode implements NodeAction<SupportState> {
      * (Menú → Listado → Pedido en foco). Los destinos explícitos ({@code BACK_TO_LIST} /
      * {@code BACK_TO_MENU}) se respetan tal cual: si el usuario dice "mis pedidos" o "menú
      * principal" sabe a dónde quiere ir. El "atrás/volver" a secas ({@code BACK}) sube
-     * EXACTAMENTE un nivel: desde un pedido en foco se vuelve al listado; estando ya en el
-     * listado —o sin foco alguno— se vuelve al menú. Así "atrás" en el listado NO re-lista
-     * lo mismo (el bucle que veía el usuario), sino que sube al menú.
+     * EXACTAMENTE un nivel, y para eso hay que decidir si la conversación está EN el listado
+     * o POR DEBAJO de él (trabajando un pedido concreto):
+     * <ul>
+     *   <li><b>Por debajo del listado</b> → {@code BACK_TO_LIST} (se vuelve al listado). Es así
+     *   cuando hay un pedido en foco real ({@code orderId}) o cuando se está iniciando una
+     *   gestión sobre un pedido elegido del listado cuyo foco aún NO se ha comprometido (foco
+     *   diferido): {@code verify} no lo ascendió —p. ej. devolvió DUDA y mandó a {@code clarify}—
+     *   y {@code proposedOrderId} es efímero, así que {@code orderId} quedó vacío PERO el listado
+     *   sigue ahí ({@code candidates}) y ya no estamos eligiendo ({@code awaiting != ORDER_CHOICE}).
+     *   Sin esto, "atrás" al iniciar una devolución/cancelación se saltaba el listado y caía al
+     *   menú, justo el foco que el usuario creía tener.</li>
+     *   <li><b>En el propio listado</b> ({@code awaiting == ORDER_CHOICE}, eligiendo todavía) o
+     *   sin nada → {@code BACK_TO_MENU} (se sube al menú). Aquí "atrás" NO re-lista lo mismo (el
+     *   bucle que veía el usuario), sino que sube de nivel.</li>
+     * </ul>
      */
     private Navigation resolveNavigation(Navigation navigation, SupportState state) {
         if (navigation != Navigation.BACK) {
             return navigation;
         }
-        return state.orderId().isPresent() ? Navigation.BACK_TO_LIST : Navigation.BACK_TO_MENU;
+        boolean belowListing = state.orderId().isPresent()
+                || (!state.candidates().isEmpty() && state.awaiting() != Awaiting.ORDER_CHOICE);
+        return belowListing ? Navigation.BACK_TO_LIST : Navigation.BACK_TO_MENU;
     }
 
     /**

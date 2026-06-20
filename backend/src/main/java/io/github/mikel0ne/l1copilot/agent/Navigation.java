@@ -13,9 +13,13 @@ package io.github.mikel0ne.l1copilot.agent;
  * Y existe la navegación ambigua de "subir un nivel" ({@link #BACK}): un "atrás"
  * o "volver" a secas, donde el usuario NO dice el destino. En ese caso el destino
  * NO lo decide el LLM, sino {@code RouterNode} según el nivel real en que está la
- * conversación: desde un pedido en foco se vuelve al listado; estando ya en el
- * listado (o sin foco) se vuelve al menú principal. Así "atrás" siempre sube
- * exactamente un nivel y nunca se queda dando vueltas en el mismo sitio.
+ * conversación: si se está trabajando un pedido concreto se vuelve al listado;
+ * estando en el propio listado (eligiendo todavía) o sin nada se vuelve al menú
+ * principal. "Trabajando un pedido" incluye tanto el foco ya comprometido
+ * ({@code orderId}) como el foco diferido aún sin confirmar por {@code verify}
+ * (un pedido elegido del listado cuya gestión se está iniciando): el listado sigue
+ * disponible y "atrás" debe volver a él, no saltar al menú. Así "atrás" siempre
+ * sube exactamente un nivel y nunca se queda dando vueltas en el mismo sitio.
  * <p>
  * Es lo que permite que el foco ({@code orderId}) sea pegajoso —no se salta de
  * pedido en pedido— pero el usuario conserve siempre una vía clara para subir

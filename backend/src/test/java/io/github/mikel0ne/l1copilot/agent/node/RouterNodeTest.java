@@ -157,6 +157,29 @@ class RouterNodeTest {
     }
 
     @Test
+    @DisplayName("'atrás' (BACK) iniciando una devolución con el foco diferido sin comprometer: vuelve al listado, NO al menú")
+    void backWithDeferredFocusDroppedGoesToList() {
+        // Caso del foco diferido: el usuario eligió un pedido del listado para devolverlo, pero
+        // verify dudó y mandó a clarify SIN ascender el foco; proposedOrderId es efímero, así que
+        // este turno NO hay orderId. El listado sigue ahí (candidates) y ya no estamos eligiendo
+        // (awaiting != ORDER_CHOICE): "atrás" debe volver al LISTADO, no saltarse un nivel al menú.
+        decision(new RouterDecision("OTHER", null, "NONE", "BACK"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "atrás",
+                "awaiting", "NOTHING",
+                "intent", "RETURN",
+                "candidates", List.of("#123 Portátil (DELIVERED)", "#789 Monitor (DELIVERED)"))));
+
+        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        // BACK_TO_LIST conserva la gestión (RETURN) para que, con orderId vacío, la arista del
+        // router caiga en resolve_order y re-ofrezca el listado, no en fallback (menú).
+        assertThat(updates).containsEntry("intent", "RETURN");
+    }
+
+    @Test
     @DisplayName("Digresión: una FAQ con gestión pendiente suspende la tarea SIN tocar su contexto")
     void faqDuringPendingTaskSuspendsWithoutTouchingContext() {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
@@ -304,7 +327,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Gate de incidencia: pivotar a cancelar otro pedido descarta el borrador y cambia el foco")
+    @DisplayName("Gate de incidencia: pivotar a cancelar otro pedido descarta el borrador y PROPONE el foco (verify lo confirma)")
     void ticketGatePivotToCancelDropsDraftAndSwitchesOrder() {
         decision(new RouterDecision("CANCEL", 200L, "NONE", "NONE"));
 
@@ -314,7 +337,10 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
         assertThat(updates).containsEntry("intent", "CANCEL");
-        assertThat(updates).containsEntry("orderId", 200L);
+        // Al descartar el borrador el turno queda como una cancelación FRESCA (awaiting NOTHING,
+        // ticket vacío): pasa por verify, así que el foco se PROPONE y lo asciende verify si aprueba.
+        assertThat(updates).containsEntry("proposedOrderId", 200L);
+        assertThat(updates).doesNotContainKey("orderId");
     }
 
     @Test
