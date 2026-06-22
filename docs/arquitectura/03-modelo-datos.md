@@ -170,7 +170,15 @@ public record TicketCreated(Long ticketId, String subject, String status) {}
 
 ## Esquema y datos de prueba
 
-### `schema.sql` (común H2/PostgreSQL)
+> **Separación por dialecto.** El esquema y el seed están duplicados por motor:
+> `schema-h2.sql` + `data-h2.sql` (perfil `dev`, con `spring.sql.init.platform=h2`)
+> y `schema-postgresql.sql` + `data-postgresql.sql` (perfiles `local`/`prod`, con
+> `platform=postgresql`). Es necesario porque la aritmética de fechas del seed no
+> es portable (`DATEADD` en H2 vs `INTERVAL` en PostgreSQL). Spring carga SOLO los
+> scripts del dialecto activo, así que el seed de un motor nunca contamina al otro.
+> Mantener ambas versiones en sincronía.
+
+### `schema-h2.sql` (estructura; espejo de `schema-postgresql.sql`)
 
 ```sql
 CREATE TABLE IF NOT EXISTS users (
@@ -202,7 +210,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 ```
 
-### `data.sql` (seed pensado para los escenarios de demo)
+### `data-h2.sql` (seed de demo; espejo de `data-postgresql.sql`)
 
 ```sql
 -- Ana (28) → tuteo simpático; Luis (70) → trato de usted, amable.

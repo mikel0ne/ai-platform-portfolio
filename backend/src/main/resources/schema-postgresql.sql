@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Esquema del L1 Support Copilot — PostgreSQL
 -- Se ejecuta al arrancar con el perfil "local" (spring.sql.init.platform=postgresql)
--- Debe mantenerse en sincronía con schema.sql (versión H2/dev) y
+-- Debe mantenerse en sincronía con schema-h2.sql (versión H2/dev) y
 -- con docs/arquitectura/03-modelo-datos.md.
 -- ─────────────────────────────────────────────────────────────────────────────
 

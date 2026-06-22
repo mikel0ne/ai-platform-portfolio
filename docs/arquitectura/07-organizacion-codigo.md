@@ -136,7 +136,7 @@ spring:
     password: ""
   jpa:
     hibernate:
-      ddl-auto: none        # el esquema lo crean schema.sql/data.sql
+      ddl-auto: none        # el esquema lo crean schema-h2.sql/data-h2.sql (platform=h2)
   sql:
     init:
       mode: always

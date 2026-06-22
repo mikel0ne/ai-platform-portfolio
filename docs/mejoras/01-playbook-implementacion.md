@@ -297,13 +297,23 @@ así que Actuator ya no queda forzado al final (tradeoff aceptado por simplicida
   basta, y eliminar el customizer.
 - **Verificación**: `cd backend && mvn test`; revisar `/api/swagger-ui` manualmente.
 
-## #17 — Portabilidad de `data.sql` H2↔Postgres 🟡 ⭐
+## #17 — Portabilidad de `data.sql` H2↔Postgres 🟡 ⭐ ✅ DONE
+
+**Estado:** COMPLETADO. Se separó el seed por dialecto de forma estanca. `schema.sql` y
+`data.sql` (los genéricos, con `DATEADD` de H2) se renombraron a `schema-h2.sql` y
+`data-h2.sql`, y el perfil `dev` declara `spring.sql.init.platform=h2`. Así Spring carga
+SOLO los scripts del dialecto activo: dev → `*-h2.sql`; `local`/`prod` → `*-postgresql.sql`.
+Antes, en perfiles Postgres, el mecanismo de fallback de Spring cargaba TAMBIÉN el
+`data.sql` genérico (su `DATEADD` reventaba en Postgres con `SQL_INIT_MODE=always`).
+`OrderToolsTest` valida la carga del seed H2; docs de arquitectura actualizadas.
 
 - **Problema**: el seed usa funciones de H2 (`DATEADD`) que pueden no migrar a Postgres.
 - **Ficheros**:
-  - `backend/src/main/resources/data.sql` (seed).
-  - `backend/src/main/resources/schema.sql` (esquema).
-  - Perfiles que usan Postgres: `application-local.yml`, `application-prod.yml`.
+  - `backend/src/main/resources/data-h2.sql` (seed H2; antes `data.sql`).
+  - `backend/src/main/resources/schema-h2.sql` (esquema H2; antes `schema.sql`).
+  - `backend/src/main/resources/data-postgresql.sql` / `schema-postgresql.sql` (Postgres).
+  - Perfiles: `application-dev.yml` (`platform=h2`), `application-local.yml`,
+    `application-prod.yml` (`platform=postgresql`).
 - **Enfoque**: usar SQL portable (fechas calculadas en Java o sintaxis estándar) o separar
   seeds por dialecto. Verificar contra un Postgres local.
 - **Verificación**: `cd backend && mvn test` (H2) y arranque con perfil `local` contra

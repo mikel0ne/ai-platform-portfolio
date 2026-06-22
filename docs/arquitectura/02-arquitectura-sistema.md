@@ -99,7 +99,7 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 
 ### ADR-5: H2 en dev, PostgreSQL en despliegue
 **Decisión:** Perfil `dev` con H2 en memoria + seed automático; perfil `prod` con PostgreSQL.
-**Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL (`schema.sql`/`data.sql` en dev; versión Postgres en `schema-postgresql.sql`/`data-postgresql.sql` aplicada a la BD del proyecto por `scripts/setup-l1-copilot-db.sh` — ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)).
+**Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL separados por dialecto (`schema-h2.sql`/`data-h2.sql` en dev con `spring.sql.init.platform=h2`; versión Postgres en `schema-postgresql.sql`/`data-postgresql.sql` aplicada a la BD del proyecto por `scripts/setup-l1-copilot-db.sh` — ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)). La separación es necesaria porque la aritmética de fechas del seed no es portable entre H2 y PostgreSQL.
 
 ### ADR-6: Memoria conversacional en `MemorySaver`
 **Decisión:** Checkpointer en memoria del proceso.

@@ -21,8 +21,9 @@ decisión.
 - **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
 - **✅ #15**: Validación declarativa (`@NotNull`/`@NotBlank`/`@Email`/`@Positive`) en las entidades JPA
 - **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
+- **✅ #17**: Seed separado por dialecto (`*-h2.sql` con `platform=h2` / `*-postgresql.sql`); fin del `DATEADD` en Postgres
 
-Pendientes: #4, #5, #7–#12, #14, #17 (10 de 17)
+Pendientes: #4, #5, #7–#12, #14 (9 de 17)
 
 ---
 
@@ -75,7 +76,7 @@ Cada punto lleva dos etiquetas:
 | 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
 | 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ✅ |
 | 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ✅ |
-| 17 | Portabilidad `data.sql` (funciones H2 vs Postgres) | 🟡 | ⭐ | Bajo | ⏳ |
+| 17 | Portabilidad `data.sql` (funciones H2 vs Postgres) | 🟡 | ⭐ | Bajo | ✅ |
 
 ---
 
@@ -246,7 +247,12 @@ delegado en springdoc (`tags-sorter=alpha`).
 - **Cómo se soluciona:** restringir/ocultar el endpoint de caché y usar la opción de
   ordenación de springdoc en vez de código.
 
-### 17. Portabilidad de `data.sql` 🟡 ⭐
+### 17. Portabilidad de `data.sql` 🟡 ⭐ ✅
+
+**Estado:** COMPLETO. Seed separado por dialecto (`*-h2.sql` con `platform=h2` en dev /
+`*-postgresql.sql` con `platform=postgresql` en local-prod); ya no hay fallback al
+genérico que mezclaba `DATEADD` de H2 en Postgres.
+
 - **Qué es:** el seed usa funciones específicas de H2 (p. ej. `DATEADD`).
 - **Por qué no está bien:** puede no migrar limpio a Postgres en prod.
 - **Cómo se soluciona:** usar SQL portable o seeds separados por dialecto.
