@@ -15,10 +15,11 @@ decisión.
 ## Progreso
 
 - **✅ #1**: Password local → variable de entorno con default
+- **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
 - **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
 
-Pendientes: #2, #3, #4, #5, #7–#12, #14–#17 (14 de 17)
+Pendientes: #2, #4, #5, #7–#12, #14–#17 (13 de 17)
 
 ---
 
@@ -57,7 +58,7 @@ Cada punto lleva dos etiquetas:
 |---|-------|:---:|:---:|:---:|:---:|
 | 1 | Password hardcodeada en `application-local.yml` | 🟠 | ⭐⭐⭐ | Bajo | ✅ |
 | 2 | Eliminar/sanear `LlmController`+`LlmService` (andamiaje) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
-| 3 | Quitar `candidateLabel()` por reflexión (código legacy) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
+| 3 | Quitar `candidateLabel()` por reflexión (código legacy) | 🟡 | ⭐⭐⭐ | Bajo | ✅ |
 | 4 | Centralizar reglas de intents (`isAction`/`needsVerify`) | 🟠 | ⭐⭐⭐ | Bajo | ⏳ |
 | 5 | Sincronizar documentación (modelos, diagramas del grafo) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
 | 6 | Aislamiento de tests (BD compartida + `finally` que oculta fallos) | 🔴 | ⭐⭐ | Medio | ✅ |
@@ -97,7 +98,11 @@ en `application-local.yml`.
 - **Cómo se soluciona:** si la demo no los usa, borrarlos; si se conservan, mover los DTOs
   a `dto/` y validar la entrada (`@NotBlank`, `@Size`).
 
-### 3. Quitar `candidateLabel()` por reflexión 🟡 ⭐⭐⭐
+### 3. Quitar `candidateLabel()` por reflexión 🟡 ⭐⭐⭐ ✅
+
+**Estado:** COMPLETO. `candidates()` devuelve la lista tal cual; método de reflexión
+borrado.
+
 - **Qué es:** en `SupportState`, una función que usa reflexión para etiquetar candidatos
   de tipos heterogéneos.
 - **Por qué no está bien:** el propio diseño ya guarda los candidatos como texto plano, así

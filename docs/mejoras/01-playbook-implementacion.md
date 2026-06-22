@@ -60,7 +60,13 @@ ficha N. Cada ficha es autocontenida.
 - **Tests**: no hay test propio conocido; tras borrar, confirmar que compila.
 - **Verificación**: `cd backend && mvn test`.
 
-## #3 — Quitar `candidateLabel()` por reflexión 🟡 ⭐⭐⭐
+## #3 — Quitar `candidateLabel()` por reflexión 🟡 ⭐⭐⭐ ✅ DONE
+
+**Estado:** COMPLETADO. `SupportState.candidates()` devuelve la lista tal cual
+(`this.value("candidates", List::of)`); se eliminó el método `candidateLabel(Object)`
+y el import de reflexión. `ResolveOrderNode` ya guardaba los candidatos como `String`.
+`SupportStateTest` se reescribió para verificar el paso a través de texto y el
+default a lista vacía (los 2 tests verdes).
 
 - **Problema**: método con reflexión para etiquetar candidatos heterogéneos; legacy, los
   candidatos ya se guardan como `String`.
