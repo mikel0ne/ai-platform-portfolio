@@ -4,11 +4,11 @@ import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.llm.Responder;
 import io.github.mikel0ne.l1copilot.config.ConversationHistoryProperties;
+import io.github.mikel0ne.l1copilot.config.qualifier.ChattyResponder;
 import io.github.mikel0ne.l1copilot.tools.OrderTools;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -32,7 +32,7 @@ public class RespondNode implements NodeAction<SupportState> {
 
     private final Responder responder;
 
-    @Qualifier("chattyResponder")
+    @ChattyResponder
     private final Responder chattyResponder;
 
     private final OrderTools orderTools;

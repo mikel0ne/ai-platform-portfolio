@@ -16,12 +16,14 @@ El L1 Copilot **se construye encima**, en paquetes nuevos, sin romper los endpoi
 backend/src/main/java/io/github/mikel0ne/l1copilot/
 ├── Application.java
 ├── config/
-│   ├── Config.java                  # (existente) bean ChatLanguageModel Gemini
-│   ├── LangChain4jProperties.java   # (existente)
-│   └── AgentConfig.java             # NUEVO: CompiledGraph + checkpointer
+│   ├── Config.java                  # beans ChatModel Gemini (1 por temperatura)
+│   ├── LangChain4jProperties.java
+│   ├── qualifier/                   # @Qualifier tipados: @Deterministic, @TicketModel,
+│   │                                #   @ResponseModel, @ChattyModel (ver #12)
+│   └── AgentConfig.java             # CompiledGraph + checkpointer + AiServices
 ├── controller/
 │   ├── CacheController.java         # /api/cache/** (clear() oculto: @Hidden)
-│   └── ChatController.java          # NUEVO: /api/copilot/**
+│   └── ChatController.java          # /api/copilot/**
 ├── service/
 │   └── ConversationService.java     # invoca el grafo por threadId
 ├── agent/                           # NUEVO: todo el agente LangGraph4j

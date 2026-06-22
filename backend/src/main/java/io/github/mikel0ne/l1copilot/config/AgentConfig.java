@@ -8,6 +8,11 @@ import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
 import io.github.mikel0ne.l1copilot.agent.llm.Responder;
 import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter;
 import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
+import io.github.mikel0ne.l1copilot.config.qualifier.ChattyModel;
+import io.github.mikel0ne.l1copilot.config.qualifier.ChattyResponder;
+import io.github.mikel0ne.l1copilot.config.qualifier.Deterministic;
+import io.github.mikel0ne.l1copilot.config.qualifier.ResponseModel;
+import io.github.mikel0ne.l1copilot.config.qualifier.TicketModel;
 import org.bsc.langgraph4j.CompileConfig;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphRepresentation;
@@ -16,7 +21,6 @@ import org.bsc.langgraph4j.checkpoint.BaseCheckpointSaver;
 import org.bsc.langgraph4j.checkpoint.MemorySaver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -35,14 +39,14 @@ public class AgentConfig {
     private static final Logger log = LoggerFactory.getLogger(AgentConfig.class);
 
     @Bean
-    public IntentClassifier intentClassifier(ChatModel chatModel) {
+    public IntentClassifier intentClassifier(@Deterministic ChatModel chatModel) {
         return AiServices.create(IntentClassifier.class, chatModel);
     }
 
     /** Redactor de las gestiones de negocio: temperatura media para un tono natural. */
     @Bean
     @Primary
-    public Responder responder(@Qualifier("responseChatModel") ChatModel responseChatModel) {
+    public Responder responder(@ResponseModel ChatModel responseChatModel) {
         return AiServices.create(Responder.class, responseChatModel);
     }
 
@@ -51,17 +55,18 @@ public class AgentConfig {
      * pero sobre el modelo de mayor temperatura para respuestas más cálidas y variadas.
      */
     @Bean
-    public Responder chattyResponder(@Qualifier("chatChatModel") ChatModel chatChatModel) {
+    @ChattyResponder
+    public Responder chattyResponder(@ChattyModel ChatModel chatChatModel) {
         return AiServices.create(Responder.class, chatChatModel);
     }
 
     @Bean
-    public TicketWriter ticketWriter(@Qualifier("ticketChatModel") ChatModel ticketChatModel) {
+    public TicketWriter ticketWriter(@TicketModel ChatModel ticketChatModel) {
         return AiServices.create(TicketWriter.class, ticketChatModel);
     }
 
     @Bean
-    public Verifier verifier(ChatModel chatModel) {
+    public Verifier verifier(@Deterministic ChatModel chatModel) {
         return AiServices.create(Verifier.class, chatModel);
     }
 
