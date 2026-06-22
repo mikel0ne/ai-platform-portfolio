@@ -10,11 +10,12 @@ spring:
     password: ""
   jpa:
     hibernate:
-      ddl-auto: none        # el esquema lo crean schema.sql/data.sql
+      ddl-auto: none        # el esquema lo crean schema-h2.sql/data-h2.sql
     open-in-view: false
   sql:
     init:
-      mode: always          # ejecuta schema.sql + data.sql (seed de demo)
+      mode: always          # ejecuta schema-h2.sql + data-h2.sql (seed de demo)
+      platform: h2          # solo carga los scripts del dialecto H2 (nunca los -postgresql)
       encoding: UTF-8
   h2:
     console:

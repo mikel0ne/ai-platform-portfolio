@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Reglas de negocio y seguridad del dato de las tools, contra H2 con el seed
- * real (schema.sql + data.sql). Sin LLM: las tools son deterministas a propósito.
+ * real (schema-h2.sql + data-h2.sql). Sin LLM: las tools son deterministas a propósito.
  */
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @Import({OrderTools.class, TicketTools.class})

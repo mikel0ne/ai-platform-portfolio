@@ -39,7 +39,7 @@ gantt
 **Releer:** [03 — Modelo de datos](03-modelo-datos.md).
 
 1. Entidades `User`, `Order` (+`OrderStatus`), `Ticket` (+`TicketStatus`); repositorios con variantes `...AndUserId`.
-2. `schema.sql` + `data.sql` (seed con fechas relativas); perfiles `dev` (H2 + consola) y `prod` (Postgres por entorno).
+2. Esquema y seed separados por dialecto: `schema-h2.sql`/`data-h2.sql` (perfil `dev`, `platform=h2`) y `schema-postgresql.sql`/`data-postgresql.sql` (perfiles `local`/`prod`, `platform=postgresql`); fechas relativas a `CURRENT_DATE`.
 3. Records de `dto/tools` (`OrderSummary`, `ShipmentStatus`, `CancellationResult`, `TicketCreated`).
 4. Tests `@DataJpaTest`: seed cargado, `findTop3ByUserIdOrderByOrderDateDesc` devuelve orden correcto, `findByIdAndUserId` no cruza usuarios.
 

@@ -1,7 +1,9 @@
--- Esquema del L1 Support Copilot (H2 dev / PostgreSQL prod).
--- En producción la versión PostgreSQL se aplica con scripts/setup-l1-copilot-db.sh
--- (ver docs/infraestructura/03-infra-compartida.md). Mantener en sincronía con
--- schema-postgresql.sql y con docs/arquitectura/03-modelo-datos.md.
+-- Esquema del L1 Support Copilot — H2 (perfil dev).
+-- Se carga SOLO con el dialecto H2 (spring.sql.init.platform=h2): así nunca se
+-- mezcla con los scripts de PostgreSQL. La versión PostgreSQL vive en
+-- schema-postgresql.sql y en prod se aplica con scripts/setup-l1-copilot-db.sh
+-- (ver docs/infraestructura/03-infra-compartida.md). Mantener ambos en sincronía
+-- entre sí y con docs/arquitectura/03-modelo-datos.md.
 
 CREATE TABLE IF NOT EXISTS users (
     id         VARCHAR(20)  PRIMARY KEY,

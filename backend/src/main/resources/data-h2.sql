@@ -1,4 +1,7 @@
--- Seed de demo. Fechas relativas a CURRENT_DATE para que el escenario
+-- Seed de demo — H2 (perfil dev). Se carga SOLO con el dialecto H2
+-- (spring.sql.init.platform=h2); el seed de PostgreSQL vive en data-postgresql.sql.
+-- Usa funciones de fecha de H2 (DATEADD), NO portables a Postgres: por eso está
+-- separado por dialecto. Fechas relativas a CURRENT_DATE para que el escenario
 -- "llegará mañana" funcione cualquier día.
 
 DELETE FROM tickets;
