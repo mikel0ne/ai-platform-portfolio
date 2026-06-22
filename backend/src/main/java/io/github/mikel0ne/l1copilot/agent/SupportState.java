@@ -4,7 +4,6 @@ import org.bsc.langgraph4j.state.AgentState;
 import org.bsc.langgraph4j.state.Channel;
 import org.bsc.langgraph4j.state.Channels;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -85,9 +84,7 @@ public class SupportState extends AgentState {
     }
 
     public List<String> candidates() {
-        return this.value("candidates", List::of).stream()
-                .map(SupportState::candidateLabel)
-                .toList();
+        return this.value("candidates", List::of);
     }
 
     /**
@@ -220,37 +217,5 @@ public class SupportState extends AgentState {
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> returnCards() {
         return this.value("returnCards", List::of);
-    }
-
-    private static String candidateLabel(Object candidate) {
-        if (candidate instanceof String label) {
-            return label;
-        }
-
-        try {
-            Method id = candidate.getClass().getMethod("id");
-            Method description = candidate.getClass().getMethod("description");
-            Method status = candidate.getClass().getMethod("status");
-            StringBuilder label = new StringBuilder("#")
-                    .append(id.invoke(candidate))
-                    .append(" ")
-                    .append(description.invoke(candidate))
-                    .append(" (")
-                    .append(status.invoke(candidate));
-
-            try {
-                Method orderDate = candidate.getClass().getMethod("orderDate");
-                Object date = orderDate.invoke(candidate);
-                if (date != null) {
-                    label.append(", pedido el ").append(date);
-                }
-            } catch (NoSuchMethodException ignored) {
-                // Some legacy candidates may not expose the date; status + description is enough.
-            }
-
-            return label.append(")").toString();
-        } catch (ReflectiveOperationException e) {
-            return String.valueOf(candidate);
-        }
     }
 }
