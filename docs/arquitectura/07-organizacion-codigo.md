@@ -21,12 +21,10 @@ backend/src/main/java/io/github/mikel0ne/l1copilot/
 │   ├── OpenApiConfig.java           # (existente)
 │   └── AgentConfig.java             # NUEVO: CompiledGraph + checkpointer
 ├── controller/
-│   ├── LlmController.java           # (existente)
 │   ├── CacheController.java         # (existente)
 │   └── ChatController.java          # NUEVO: /api/copilot/**
 ├── service/
-│   ├── LlmService.java              # (existente)
-│   └── ConversationService.java     # NUEVO: invoca el grafo por threadId
+│   └── ConversationService.java     # invoca el grafo por threadId
 ├── agent/                           # NUEVO: todo el agente LangGraph4j
 │   ├── SupportAgentGraph.java       # builder del StateGraph + aristas condicionales
 │   ├── SupportState.java            # AgentState + SCHEMA

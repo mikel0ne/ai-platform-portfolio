@@ -15,11 +15,12 @@ decisión.
 ## Progreso
 
 - **✅ #1**: Password local → variable de entorno con default
+- **✅ #2**: Eliminado el andamiaje `LlmController` + `LlmService` (no lo usaba nadie)
 - **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
 - **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
 
-Pendientes: #2, #4, #5, #7–#12, #14–#17 (13 de 17)
+Pendientes: #4, #5, #7–#12, #14–#17 (12 de 17)
 
 ---
 
@@ -57,7 +58,7 @@ Cada punto lleva dos etiquetas:
 | # | Punto | Gravedad | ROI | Esfuerzo | Estado |
 |---|-------|:---:|:---:|:---:|:---:|
 | 1 | Password hardcodeada en `application-local.yml` | 🟠 | ⭐⭐⭐ | Bajo | ✅ |
-| 2 | Eliminar/sanear `LlmController`+`LlmService` (andamiaje) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
+| 2 | Eliminar/sanear `LlmController`+`LlmService` (andamiaje) | 🟡 | ⭐⭐⭐ | Bajo | ✅ |
 | 3 | Quitar `candidateLabel()` por reflexión (código legacy) | 🟡 | ⭐⭐⭐ | Bajo | ✅ |
 | 4 | Centralizar reglas de intents (`isAction`/`needsVerify`) | 🟠 | ⭐⭐⭐ | Bajo | ⏳ |
 | 5 | Sincronizar documentación (modelos, diagramas del grafo) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
@@ -90,7 +91,11 @@ en `application-local.yml`.
 - **Cómo se solucionó:** se lee de variable de entorno con un default explícito
   (`${DB_PASSWORD:change-me}`), igual que ya se hace en el perfil prod.
 
-### 2. Eliminar o sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐
+### 2. Eliminar o sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅
+
+**Estado:** COMPLETO. Borrados `LlmController` y `LlmService`; no los usaba nadie (ni el
+grafo, ni el routing, ni el frontend).
+
 - **Qué es:** endpoints `/llm/chat` y `/llm/hello` con DTOs definidos dentro del
   controlador y sin validación; el servicio es un passthrough trivial al modelo.
 - **Por qué no está bien:** parece andamiaje de "hola mundo" que sobrevivió al prototipo;

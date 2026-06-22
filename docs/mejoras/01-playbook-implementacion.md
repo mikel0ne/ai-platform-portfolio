@@ -45,7 +45,12 @@ ficha N. Cada ficha es autocontenida.
   en desarrollo manual). Si se arranca con perfil `local` contra Postgres, se lee de
   `DB_PASSWORD` si existe, o usa el default si no.
 
-## #2 — Eliminar/sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐
+## #2 — Eliminar/sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅ DONE
+
+**Estado:** COMPLETADO. Se borraron `LlmController` y `LlmService` (nadie los usaba:
+ni el grafo, ni el routing, ni el frontend). Se limpiaron las referencias en
+`Application.java` (líneas de log de `/api/llm/*`) y el javadoc de `Config.java`. El
+bean `ChatModel` primario sigue existiendo: lo usan router y verificador.
 
 - **Problema**: endpoints `/llm/chat` y `/llm/hello` de andamiaje, DTOs inline, sin
   validación; el servicio es un passthrough trivial.
