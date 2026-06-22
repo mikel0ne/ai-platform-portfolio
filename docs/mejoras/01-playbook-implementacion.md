@@ -271,7 +271,14 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
   que el seed (`data.sql`) sigue siendo válido.
 - **Verificación**: `cd backend && mvn test` (arranque + `OrderToolsTest` con H2).
 
-## #16 — Menores de la capa web 🟡 ⭐
+## #16 — Menores de la capa web 🟡 ⭐ ✅ DONE
+
+**Estado:** COMPLETADO. `CacheController.clear()` marcado `@Hidden` (operación
+destructiva interna/operacional, fuera de la API pública; el control de acceso real
+queda pendiente de Spring Security). Se borró `OpenApiConfig` (el customizer manual de
+tags) y se delega el orden en springdoc: `springdoc.swagger-ui.tags-sorter=alpha` +
+`operations-sorter=alpha` en `application.yml`. Nota: el orden ahora es alfabético puro,
+así que Actuator ya no queda forzado al final (tradeoff aceptado por simplicidad).
 
 - **Problema**: `CacheController.clear()` sin protección; `OpenApiConfig` ordena tags a mano.
 - **Ficheros**:

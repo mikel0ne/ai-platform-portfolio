@@ -79,6 +79,11 @@ app:
 springdoc:
   show-actuator: true
   paths-to-exclude: /actuator/health/**   # Oculta el endpoint /actuator/health/{*path} de Swagger (el wildcard duplicado)
+  swagger-ui:
+    # Ordenación alfabética de tags y operaciones a cargo de Swagger UI (antes se
+    # reordenaba a mano con un OpenApiCustomizer; el orden alfabético es suficiente).
+    tags-sorter: alpha
+    operations-sorter: alpha
 
 # Actuator - Monitorización
 management:

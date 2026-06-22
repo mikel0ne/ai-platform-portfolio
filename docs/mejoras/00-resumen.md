@@ -19,8 +19,9 @@ decisión.
 - **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
 - **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
+- **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
 
-Pendientes: #4, #5, #7–#12, #14–#17 (12 de 17)
+Pendientes: #4, #5, #7–#12, #14, #15, #17 (11 de 17)
 
 ---
 
@@ -72,7 +73,7 @@ Cada punto lleva dos etiquetas:
 | 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | ✅ |
 | 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
 | 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ⏳ |
-| 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ⏳ |
+| 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ✅ |
 | 17 | Portabilidad `data.sql` (funciones H2 vs Postgres) | 🟡 | ⭐ | Bajo | ⏳ |
 
 ---
@@ -228,7 +229,11 @@ todos los `finally` de restauración eliminados (commit `1956513`).
   guardar.
 - **Cómo se soluciona:** añadir las anotaciones de validación donde aplique.
 
-### 16. Menores de la capa web 🟡 ⭐
+### 16. Menores de la capa web 🟡 ⭐ ✅
+
+**Estado:** COMPLETO. `clear()` marcado `@Hidden`; `OpenApiConfig` borrado, orden de tags
+delegado en springdoc (`tags-sorter=alpha`).
+
 - **Qué es:** `CacheController.clear()` no tiene ninguna protección; `OpenApiConfig`
   reordena los tags a mano.
 - **Por qué no está bien:** cualquiera puede vaciar la caché; el reordenado manual es
