@@ -18,10 +18,9 @@ backend/src/main/java/io/github/mikel0ne/l1copilot/
 ├── config/
 │   ├── Config.java                  # (existente) bean ChatLanguageModel Gemini
 │   ├── LangChain4jProperties.java   # (existente)
-│   ├── OpenApiConfig.java           # (existente)
 │   └── AgentConfig.java             # NUEVO: CompiledGraph + checkpointer
 ├── controller/
-│   ├── CacheController.java         # (existente)
+│   ├── CacheController.java         # /api/cache/** (clear() oculto: @Hidden)
 │   └── ChatController.java          # NUEVO: /api/copilot/**
 ├── service/
 │   └── ConversationService.java     # invoca el grafo por threadId
