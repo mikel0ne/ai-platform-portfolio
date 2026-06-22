@@ -19,9 +19,10 @@ decisión.
 - **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
 - **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
+- **✅ #15**: Validación declarativa (`@NotNull`/`@NotBlank`/`@Email`/`@Positive`) en las entidades JPA
 - **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
 
-Pendientes: #4, #5, #7–#12, #14, #15, #17 (11 de 17)
+Pendientes: #4, #5, #7–#12, #14, #17 (10 de 17)
 
 ---
 
@@ -72,7 +73,7 @@ Cada punto lleva dos etiquetas:
 | 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio | ⏳ |
 | 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | ✅ |
 | 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
-| 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ⏳ |
+| 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ✅ |
 | 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ✅ |
 | 17 | Portabilidad `data.sql` (funciones H2 vs Postgres) | 🟡 | ⭐ | Bajo | ⏳ |
 
@@ -222,7 +223,11 @@ todos los `finally` de restauración eliminados (commit `1956513`).
 - **Cómo se soluciona:** extraer colaboradores (resolución de foco, navegación) con sus
   propios tests. *Esfuerzo alto y algo de riesgo: dejar para el final.*
 
-### 15. Validación declarativa en entidades JPA 🟡 ⭐
+### 15. Validación declarativa en entidades JPA 🟡 ⭐ ✅
+
+**Estado:** COMPLETO. `@NotBlank`/`@NotNull`/`@Email`/`@Positive` en `Order`, `Ticket`,
+`User`, coherentes con el seed real (`OrderToolsTest` sigue verde).
+
 - **Qué es:** las entidades confían solo en `NOT NULL` de SQL, sin anotaciones
   (`@NotNull`/`@NotBlank`).
 - **Por qué no está bien:** se puede construir una entidad inválida en Java y solo falla al

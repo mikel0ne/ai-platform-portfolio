@@ -263,12 +263,19 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
   tener `RouterNodeTest` verde. Conviene hacerlo después de #4 y #7.
 - **Verificación**: `cd backend && mvn -Dtest=RouterNodeTest test`, luego `mvn test` + golden-set.
 
-## #15 — Validación declarativa en entidades JPA 🟡 ⭐
+## #15 — Validación declarativa en entidades JPA 🟡 ⭐ ✅ DONE
+
+**Estado:** COMPLETADO. Bean Validation coherente con `schema-h2.sql`/
+`schema-postgresql.sql`: `Order` (`@NotBlank` userId/description, `@NotNull`
+status/orderDate), `Ticket` (`@NotBlank` userId/subject/description, `@NotNull`
+status/createdAt; `orderId` queda opcional), `User` (`@NotBlank` id/name/email,
+`@Email` en email, `@Positive` en age). El seed de demo cumple todas las
+restricciones; `OrderToolsTest` (9 tests) sigue verde con el seed real en H2.
 
 - **Problema**: entidades sin `@NotNull`/`@NotBlank` (solo `NOT NULL` en SQL).
 - **Ficheros**: `domain/Order.java`, `domain/Ticket.java`, `domain/User.java`.
-- **Enfoque**: añadir anotaciones de Bean Validation coherentes con `schema.sql`. Verificar
-  que el seed (`data.sql`) sigue siendo válido.
+- **Enfoque**: añadir anotaciones de Bean Validation coherentes con `schema-h2.sql`/
+  `schema-postgresql.sql`. Verificar que el seed (`data-h2.sql`) sigue siendo válido.
 - **Verificación**: `cd backend && mvn test` (arranque + `OrderToolsTest` con H2).
 
 ## #16 — Menores de la capa web 🟡 ⭐ ✅ DONE
