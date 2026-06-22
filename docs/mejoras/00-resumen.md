@@ -18,12 +18,13 @@ decisión.
 - **✅ #2**: Eliminado el andamiaje `LlmController` + `LlmService` (no lo usaba nadie)
 - **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
+- **✅ #12**: Qualifiers tipados (`@Deterministic`/`@ResponseModel`/`@TicketModel`/`@ChattyModel`)
 - **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
 - **✅ #15**: Validación declarativa (`@NotNull`/`@NotBlank`/`@Email`/`@Positive`) en las entidades JPA
 - **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
 - **✅ #17**: Seed separado por dialecto (`*-h2.sql` con `platform=h2` / `*-postgresql.sql`); fin del `DATEADD` en Postgres
 
-Pendientes: #4, #5, #7–#12, #14 (9 de 17)
+Pendientes: #4, #5, #7–#11, #14 (8 de 17)
 
 ---
 
@@ -71,7 +72,7 @@ Cada punto lleva dos etiquetas:
 | 9 | Canal nodo→Responder por prefijos string mágicos | 🟠 | ⭐⭐ | Medio | ⏳ |
 | 10 | Unificar nodos Cancel/Return duplicados | 🟡 | ⭐⭐ | Medio | ⏳ |
 | 11 | Revisar prompts (indicaciones, no frases literales) | 🟠 | ⭐⭐ | Medio | ⏳ |
-| 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio | ⏳ |
+| 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio | ✅ |
 | 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | ✅ |
 | 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
 | 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ✅ |
@@ -195,7 +196,12 @@ todos los `finally` de restauración eliminados (commit `1956513`).
   negocio a Java donde toque y dejar el prompt como redactor. Documentar los prompts (hoy
   no están en `docs/`).
 
-### 12. Beans desambiguados por `@Qualifier("string")` 🟡 ⭐⭐
+### 12. Beans desambiguados por `@Qualifier("string")` 🟡 ⭐⭐ ✅
+
+**Estado:** COMPLETO. `@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`
+para los `ChatModel`, y `@ChattyResponder` para el bean `Responder` `chattyResponder`.
+Ya no queda ningún `@Qualifier("string")` en el proyecto.
+
 - **Qué es:** hay varios `ChatModel`/`Responder` (distinta temperatura) que se inyectan por
   nombre en texto.
 - **Por qué no está bien:** un typo en el qualifier no lo detecta el compilador; se

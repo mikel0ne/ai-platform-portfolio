@@ -5,6 +5,10 @@ import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import io.github.mikel0ne.l1copilot.cache.CachingChatModel;
 import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
+import io.github.mikel0ne.l1copilot.config.qualifier.ChattyModel;
+import io.github.mikel0ne.l1copilot.config.qualifier.Deterministic;
+import io.github.mikel0ne.l1copilot.config.qualifier.ResponseModel;
+import io.github.mikel0ne.l1copilot.config.qualifier.TicketModel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
@@ -50,24 +54,28 @@ public class Config {
      */
     @Bean
     @Primary
+    @Deterministic
     public ChatModel chatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
         return buildModel("determinista", properties.temperatures().deterministic(), properties, cacheProperties, cache);
     }
 
     /** Modelo para redacción de tickets (temperatura baja: fluidez sin inventar datos). */
     @Bean
+    @TicketModel
     public ChatModel ticketChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
         return buildModel("tickets", properties.temperatures().ticket(), properties, cacheProperties, cache);
     }
 
     /** Modelo para respuestas de negocio (temperatura media: tono más natural). */
     @Bean
+    @ResponseModel
     public ChatModel responseChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
         return buildModel("respuesta", properties.temperatures().response(), properties, cacheProperties, cache);
     }
 
     /** Modelo para charla informal (temperatura alta: calidez y variedad). */
     @Bean
+    @ChattyModel
     public ChatModel chatChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
         return buildModel("chat", properties.temperatures().chat(), properties, cacheProperties, cache);
     }

@@ -220,7 +220,20 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
 - **Verificación**: `cd backend && ROUTER_EVAL=true mvn -Dtest=RouterEvalTest test` (si está
   cableado) + `mvn test`. Prueba manual de conversación recomendada.
 
-## #12 — Qualifiers tipados para los `ChatModel`/`Responder` 🟡 ⭐⭐
+## #12 — Qualifiers tipados para los `ChatModel`/`Responder` 🟡 ⭐⭐ ✅ DONE
+
+**Estado:** COMPLETADO. Anotaciones `@Qualifier` propias en
+`config/qualifier/`: `@Deterministic` (0.0, primario), `@TicketModel` (0.2),
+`@ResponseModel` (0.35) y `@ChattyModel` (0.7) para los `ChatModel`; además
+`@ChattyResponder` para el bean `Responder` `chattyResponder` (antes
+`@Qualifier("chattyResponder")` en `RespondNode`). `Config` pone las anotaciones de
+`ChatModel` en la definición de cada bean; `AgentConfig` las usa en la inyección
+(también en `intentClassifier`/`verifier`, que antes inyectaban el `ChatModel` sin
+cualificar) y marca `chattyResponder` con `@ChattyResponder`; `RespondNode` inyecta con
+esa misma anotación. Se llama `@ChattyModel`/`@ChattyResponder` y no `@ChatModel`/
+`@Responder` para no colisionar con esos tipos. Ya no queda ningún
+`@Qualifier("string")` en el proyecto. Compila y el cableado se valida al arrancar el
+contexto.
 
 - **Problema**: beans desambiguados por `@Qualifier("string")` (typos no detectados en
   compilación).
