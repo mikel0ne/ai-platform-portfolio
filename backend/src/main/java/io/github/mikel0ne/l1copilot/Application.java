@@ -23,8 +23,6 @@ public class Application {
         log.info("Endpoints disponibles:");
         log.info("  POST   /api/copilot/chat  → Agente de soporte L1 (LangGraph4j)");
         log.info("  GET    /api/copilot/users → Usuarios de demo");
-        log.info("  GET    /api/llm/hello     → Hola mundo");
-        log.info("  POST   /api/llm/chat      → Enviar prompt");
         log.info("  GET    /api/cache/status  → Estado de la caché");
         log.info("  DELETE /api/cache/clear   → Limpiar caché");
         log.info("----------------------------------------");

@@ -46,8 +46,7 @@ public class Config {
 
     /**
      * Modelo determinista (temperatura 0.0). Es el {@link Primary}: lo usan el router,
-     * el verificador y cualquier inyección de {@code ChatModel} sin cualificar
-     * (p. ej. la pasarela {@code /api/llm}), preservando el comportamiento previo.
+     * el verificador y cualquier inyección de {@code ChatModel} sin cualificar.
      */
     @Bean
     @Primary
