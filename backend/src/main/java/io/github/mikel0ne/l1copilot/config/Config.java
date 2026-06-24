@@ -2,6 +2,8 @@ package io.github.mikel0ne.l1copilot.config;
 
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+import dev.langchain4j.model.googleai.GeminiThinkingConfig;
+import dev.langchain4j.model.googleai.GeminiThinkingConfig.GeminiThinkingLevel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
 import io.github.mikel0ne.l1copilot.cache.CachingChatModel;
 import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
@@ -56,36 +58,42 @@ public class Config {
     @Primary
     @Deterministic
     public ChatModel chatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("determinista", properties.temperatures().deterministic(), properties, cacheProperties, cache);
+        return buildModel("determinista", properties.temperatures().deterministic(),
+                properties.thinkingLevels().deterministic(), properties, cacheProperties, cache);
     }
 
     /** Modelo para redacción de tickets (temperatura baja: fluidez sin inventar datos). */
     @Bean
     @TicketModel
     public ChatModel ticketChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("tickets", properties.temperatures().ticket(), properties, cacheProperties, cache);
+        return buildModel("tickets", properties.temperatures().ticket(),
+                properties.thinkingLevels().ticket(), properties, cacheProperties, cache);
     }
 
     /** Modelo para respuestas de negocio (temperatura media: tono más natural). */
     @Bean
     @ResponseModel
     public ChatModel responseChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("respuesta", properties.temperatures().response(), properties, cacheProperties, cache);
+        return buildModel("respuesta", properties.temperatures().response(),
+                properties.thinkingLevels().response(), properties, cacheProperties, cache);
     }
 
     /** Modelo para charla informal (temperatura alta: calidez y variedad). */
     @Bean
     @ChattyModel
     public ChatModel chatChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("chat", properties.temperatures().chat(), properties, cacheProperties, cache);
+        return buildModel("chat", properties.temperatures().chat(),
+                properties.thinkingLevels().chat(), properties, cacheProperties, cache);
     }
 
     /**
-     * Construye un {@link ChatModel} con la temperatura indicada y, si la caché está
-     * activa, lo envuelve en {@link CachingChatModel}. La clave de caché incluye la
-     * temperatura, así que cada modelo tiene su propio espacio sin colisiones.
+     * Construye un {@link ChatModel} con la temperatura y el nivel de thinking indicados.
+     * Si la caché está activa, lo envuelve en {@link CachingChatModel}.
+     * El thinking level solo aplica a modelos Gemini nativos ({@code gemini-*}); para
+     * Gemma ({@code gemma-*}, vía endpoint OpenAI-compatible) se ignora silenciosamente.
      */
-    private ChatModel buildModel(String role, double temperature, LangChain4jProperties properties,
+    private ChatModel buildModel(String role, double temperature, String thinkingLevel,
+                                 LangChain4jProperties properties,
                                  CacheProperties cacheProperties, FileCacheManager cache) {
         if (!StringUtils.hasText(properties.apiKey())) {
             log.warn("GEMINI_API_KEY no configurada: las llamadas al modelo fallarán. "
@@ -108,16 +116,22 @@ public class Config {
                     .maxRetries(properties.maxRetries())
                     .build();
         } else {
+            GeminiThinkingLevel level = parseThinkingLevel(thinkingLevel);
             log.info("Inicializando Google AI Studio Gemini ChatModel [{}] "
-                    + "(modelo: {}, temperatura: {}, timeout: {}s, reintentos: {})",
-                    role, modelName, temperature, properties.timeout().toSeconds(), properties.maxRetries());
-            delegate = GoogleAiGeminiChatModel.builder()
+                    + "(modelo: {}, temperatura: {}, thinking: {}, timeout: {}s, reintentos: {})",
+                    role, modelName, temperature,
+                    level != null ? level : "NONE (desactivado)",
+                    properties.timeout().toSeconds(), properties.maxRetries());
+            var builder = GoogleAiGeminiChatModel.builder()
                     .apiKey(properties.apiKey())
                     .modelName(modelName)
                     .temperature(temperature)
                     .timeout(properties.timeout())
-                    .maxRetries(properties.maxRetries())
-                    .build();
+                    .maxRetries(properties.maxRetries());
+            if (level != null) {
+                builder.thinkingConfig(GeminiThinkingConfig.builder().thinkingLevel(level).build());
+            }
+            delegate = builder.build();
         }
 
         if (cacheProperties.isCacheEnabled()) {
@@ -127,6 +141,21 @@ public class Config {
         } else {
             log.info("Caché LLM DESACTIVADA para [{}] (cache.enabled=false): las peticiones van siempre al modelo", role);
             return delegate;
+        }
+    }
+
+    /**
+     * Convierte el string de configuración en el enum de la API de Gemini.
+     * "NONE" o valor vacío → {@code null} (no se aplica thinking config).
+     * Valores no reconocidos se tratan como {@code null} para no romper el arranque.
+     */
+    private GeminiThinkingLevel parseThinkingLevel(String level) {
+        if (!StringUtils.hasText(level) || "NONE".equalsIgnoreCase(level)) return null;
+        try {
+            return GeminiThinkingLevel.valueOf(level.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            log.warn("Nivel de thinking '{}' no reconocido; se desactiva el thinking para este rol", level);
+            return null;
         }
     }
 }

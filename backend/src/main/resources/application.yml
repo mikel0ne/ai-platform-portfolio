@@ -53,6 +53,19 @@ langchain4j:
       ticket: 0.2
       response: 0.35
       chat: 0.7
+    # Nivel de razonamiento (thinking budget) por rol. Solo aplica a modelos gemini-*;
+    # para gemma-* se ignora silenciosamente.
+    # Valores: NONE | LOW | MEDIUM | HIGH
+    # - deterministic: LOW  → router (7+ intenciones, anáforas) y verificador (SURE/DOUBT/REJECT)
+    #                         se benefician de reasoning ligero; sin latencia excesiva
+    # - ticket: NONE        → transformación de texto, no razonamiento
+    # - response: LOW       → interpreta instrucciones complejas del toolResult
+    # - chat: NONE          → espontaneidad; el thinking la vuelve formal/rígida
+    thinking-levels:
+      deterministic: LOW
+      ticket: NONE
+      response: LOW
+      chat: NONE
 
 # Agente de soporte L1 (LangGraph4j)
 copilot:
