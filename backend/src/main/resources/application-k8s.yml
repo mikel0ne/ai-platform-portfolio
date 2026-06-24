@@ -1,0 +1,12 @@
+# Perfil de despliegue en Kubernetes (SPRING_PROFILES_ACTIVE=k8s).
+# Diferencias con el perfil por defecto: Weaviate por su Service interno y logs en INFO.
+autoops:
+  weaviate:
+    host: weaviate.autoops.svc.cluster.local
+    port: 8080
+    grpc-port: 50051
+
+logging:
+  level:
+    io.github.mikel0ne.autoops: INFO
+    dev.langchain4j: WARN

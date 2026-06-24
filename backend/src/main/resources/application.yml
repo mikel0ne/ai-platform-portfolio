@@ -1,0 +1,80 @@
+spring:
+  application:
+    name: autoops-mcp
+  # Servidor MCP (Spring AI). En local el cliente puede usar stdio; desplegado, SSE (perfil k8s).
+  ai:
+    mcp:
+      server:
+        name: autoops-mcp
+        version: 0.1.0
+        type: SYNC
+
+server:
+  port: 8080
+  # Sin context-path: el endpoint MCP (SSE) vive en /sse, el chat en /search y la UI en /.
+
+logging:
+  level:
+    root: INFO
+    io.github.mikel0ne.autoops: DEBUG
+    dev.langchain4j: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Proveedor LLM/embeddings abstraído (doc 06). API key por entorno: GEMINI_API_KEY.
+# El LLM es de uso interno (calificar/reformular en CRAG + redactar el chat); el cliente MCP razona.
+autoops:
+  llm:
+    provider: gemini
+    chat-model-name: gemini-2.5-flash-lite       # cuota gratuita más alta; uso interno
+    embedding-model-name: text-embedding-004     # 768 dims (acoplado a la clase DocChunk de Weaviate)
+    timeout: 30s
+    temperature: 0.2
+  # Weaviate: en local, vía port-forward (kubectl port-forward svc/weaviate 8088:8080).
+  weaviate:
+    host: localhost
+    port: 8088
+    grpc-port: 50051
+
+# Swagger UI / OpenAPI (chat de búsqueda)
+springdoc:
+  show-actuator: true
+  paths-to-exclude: /actuator/health/**
+  swagger-ui:
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+# Actuator: health con probes para Kubernetes
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,env
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: "@project.name@"
+    description: "@project.description@"
+    version: "@project.version@"
+
+# Caché de respuestas LLM (reutilizada del scaffolding): desactivada por defecto.
+# Útil en desarrollo para no quemar cuota de Gemini. Activar solo aquí, nunca en perfiles.
+cache:
+  enabled: false
+  file:
+    enabled: true
+    path: ./cache
+  ttl-seconds: 3600
