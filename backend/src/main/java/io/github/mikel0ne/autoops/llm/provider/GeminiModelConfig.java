@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 
 /**
  * Implementación por defecto del proveedor: Google AI Studio (Gemini, capa gratuita).
@@ -24,8 +25,13 @@ import org.springframework.context.annotation.Configuration;
 @ConditionalOnProperty(name = "autoops.llm.provider", havingValue = "gemini", matchIfMissing = true)
 public class GeminiModelConfig {
 
-    /** Embeddings del corpus y de las consultas (indexar y buscar en Weaviate). */
+    /**
+     * Embeddings del corpus y de las consultas (indexar y buscar en Weaviate).
+     * {@code @Lazy}: el cliente del proveedor se construye en el primer uso (RAG, F1), no al arrancar,
+     * para que el contexto (servidor MCP + health) levante aunque aún no haya consumidores ni API key.
+     */
     @Bean
+    @Lazy
     public EmbeddingModel embeddingModel(LlmProperties props,
                                          @Value("${GEMINI_API_KEY:}") String apiKey) {
         return GoogleAiEmbeddingModel.builder()
@@ -34,8 +40,9 @@ public class GeminiModelConfig {
                 .build();
     }
 
-    /** LLM interno: reformular en el RAG correctivo (CRAG) y redactar la respuesta del chat. */
+    /** LLM interno: reformular en el RAG correctivo (CRAG) y redactar la respuesta del chat. {@code @Lazy}: se construye en el primer uso. */
     @Bean
+    @Lazy
     public ChatModel chatModel(LlmProperties props,
                                @Value("${GEMINI_API_KEY:}") String apiKey) {
         return GoogleAiGeminiChatModel.builder()
