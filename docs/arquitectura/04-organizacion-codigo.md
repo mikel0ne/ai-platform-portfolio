@@ -1,35 +1,38 @@
 # 04 — Organización del código
 
-## 1. Estrategia: un solo proyecto
+## 1. Estructura del repositorio
 
-AutoOps es **una sola aplicación Spring Boot** (no un monorepo de varios servicios: ya no hay gateway ni
-frontend de copiloto). El repositorio:
+El backend (servidor MCP) es **una sola aplicación Spring Boot** en `backend/`. El layout reutiliza el
+scaffolding del proyecto previo del repo (backend Spring Boot + frontend Angular + chart Helm genérico +
+Dockerfiles), adaptado a AutoOps:
 
 ```
 /
-├── .github/
-│   └── copilot-instructions.md      # reglas de IA del repo (existente)
-├── docs/
-│   ├── arquitectura/                # esta documentación
-│   └── infraestructura/             # guías de despliegue en K8s
-├── k8s/                             # manifiestos (extraídos de docs/infraestructura)
-│   ├── 00-namespace.yaml
-│   ├── 01-secrets.template.yaml     # 01-secrets.yaml está en .gitignore
-│   ├── 02-rbac.yaml                 # ServiceAccount + ClusterRole read-only
-│   ├── 10-weaviate.yaml
-│   ├── 20-autoops-mcp.yaml
-│   └── 30-ingress.yaml
+├── backend/                         # servidor MCP (Spring Boot · Spring AI MCP · LangChain4j · LangGraph4j · fabric8)
+│   ├── pom.xml
+│   └── src/main/java/io/github/mikel0ne/autoops/...
+├── frontend/                        # chat de búsqueda (Angular, reutilizado del scaffolding)
+├── infra/                           # despliegue
+│   ├── charts/generic-app/          # chart Helm genérico reutilizable
+│   ├── values-autoops-mcp.yaml      # values del servidor
+│   ├── namespace-autoops.yaml
+│   └── manifests/                   # rbac-autoops.yaml · weaviate.yaml · ingress-autoops.yaml (SSE)
+├── docker/                          # backend.Dockerfile · frontend.Dockerfile
+├── scripts/                         # start/stop locales
 ├── corpus/                          # documentación interna a indexar por el RAG (markdown)
-├── src/                             # código de la aplicación (un solo módulo)
-├── Dockerfile
-├── llms-lc4j.txt                    # referencia LangChain4j (existente)
-├── llms-lgraph.txt                  # referencia LangGraph4j (existente)
-└── pom.xml
+├── docs/{arquitectura,infraestructura}/
+├── llms-lc4j.txt  llms-lgraph.txt   # referencias LangChain4j / LangGraph4j (existentes)
+├── CLAUDE.md
+└── README.md
 ```
 
-**Sobre el código existente** (`src/main/java/io/github/mikel0ne/l1copilot/...`): es la semilla de integración con
-Gemini. En la fase F0 (doc 07) se reaprovecha la configuración del modelo y se reubica bajo el paquete
-`io.github.mikel0ne.autoops`; el `groupId` pasa a `io.github.mikel0ne.autoops`.
+**Sobre el scaffolding reutilizado:** del proyecto previo se conserva, adaptado al paquete `io.github.mikel0ne.autoops`,
+la capa de plataforma (build Maven, configuración del modelo Gemini abstraída, caché de respuestas LLM para
+desarrollo, manejador de errores RFC 7807), el chart Helm `generic-app`, los Dockerfiles multi-stage y el
+proyecto Angular como base del chat de búsqueda. La capa de dominio del proyecto previo se eliminó.
+
+> El `frontend/` Angular es más completo que un "UI mínima estática": al reutilizarlo, el chat de búsqueda se
+> sirve como SPA. Aún tiene pantallas heredadas (login, etc.) pendientes de podar hasta dejar solo la búsqueda.
 
 ## 2. `pom.xml`: dependencias clave
 
