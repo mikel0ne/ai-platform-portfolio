@@ -2,56 +2,77 @@
 
 ## El problema
 
-Los equipos que operan sobre Kubernetes pierden tiempo en tres tareas repetitivas:
+Cuando una aplicación falla en Kubernetes, depurarla obliga a saltar entre herramientas y contextos:
 
-1. **Buscar en documentación interna** estándares de arquitectura ("¿cuál es nuestra convención de probes?", "¿qué política de recursos aplica a un microservicio Java?").
-2. **Diagnosticar workloads**: cruzar `kubectl describe`, eventos y logs para entender por qué un pod no levanta.
-3. **Escribir YAML de Kubernetes** correcto y conforme a las políticas del equipo, una tarea mecánica y propensa a errores.
+1. **Inspeccionar el clúster**: cruzar `kubectl describe`, eventos, logs y reinicios para entender por qué un
+   pod no levanta o se reinicia.
+2. **Buscar en la documentación interna** el estándar o procedimiento aplicable ("¿qué política de recursos
+   aplica?", "¿cómo se configuran las probes según nuestra guía?").
+3. **Correlacionar** ambas cosas para llegar a la causa raíz.
+
+Hoy el desarrollador hace todo eso a mano, y el asistente de IA que ya usa (Claude Code, Copilot) no puede
+ayudar porque **no tiene acceso** ni al clúster ni a la documentación: si le preguntas, alucina.
 
 ## La solución
 
-Un copiloto conversacional con **tres rutas de trabajo**, decididas automáticamente por un nodo router, y con una propiedad diferencial: cuando genera YAML, **lo valida y se auto-corrige en un ciclo** antes de entregarlo. La IA nunca entrega un manifiesto que no haya pasado validación sintáctica y de políticas, y **nunca aplica cambios al clúster** (solo lee).
+Un **servidor MCP** que da a ese asistente acceso seguro y de **solo lectura** a:
 
-### Casos de uso del MVP
+- la **documentación interna**, vía una tool de **RAG avanzado** que valida la calidad de lo que recupera y se
+  corrige sola si es floja (CRAG); y
+- el **estado en runtime del clúster** (pods, eventos, logs, workloads), vía tools de inspección read-only.
 
-| # | Caso de uso | Ruta del grafo | Ejemplo |
+El asistente combina esas tools y **razona la causa** del error con datos reales. AutoOps **no razona ni
+redacta** para el usuario final (eso es del cliente MCP) y **nunca escribe** en el clúster.
+
+### Casos de uso
+
+| # | Caso de uso | Tools implicadas | Ejemplo (lo que el usuario pide a Claude Code) |
 |---|---|---|---|
-| CU-1 | Consulta de documentación | `docs` (RAG) | "¿Cuál es el estándar de microservicios del equipo?" |
-| CU-2 | Diagnóstico del clúster | `diagnose` (tools) | "¿Por qué está fallando el pod payments-api en staging?" |
-| CU-3 | Generación de manifiestos | `generate` (ciclo generar→validar→corregir) | "Genera un Deployment para un servicio Java en el puerto 8080 con 2 réplicas" |
-| CU-4 | Historial de conversaciones | — (gateway) | Retomar una conversación anterior desde el dashboard |
+| CU-1 | Diagnóstico de un fallo en runtime | `diagnosticar_pod`, `logs_pod`, `eventos` | "¿Por qué está en CrashLoopBackOff el pod `payments-api`?" |
+| CU-2 | Consulta de documentación interna | `buscar_docs` | "¿Cuál es nuestro estándar de probes para un microservicio Java?" |
+| CU-3 | Diagnóstico fundamentado en el estándar | `diagnosticar_pod` + `buscar_docs` | "Este pod falla las probes; ¿cumple nuestra guía de readiness?" |
+| CU-4 | Búsqueda de docs sin cliente MCP | chat de búsqueda (front secundario) | Preguntar a la documentación desde el navegador. |
 
-### Flujo de usuario (CU-3, el diferencial)
+### Flujo de usuario (CU-1, el caso central)
 
-1. El usuario pide un manifiesto en el chat.
-2. El router clasifica la petición como `generate`.
-3. El nodo generador redacta el YAML.
-4. El nodo validador comprueba: sintaxis YAML, esquema del recurso K8s y políticas internas (recursos obligatorios, probes, no `latest`, no privilegios…).
-5. Si falla, el error vuelve al generador con el contexto del intento anterior (**self-correction**); máximo N iteraciones.
-6. El usuario recibe el YAML final + el veredicto de validación + cuántas iteraciones costó (transparencia).
+1. En Claude Code, el usuario pregunta por un pod que falla.
+2. El cliente (Claude) decide llamar a la tool `diagnosticar_pod` de AutoOps.
+3. AutoOps consulta la API de Kubernetes (read-only) y devuelve un **dossier estructurado**: fase,
+   condiciones, eventos recientes, número de reinicios y cola de logs.
+4. Claude razona sobre datos reales (p. ej. ve un `ErrImagePull` o un `OOMKilled`) y, si necesita el estándar
+   interno, llama también a `buscar_docs`.
+5. El usuario obtiene un diagnóstico fundamentado, citando eventos reales del clúster y la documentación.
 
-## Qué queda FUERA del MVP
+## Qué queda FUERA del alcance
 
-Explícitamente descartado para mantener el proyecto acotado (candidatos a iteraciones futuras):
+Decisiones explícitas para mantener el proyecto acotado y fiel a su propósito:
 
-- **Aplicar cambios al clúster** (`kubectl apply` desde el agente). Decisión de seguridad, no técnica: el humano siempre aplica.
-- Multi-tenancy y gestión de usuarios real (el MVP usa usuarios estáticos con JWT).
-- Streaming token a token en la UI (el grafo emite por nodos; se puede añadir SSE después).
-- Observabilidad avanzada de LLM (LangFuse/OTel); el MVP loguea el tránsito por nodos.
-- Despliegue en nube (AKS); el MVP es Kubernetes local. La arquitectura no lo impide: es la misma imagen y los mismos manifiestos.
-- Fine-tuning o modelos locales.
+- **Escribir en el clúster** (`kubectl apply`, reinicios, escalados). Decisión de seguridad: AutoOps solo lee;
+  cualquier acción la ejecuta el humano.
+- **Generar o validar manifiestos YAML como función central.** No es depuración de runtime. A lo sumo podría
+  añadirse en el futuro una tool secundaria `validar_manifiesto` (sin estado), pero **no** es prioridad.
+- **Ser un copiloto/chat conversacional completo** con su propio LLM, login e historial. El razonamiento lo
+  pone el cliente MCP. (El chat de búsqueda es un front mínimo, solo para el RAG de documentación.)
+- **Multi-tenancy y gestión de usuarios.** En local no aplica.
+- **Despliegue en nube.** El MVP corre en Kubernetes local; la arquitectura no lo impide.
 
-## Criterios de éxito del MVP
+## Criterios de éxito
 
-1. Las tres rutas funcionan end-to-end desde la UI Angular desplegada en Kubernetes local.
-2. Un YAML inválido a la primera se corrige solo en ≤ 3 iteraciones en los casos de prueba.
-3. Cambiar de proveedor LLM no toca código de negocio (solo configuración + un bean).
-4. El historial sobrevive a reinicios de pods (persistencia en PostgreSQL).
-5. El agente puede explicar por qué falla un pod roto de prueba (`CrashLoopBackOff` provocado) citando eventos reales del clúster.
+1. Un cliente MCP real (Claude Code) **descubre y lista** las tools de AutoOps tras registrarlo.
+2. `buscar_docs` devuelve fragmentos relevantes del corpus interno, y **mejora la respuesta** cuando la primera
+   recuperación es floja (el bucle CRAG se activa de forma observable).
+3. Con un pod roto a propósito (imagen inexistente), el asistente diagnostica la causa **citando el evento real**
+   (`ErrImagePull`) obtenido por la tool.
+4. El ServiceAccount de AutoOps **no puede** escribir en el clúster ni leer Secrets (verificable con
+   `kubectl auth can-i`).
+5. Cambiar de proveedor LLM/embeddings no toca el código de las tools (solo configuración + un bean).
 
 ## Glosario rápido
 
-- **Grafo / StateGraph**: flujo de ejecución del agente, definido con LangGraph4j (nodos + edges + estado compartido).
-- **Ruta**: una de las tres trayectorias del grafo (`docs`, `diagnose`, `generate`).
-- **Self-correction**: ciclo generar→validar→regenerar con el error como feedback.
-- **RAG**: Retrieval-Augmented Generation; respuestas fundamentadas en documentos indexados (pgvector).
+- **MCP (Model Context Protocol)**: protocolo estándar por el que un cliente de IA descubre y llama
+  *herramientas* y *recursos* expuestos por un servidor.
+- **Tool**: una función que AutoOps publica por MCP (p. ej. `diagnosticar_pod`) y que el cliente puede invocar.
+- **RAG**: Retrieval-Augmented Generation; recuperar fragmentos de documentos para fundamentar una respuesta.
+- **CRAG (Corrective RAG)**: variante en la que el sistema **califica** lo recuperado y, si no es bueno,
+  **reformula la consulta y reintenta** antes de responder.
+- **Read-only / RBAC**: permisos de Kubernetes estrictamente de lectura para el ServiceAccount del servidor.

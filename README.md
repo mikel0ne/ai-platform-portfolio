@@ -1,99 +1,48 @@
-# LangChain4j + Spring Boot + Google AI Studio (Gemini)
+# AutoOps MCP
 
-Aplicación Spring Boot con integración de LangChain4j y Google AI Studio (Gemini) usando la capa gratuita.
+**AutoOps** es un **servidor MCP (Model Context Protocol)** que da a un asistente de IA —Claude Code, GitHub
+Copilot o cualquier cliente MCP— acceso a los servicios de la empresa para **depurar errores de aplicaciones
+en ejecución** sobre Kubernetes, y a la **documentación interna** mediante **RAG avanzado**.
 
-## 🚀 Ejecución rápida
+No es un copiloto ni una aplicación de chat cerrada: el que razona es el cliente MCP; AutoOps solo **expone
+herramientas y datos** de forma segura (lectura, nunca escritura sobre el clúster).
 
-### 1. Obtener API key
-
-Crea una API key gratuita en https://aistudio.google.com/app/apikey
-
-### 2. Configurar la API key
-
-Exporta la variable de entorno (PowerShell):
-
-```powershell
-$env:GEMINI_API_KEY = "tu-api-key-aqui"
+```
+Claude Code / GitHub Copilot ──MCP (HTTP/SSE)──▶  autoops-mcp (Java · Spring Boot, en Kubernetes)
+                                                    ├─ buscar_docs        → Weaviate  (RAG avanzado / CRAG)
+                                                    ├─ diagnosticar_pod   → API K8s   (read-only)
+                                                    ├─ logs_pod, eventos… → API K8s   (read-only)
+                                                    └─ (chat de búsqueda)  ← front secundario sobre el mismo RAG
 ```
 
-O en bash:
+## Qué resuelve
 
-```bash
-export GEMINI_API_KEY="tu-api-key-aqui"
-```
+Cuando una aplicación falla en el clúster, el desarrollador salta entre `kubectl describe`, eventos, logs y la
+documentación interna para entender qué pasa. AutoOps pone todo eso **al alcance del asistente de IA que ya
+usa**: el asistente pide el diagnóstico de un pod, sus logs, o el estándar interno aplicable, y razona la causa
+con datos reales del clúster en vez de inventarlos.
 
-### 3. Compilar
+## Capacidades (tools MCP)
 
-```powershell
-mvn clean package -DskipTests
-```
+| Tool | Para qué |
+|---|---|
+| `buscar_docs` | RAG avanzado sobre documentación interna (Weaviate: búsqueda híbrida + reranking + bucle correctivo CRAG). |
+| `diagnosticar_pod` | Dossier estructurado de un pod: fase, condiciones, eventos, reinicios y cola de logs, en una sola llamada. |
+| `estado_pods` / `listar_workloads` | Estado de pods y workloads de un namespace. |
+| `describir_pod` / `eventos` / `logs_pod` | Piezas individuales para que el cliente componga su propio análisis. |
 
-### 4. Ejecutar
+Todo el acceso a Kubernetes es **estrictamente de solo lectura** (RBAC sin escritura ni acceso a Secrets).
 
-```powershell
-mvn spring-boot:run
-```
+Además del MCP, un **chat de búsqueda** (REST + UI mínima) reutiliza el mismo motor RAG para consultar la
+documentación sin necesidad de un cliente MCP.
 
-O ejecutar el JAR:
+## Documentación
 
-```powershell
-java -jar target/langchain4j-springboot-1.0.0.jar
-```
+- **Arquitectura** (qué es y cómo se diseña el código): [`docs/arquitectura/`](docs/arquitectura/README.md)
+- **Infraestructura** (despliegue en Kubernetes local): [`docs/infraestructura/`](docs/infraestructura/README.md)
 
-## 📍 Endpoints
+## Stack
 
-- `GET /api/llm/health` → Verificar estado
-- `GET /api/llm/hello` → Hola mundo
-- `POST /api/llm/chat` → Enviar prompt
-
-### Ejemplo curl
-
-```bash
-# Health check
-curl http://localhost:8080/api/llm/health
-
-# Hola mundo
-curl http://localhost:8080/api/llm/hello
-
-# Enviar prompt
-curl -X POST http://localhost:8080/api/llm/chat \
-  -H "Content-Type: application/json" \
-  -d '{"prompt": "¿Cuál es la capital de España?"}'
-```
-
-### Alternativa en PowerShell (para evitar problemas de encoding)
-
-```powershell
-# Health check
-Invoke-WebRequest -Uri http://localhost:8080/api/llm/health
-
-# Hola mundo
-Invoke-WebRequest -Uri http://localhost:8080/api/llm/hello
-
-# Enviar prompt
-$body = @{
-    prompt = "¿Cuál es la capital de España?"
-} | ConvertTo-Json
-
-Invoke-WebRequest -Uri http://localhost:8080/api/llm/chat `
-  -Method POST `
-  -ContentType "application/json; charset=utf-8" `
-  -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
-```
-
-## 📋 Configuración
-
-La API key se lee de la variable de entorno `GEMINI_API_KEY` (ver `application.yml`):
-
-```yaml
-langchain4j:
-  gemini:
-    api-key: ${GEMINI_API_KEY:}
-    model-name: gemini-2.5-flash-lite
-```
-
-## ✅ Requisitos
-
-- Java 17+
-- Maven 3.6+
-- Una API key de Google AI Studio (gratis con la capa free)
+Java 17 + Spring Boot · **Spring AI MCP Server** (protocolo MCP) · **LangChain4j** + **Weaviate** (RAG) ·
+**LangGraph4j** (subgrafo del bucle correctivo CRAG) · cliente Kubernetes (fabric8) · proveedor LLM/embeddings
+abstraído (por defecto Gemini, capa gratuita). Despliegue en Kubernetes local (Docker Desktop / Minikube).
