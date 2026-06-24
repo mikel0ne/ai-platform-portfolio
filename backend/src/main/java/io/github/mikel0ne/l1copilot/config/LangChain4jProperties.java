@@ -16,7 +16,8 @@ public record LangChain4jProperties(
         String modelName,
         Duration timeout,
         Integer maxRetries,
-        Temperatures temperatures) {
+        Temperatures temperatures,
+        ThinkingLevels thinkingLevels) {
 
     /**
      * Temperaturas por rol del LLM. La creatividad se reparte según la tarea:
@@ -48,6 +49,31 @@ public record LangChain4jProperties(
         }
     }
 
+    /**
+     * Nivel de "pensamiento" (thinking budget) por rol del LLM. Solo aplica a modelos
+     * Gemini nativos ({@code gemini-*}); para Gemma ({@code gemma-*}) se ignora silenciosamente.
+     * Valores posibles: {@code NONE}, {@code LOW}, {@code MEDIUM}, {@code HIGH}.
+     * <ul>
+     *   <li>{@code deterministic} (router + verificador): {@code LOW}. El router resuelve
+     *       anáforas y elige entre 7+ intenciones con contexto conversacional; el verificador
+     *       hace un juicio asimétrico SURE/DOUBT/REJECT. Ambos se benefician de razonamiento
+     *       ligero sin añadir latencia excesiva.</li>
+     *   <li>{@code ticket}: {@code NONE}. Transformación de texto, no razonamiento.</li>
+     *   <li>{@code response}: {@code LOW}. Interpreta instrucciones complejas del toolResult
+     *       y las convierte en respuestas coherentes con el hilo conversacional.</li>
+     *   <li>{@code chat}: {@code NONE}. Espontaneidad y calidez; el thinking la vuelve
+     *       más formal y rígida.</li>
+     * </ul>
+     */
+    public record ThinkingLevels(String deterministic, String ticket, String response, String chat) {
+        public ThinkingLevels {
+            if (deterministic == null) deterministic = "LOW";
+            if (ticket == null)        ticket        = "NONE";
+            if (response == null)      response      = "LOW";
+            if (chat == null)          chat          = "NONE";
+        }
+    }
+
     public LangChain4jProperties {
         if (modelName == null || modelName.isBlank()) {
             modelName = "gemini-2.5-flash-lite";
@@ -60,6 +86,9 @@ public record LangChain4jProperties(
         }
         if (temperatures == null) {
             temperatures = new Temperatures(null, null, null, null);
+        }
+        if (thinkingLevels == null) {
+            thinkingLevels = new ThinkingLevels(null, null, null, null);
         }
     }
 }
