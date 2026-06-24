@@ -3,13 +3,26 @@ import { finalize } from 'rxjs/operators';
 import { ChatApiService } from '../core/chat-api.service';
 import { ChatMessage } from '../core/models';
 
+/**
+ * crypto.randomUUID() exige secure context (HTTPS o el hostname literal "localhost");
+ * el despliegue corre en http://l1-copilot.local, así que se genera el UUID v4 a mano
+ * con getRandomValues(), que sí está disponible fuera de secure context.
+ */
+function randomConversationId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0'));
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`;
+}
+
 @Injectable()
 export class ChatStore {
   private readonly api = inject(ChatApiService);
 
   readonly messages = signal<ChatMessage[]>([]);
   readonly sending = signal(false);
-  private _conversationId = crypto.randomUUID();
+  private _conversationId = randomConversationId();
   /** true → trato de usted (amable); false → tuteo (simpático). Lo fija el saludo. */
   private formal = false;
 
@@ -62,7 +75,7 @@ export class ChatStore {
   }
 
   newConversation(name: string, formal = false): void {
-    this._conversationId = crypto.randomUUID();
+    this._conversationId = randomConversationId();
     this.messages.set([]);
     this.greet(name, formal);
   }
