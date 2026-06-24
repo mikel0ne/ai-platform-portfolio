@@ -47,7 +47,10 @@ done
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
 : "${PROJECT_DB:=l1_copilot}"
-export PGHOST PGPORT PGUSER PGPASSWORD
+# Ver seed-l1-copilot-db.sh: forzar UTF8 evita que psql nativo de Windows
+# reinterprete el SQL con el codepage ANSI del sistema.
+PGCLIENTENCODING=UTF8
+export PGHOST PGPORT PGUSER PGPASSWORD PGCLIENTENCODING
 
 SCHEMA_FILE="backend/src/main/resources/schema-postgresql.sql"
 SEED_SCRIPT="$(dirname "$0")/seed-l1-copilot-db.sh"
