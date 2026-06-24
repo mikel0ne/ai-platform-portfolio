@@ -7,54 +7,20 @@
 # Credenciales sensibles vienen de Secrets de K8s montados como env vars.
 # ─────────────────────────────────────────────────────────────────────────────
 
+server:
+  port: 8080   # debe coincidir con container.port del chart Helm
+
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot}
-    driver-class-name: org.postgresql.Driver
-    username: ${SPRING_DATASOURCE_USERNAME:appuser}
-    password: ${SPRING_DATASOURCE_PASSWORD}   # obligatorio vía Secret de K8s
-  jpa:
-    hibernate:
-      ddl-auto: validate      # el esquema lo gestiona el initdb de Postgres; solo valida
-    open-in-view: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-  sql:
-    init:
-      mode: never             # NUNCA recargar datos en producción
-
-# Probes de Kubernetes: /actuator/health/liveness y /actuator/health/readiness
-management:
-  endpoint:
-    health:
-      probes:
-        enabled: true
-  health:
-    livenessstate:
-      enabled: true
-    readinessstate:
-      enabled: true
 
 logging:
   level:
     io.github.mikel0ne.l1copilot: INFO
     dev.langchain4j: WARN
 
-# En K8s el pod es efímero: persistir la caché a disco no aporta y solo añade
-# un volumen extra. Mantenemos únicamente el mapa en memoria.
-cache:
-  file:
-    enabled: false
-
-# Registro de turnos: solo a la tabla turn_log de Postgres (persistente y
-# excluida del reset del seed). El fichero del pod es efímero, no sirve aquí.
+# Filesystem del pod efímero: el fichero de turnos no sobrevive a un reinicio.
 copilot:
   turn-log:
     file:
       enabled: false
-    db:
-      enabled: true
-
-# En Kubernetes usamos Gemini 3.1 Flash Lite para separar la cuota del despliegue
-# respecto a la de desarrollo local (Gemma 4), que consume cuota independiente.

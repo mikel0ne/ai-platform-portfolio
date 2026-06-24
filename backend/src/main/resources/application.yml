@@ -3,6 +3,19 @@ spring:
     name: langchain4j-springboot
   profiles:
     active: dev
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    username: ${SPRING_DATASOURCE_USERNAME:appuser}
+    password: ${SPRING_DATASOURCE_PASSWORD}   # sin fallback inseguro
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  sql:
+    init:
+      mode: never
+      platform: postgresql
+      encoding: UTF-8
 
 server:
   port: 8079
@@ -81,6 +94,13 @@ copilot:
     responder:         # el redactor: coherencia del hilo y referencias ("eso", "lo de antes")
       enabled: true
       size: 6
+  # Registro de turnos (materia prima del golden-set de evaluación).
+  turn-log:
+    file:
+      enabled: true
+      path: ./logs/turns.jsonl
+    db:
+      enabled: true
 
 # Tratamiento del asistente: a partir de esta edad se trata de usted (amable);
 # por debajo, se tutea (simpático). Aplica a mensajes generados y hardcodeados.
@@ -107,6 +127,13 @@ management:
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
   info:
     env:
       enabled: true
@@ -117,14 +144,11 @@ info:
     description: "@project.description@"
     version: "@project.version@"
 
-# Configuración de caché de respuestas LLM
-# - enabled=false → caché completamente desactivada (memoria + disco). Actívala con true.
-# - file.enabled=true → además del mapa en memoria, persiste cada entrada en disco
-#   y la recarga al arrancar. Útil en local para no perder cuota entre reinicios.
-# - file.enabled=false → solo memoria (lo que usa el perfil prod en Kubernetes).
+# Caché de respuestas LLM: desactivada. Ningún perfil la activa — si algún día
+# hace falta, se pone a true aquí (nunca en un fichero de perfil).
 cache:
-  enabled: false   # ← DESACTIVADA hasta nueva orden
+  enabled: false
   file:
     enabled: true
     path: ./cache
-  ttl-seconds: 3600  # 1 hora
+  ttl-seconds: 3600

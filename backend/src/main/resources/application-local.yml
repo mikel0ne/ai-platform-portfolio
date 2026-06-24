@@ -15,49 +15,16 @@
 spring:
   datasource:
     url: jdbc:postgresql://postgres.local:15432/l1_copilot
-    driver-class-name: org.postgresql.Driver
-    # Credenciales con default explícito: el arranque local es idéntico sin
-    # configurar nada, pero se pueden sobreescribir por env var (mismo patrón que
-    # application-prod.yml) para no versionar la contraseña en claro.
-    username: ${SPRING_DATASOURCE_USERNAME:appuser}
-    password: ${SPRING_DATASOURCE_PASSWORD:change-me}
-  jpa:
-    hibernate:
-      ddl-auto: none          # el esquema lo crean los scripts SQL
-    open-in-view: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
+    password: ${SPRING_DATASOURCE_PASSWORD:change-me}   # único perfil con fallback inseguro
   sql:
     init:
-      # never  → deja los datos que haya en la BD (comportamiento por defecto)
-      # always → borra y recarga el seed de demo (útil si corrompiste datos)
       mode: ${SQL_INIT_MODE:never}
-      platform: postgresql    # usa schema-postgresql.sql + data-postgresql.sql
-      encoding: UTF-8
 
 # Gemma tiene cuotas gratuitas mucho más generosas (~1500 req/día) que Gemini 2.5 Flash/Lite (~20).
 # Usa la misma GEMINI_API_KEY; el cliente OpenAI-compatible se selecciona automáticamente
 # en Config.java por el prefijo "gemma" del model-name.
 
-# Registro de turnos (materia prima del golden-set de evaluación).
-# Fichero + tabla: la tabla turn_log está excluida del reset del seed, así que
-# recargar la demo no la borra. (Crea la tabla re-ejecutando setup-l1-copilot-db.sh.)
-copilot:
-  turn-log:
-    file:
-      enabled: true
-      path: ./logs/turns.jsonl
-    db:
-      enabled: true
-
 management:
   endpoint:
     env:
-      show-values: always     # Muestra valores reales en /actuator/env (no ******)
-
-logging:
-  level:
-    io.github.mikel0ne.l1copilot: DEBUG
-    dev.langchain4j: DEBUG
-    org.springframework.jdbc: DEBUG    # Ver los SQLs de inicialización
+      show-values: always   # solo en local
