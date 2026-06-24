@@ -41,7 +41,12 @@ done
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
 : "${PGDATABASE:=l1_copilot}"
-export PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD
+# psql nativo de Windows toma el client_encoding del codepage ANSI del sistema
+# si no se fija explícitamente, y reinterpreta el UTF-8 del .sql como Latin1
+# al insertar (mojibake: "García" -> "GarcÃ­a"). Forzar UTF8 evita el problema
+# sea cual sea el codepage de la consola desde la que se invoque el script.
+PGCLIENTENCODING=UTF8
+export PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD PGCLIENTENCODING
 
 SEED_FILE="backend/src/main/resources/data-postgresql.sql"
 
