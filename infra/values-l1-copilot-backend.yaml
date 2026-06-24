@@ -37,7 +37,7 @@ strategy:
   type: Recreate   # estado conversacional en memoria — ver nota arriba
 
 container:
-  port: 8080
+  port: 8080   # debe coincidir con server.port de application-prod.yml
   portName: http
 
 service:

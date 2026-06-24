@@ -8,37 +8,20 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password: ""
-  jpa:
-    hibernate:
-      ddl-auto: none        # el esquema lo crean schema-h2.sql/data-h2.sql
-    open-in-view: false
   sql:
     init:
-      mode: always          # ejecuta schema-h2.sql + data-h2.sql (seed de demo)
-      platform: h2          # solo carga los scripts del dialecto H2 (nunca los -postgresql)
-      encoding: UTF-8
+      mode: always
+      platform: h2
   h2:
     console:
-      enabled: true         # http://localhost:8079/h2-console (JDBC URL: jdbc:h2:mem:copilot)
+      enabled: true   # http://localhost:8079/h2-console (JDBC URL: jdbc:h2:mem:copilot)
 
-# Actuator - Monitorización
 management:
   endpoint:
     env:
-      show-values: always       # Muestra valores reales en /actuator/env (no ******)
+      show-values: always   # solo en local
 
-# Registro de turnos (materia prima del golden-set de evaluación).
-# Solo fichero: la BD de dev es H2 en memoria, una tabla no sobreviviría al reinicio.
 copilot:
   turn-log:
-    file:
-      enabled: true
-      path: ./logs/turns.jsonl
     db:
       enabled: false
-
-# Logging
-logging:
-  level:
-    io.github.mikel0ne.l1copilot: DEBUG
-    dev.langchain4j: DEBUG
