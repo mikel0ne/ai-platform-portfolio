@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="l1-copilot · Full Stack" type="CompoundRunConfigurationType">
+    <toRun name="l1-copilot · Backend" type="Application" />
+    <toRun name="l1-copilot · Frontend" type="ShConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

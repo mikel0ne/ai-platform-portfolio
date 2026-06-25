@@ -297,10 +297,10 @@ infra/
     └── add-registry-host.ps1               # (Admin) hosts: registry.local
 ```
 
-> En la raíz del repo:
-> - `scripts/setup-l1-copilot-db.sh` crea la BD `l1_copilot` en el Postgres compartido y aplica schema + seed.
-> - `scripts/seed-l1-copilot-db.sh` recarga sólo el seed (idempotente). Vía psql nativo de Windows.
-> - `scripts/start.sh` / `stop.sh` (y sus equivalentes `.bat`) arrancan/paran backend + frontend en local (sin K8s).
+> Scripts propios de cada proyecto (monorepo):
+> - `l1-copilot/scripts/setup-l1-copilot-db.sh` crea la BD `l1_copilot` en el Postgres compartido (schema + seed).
+> - `l1-copilot/scripts/seed-l1-copilot-db.sh` recarga sólo el seed (idempotente). Vía psql nativo de Windows.
+> - `scripts/start.sh` / `stop.sh` (raíz, `.bat` incluidos) — scripts generales de arranque local.
 
 ---
 
@@ -357,7 +357,8 @@ Run configs equivalentes en IntelliJ (`.run/`), todas vía `run-sh-gitbash.cmd`:
 - **autoops · Ingesta corpus** → `ingest-autoops.sh`
 - **l1-copilot · Deploy Backend / Frontend** → `deploy.sh --project l1-copilot --component …`
 - **infra · Setup Weaviate / Setup Observability** → `06-…` / `07-…`
-- **Reset DB (seed)** → `scripts/seed-l1-copilot-db.sh` (L1)
+- **autoops · Backend / Frontend** y **l1-copilot · Backend / Frontend / …** → run de desarrollo local (mvn/ng).
+- **l1-copilot · Reset DB (seed)** → `l1-copilot/scripts/seed-l1-copilot-db.sh`
 
 > **Trampa del tag fijo + `IfNotPresent`**: con `registry.local` local, redesplegar con el **mismo** tag no repulea la imagen ni recrea el pod. Pasa siempre un `--tag` único por build.
 

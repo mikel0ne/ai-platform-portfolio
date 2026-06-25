@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Backend" type="Application" factoryName="Application">
+  <configuration default="false" name="l1-copilot · Backend" type="Application" factoryName="Application">
     <extension name="net.ashald.envfile">
       <option name="IS_ENABLED" value="true" />
       <option name="IS_SUBST_NON_DEFINED_VARS_AS_EMPTY" value="false" />
@@ -7,6 +7,8 @@
         <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
                PATH="$PROJECT_DIR$/infra/.env.l1-copilot" />
+        <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
+               PATH="$PROJECT_DIR$/infra/.env.local" />
         <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
                PATH="$PROJECT_DIR$/infra/.env.l1-copilot.local" />
       </ENTRIES>
@@ -16,7 +18,7 @@
     </envs>
     <option name="MAIN_CLASS_NAME" value="io.github.mikel0ne.l1copilot.Application" />
     <module name="langchain4j-springboot" />
-    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/backend" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/l1-copilot/backend" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
