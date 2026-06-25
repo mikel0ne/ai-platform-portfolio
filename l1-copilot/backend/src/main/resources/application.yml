@@ -1,6 +1,6 @@
 spring:
   application:
-    name: langchain4j-springboot
+    name: l1-copilot-backend
   profiles:
     active: dev
   datasource:
