@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Perfil PROD — Kubernetes
+# PostgreSQL: postgres.infra.svc.cluster.local:5432/l1_copilot
+# ─────────────────────────────────────────────────────────────────────────────
+# La BD `l1_copilot` se crea con scripts/setup-l1-copilot-db.sh dentro del
+# Postgres compartido del clúster (namespace `infra`). Ver docs/infraestructura.
+# Credenciales sensibles vienen de Secrets de K8s montados como env vars.
+# ─────────────────────────────────────────────────────────────────────────────
+
+server:
+  port: 8080   # debe coincidir con container.port del chart Helm
+
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot}
+
+logging:
+  level:
+    io.github.mikel0ne.l1copilot: INFO
+    dev.langchain4j: WARN
+
+# Filesystem del pod efímero: el fichero de turnos no sobrevive a un reinicio.
+copilot:
+  turn-log:
+    file:
+      enabled: false

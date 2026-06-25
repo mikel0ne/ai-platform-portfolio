@@ -213,13 +213,14 @@ build_and_push() {
       image="${IMAGE_BACKEND}"
       dockerfile="${DOCKERFILE_BACKEND}"
       context="${CONTEXT_BACKEND}"
-      # El corpus del RAG vive en la raíz del repo pero el contexto de build es el
-      # del backend → lo copiamos dentro para que el Dockerfile lo hornee.
-      if [[ -d "${REPO_ROOT}/corpus" ]]; then
-        rm -rf "${REPO_ROOT}/${context}/corpus"
-        cp -r "${REPO_ROOT}/corpus" "${REPO_ROOT}/${context}/corpus"
+      # El corpus del RAG (CORPUS_DIR del descriptor, relativo a la raíz) se copia
+      # al contexto de build para que el Dockerfile lo hornee en /app/corpus.
+      # Si el proyecto no tiene corpus, se hornea un directorio vacío (COPY no falla).
+      rm -rf "${REPO_ROOT}/${context}/corpus"
+      if [[ -n "${CORPUS_DIR:-}" && -d "${REPO_ROOT}/${CORPUS_DIR}" ]]; then
+        cp -r "${REPO_ROOT}/${CORPUS_DIR}" "${REPO_ROOT}/${context}/corpus"
       else
-        mkdir -p "${REPO_ROOT}/${context}/corpus"   # COPY corpus del Dockerfile no falla
+        mkdir -p "${REPO_ROOT}/${context}/corpus"
       fi
       ;;
     frontend)

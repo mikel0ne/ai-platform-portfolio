@@ -1,0 +1,32 @@
+<section class="chat">
+  <div class="toolbar">
+    <span class="thread">Conversación: <code>{{ store.conversationId.substring(0, 8) }}…</code></span>
+    <button class="reset" (click)="newConversation()" [disabled]="store.sending()">Nueva conversación</button>
+  </div>
+
+  <div class="scroller" #scroller>
+    <div class="stream">
+      @for (m of store.messages(); track $index) {
+        <app-message-bubble [msg]="m"
+                            (orderSelected)="selectOrder($event)"
+                            (actionTriggered)="triggerAction($event)"></app-message-bubble>
+      }
+      @if (store.sending()) {
+        <app-typing-indicator></app-typing-indicator>
+      }
+    </div>
+  </div>
+
+  <form class="composer" (ngSubmit)="send()">
+    <input
+      type="text"
+      name="message"
+      [(ngModel)]="draft"
+      [placeholder]="placeholder"
+      autocomplete="off"
+      [disabled]="store.sending()"
+      aria-label="Mensaje"
+    />
+    <button type="submit" [disabled]="store.sending() || !draft.trim()">Enviar</button>
+  </form>
+</section>

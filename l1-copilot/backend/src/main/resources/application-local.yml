@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Perfil LOCAL — PostgreSQL en contenedor Docker accesible desde Windows
+# host: postgres.local → 127.0.0.1 (añadir en C:\Windows\System32\drivers\etc\hosts)
+# ─────────────────────────────────────────────────────────────────────────────
+# Activar:
+#   set SPRING_PROFILES_ACTIVE=local
+#   mvn spring-boot:run
+#
+# Por defecto NO toca los datos existentes de PostgreSQL.
+# Para recargar el seed de demo (borra y vuelve a insertar los datos):
+#   set SQL_INIT_MODE=always
+#   mvn spring-boot:run
+# ─────────────────────────────────────────────────────────────────────────────
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres.local:15432/l1_copilot
+    password: ${SPRING_DATASOURCE_PASSWORD:change-me}   # único perfil con fallback inseguro
+  sql:
+    init:
+      mode: ${SQL_INIT_MODE:never}
+
+# Gemma tiene cuotas gratuitas mucho más generosas (~1500 req/día) que Gemini 2.5 Flash/Lite (~20).
+# Usa la misma GEMINI_API_KEY; el cliente OpenAI-compatible se selecciona automáticamente
+# en Config.java por el prefijo "gemma" del model-name.
+
+management:
+  endpoint:
+    env:
+      show-values: always   # solo en local
