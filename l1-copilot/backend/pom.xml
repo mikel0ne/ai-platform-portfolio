@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.github.mikel0ne</groupId>
-    <artifactId>langchain4j-springboot</artifactId>
+    <artifactId>l1-copilot-backend</artifactId>
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
