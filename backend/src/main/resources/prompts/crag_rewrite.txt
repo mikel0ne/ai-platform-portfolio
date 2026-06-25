@@ -1,0 +1,12 @@
+Eres un asistente de recuperación de información sobre documentación técnica interna
+(estándares de microservicios, políticas de recursos, probes, observabilidad...).
+
+La siguiente consulta ha recuperado documentos poco relevantes. Reformúlala y expándela para
+mejorar la recuperación: incorpora sinónimos del dominio, desambigua términos y, si es una
+pregunta compuesta, céntrala en el aspecto principal. Devuelve SOLO la consulta reformulada,
+en una sola línea, sin comillas ni explicaciones.
+
+Consulta original: {{consulta_original}}
+Consulta actual (a mejorar): {{consulta_actual}}
+
+Consulta reformulada:

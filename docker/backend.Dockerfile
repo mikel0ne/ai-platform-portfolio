@@ -23,5 +23,11 @@ USER 1000
 
 COPY --from=build /workspace/target/*.jar app.jar
 
+# Corpus del RAG horneado en la imagen (deploy.sh lo copia al contexto de build
+# antes de construir; la app lo lee vía AUTOOPS_INGESTION_CORPUS_PATH=/app/corpus).
+# El directorio puede no existir en builds que no lo necesiten → COPY condicional
+# vía glob que no falla si está vacío.
+COPY corpus /app/corpus
+
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

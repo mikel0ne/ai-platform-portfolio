@@ -17,9 +17,11 @@ import org.springframework.context.annotation.Configuration;
 public class McpConfig {
 
     @Bean
-    public ToolCallbackProvider autoopsTools(DiagnosticsTools diagnostics) {
+    public ToolCallbackProvider autoopsTools(DiagnosticsTools diagnostics,
+                                             DocsTools docs,
+                                             KubernetesTools kubernetes) {
         return MethodToolCallbackProvider.builder()
-                .toolObjects(diagnostics)
+                .toolObjects(diagnostics, docs, kubernetes)
                 .build();
     }
 }

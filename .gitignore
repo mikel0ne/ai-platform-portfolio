@@ -51,6 +51,10 @@ service-account-key.json
 *.properties.local
 
 cache/
-infra
+# infra/ ahora SÍ se versiona (monorepo): charts, scripts y manifests compartidos.
+# Sus secretos locales (.env.*.local) los ignora infra/.gitignore.
+# Artefactos que deploy.sh copia al contexto de build (no versionar):
+backend/corpus/
+frontend/nginx.conf
 frontend/dist
 frontend/node_modules

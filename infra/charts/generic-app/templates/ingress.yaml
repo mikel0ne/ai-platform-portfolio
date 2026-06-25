@@ -1,0 +1,52 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "generic-app.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "generic-app.labels" . | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          {{- /* Rutas de este servicio */}}
+          {{- if .Values.ingress.paths }}
+          {{- range .Values.ingress.paths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "generic-app.fullname" $ }}
+                port:
+                  name: {{ $.Values.container.portName }}
+          {{- end }}
+          {{- else }}
+          {{- /* Ruta "/" por defecto si no se especifican rutas */}}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "generic-app.fullname" . }}
+                port:
+                  name: {{ .Values.container.portName }}
+          {{- end }}
+          {{- /* Rutas extra hacia otros servicios (p.ej. frontend en mismo Ingress) */}}
+          {{- range .Values.ingressExtraPaths }}
+          - path: {{ .path }}
+            pathType: {{ .pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ .serviceName }}
+                port:
+                  name: {{ .servicePort | default "http" }}
+          {{- end }}
+{{- end }}

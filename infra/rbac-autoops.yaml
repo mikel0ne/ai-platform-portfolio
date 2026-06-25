@@ -1,0 +1,61 @@
+# =============================================================================
+# rbac-autoops.yaml — ServiceAccount + RBAC de SOLO LECTURA para AutoOps MCP
+# =============================================================================
+# Las tools de diagnóstico (diagnosticar_pod, logs_pod, eventos…) consultan la
+# API de Kubernetes desde dentro del clúster. El pod corre con este SA, con
+# permisos estrictamente de lectura. Principio de mínimo privilegio: AutoOps
+# NUNCA modifica el clúster ni lee Secrets.
+#
+# Lo aplica deploy.sh automáticamente (convención rbac-<project>.yaml) tras crear
+# el namespace. El values del backend referencia este SA con:
+#   serviceAccount: { create: true, name: autoops-mcp }
+#
+# Verificación (las dos últimas DEBEN dar "no"):
+#   kubectl auth can-i list pods    --as=system:serviceaccount:autoops:autoops-mcp -A  # yes
+#   kubectl auth can-i get pods/log --as=system:serviceaccount:autoops:autoops-mcp -A  # yes
+#   kubectl auth can-i get secrets  --as=system:serviceaccount:autoops:autoops-mcp -A  # no
+#   kubectl auth can-i delete pods  --as=system:serviceaccount:autoops:autoops-mcp -A  # no
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: autoops-mcp
+  namespace: autoops
+  labels:
+    app.kubernetes.io/part-of: autoops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: autoops-mcp-readonly
+  labels:
+    app.kubernetes.io/part-of: autoops
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events", "services", "configmaps", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch"]
+# NOTA: 'secrets' queda deliberadamente FUERA de los recursos legibles.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: autoops-mcp-readonly
+  labels:
+    app.kubernetes.io/part-of: autoops
+subjects:
+  - kind: ServiceAccount
+    name: autoops-mcp
+    namespace: autoops
+roleRef:
+  kind: ClusterRole
+  name: autoops-mcp-readonly
+  apiGroup: rbac.authorization.k8s.io

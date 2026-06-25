@@ -27,14 +27,27 @@ autoops:
   llm:
     provider: gemini
     chat-model-name: gemini-2.5-flash-lite       # cuota gratuita más alta; uso interno
-    embedding-model-name: text-embedding-004     # 768 dims (acoplado a la clase DocChunk de Weaviate)
+    embedding-model-name: gemini-embedding-001   # free tier real (text-embedding-004 no disponible); 100 RPM/1000 RPD
     timeout: 30s
     temperature: 0.2
   # Weaviate: en local, vía port-forward (kubectl port-forward svc/weaviate 8088:8080).
   weaviate:
+    scheme: http
     host: localhost
     port: 8088
     grpc-port: 50051
+    class-name: DocChunk
+  # Bucle correctivo del RAG (CRAG). El tope de iteraciones garantiza la terminación (doc 03 §3).
+  crag:
+    k: 5
+    umbral: 0.7            # score mínimo (reranker/híbrido) para confianza "alta"
+    max-iteraciones: 2     # reformulaciones antes de devolver lo mejor obtenido
+    alpha: 0.5             # peso vector vs BM25 en la búsqueda híbrida (1=vector, 0=BM25)
+  # Ingesta del corpus (corpus/*.md → chunks → embeddings → Weaviate).
+  ingestion:
+    corpus-path: ../corpus
+    max-chars: 2000        # ~500 tokens por chunk
+    overlap-chars: 200
 
 # Swagger UI / OpenAPI (chat de búsqueda)
 springdoc:

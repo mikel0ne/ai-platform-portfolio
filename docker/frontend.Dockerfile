@@ -1,9 +1,9 @@
-# Frontend Angular servido por nginx — build multi-stage.
+# Frontend Angular servido por nginx — build multi-stage. Genérico para cualquier
+# proyecto del monorepo (l1-copilot, autoops…): lo invoca infra/scripts/deploy.sh
+# con la imagen y el contexto del proyecto.
 # Uso (el contexto es la carpeta frontend/; el conf se copia desde docker/):
-#   docker build -f docker/frontend.Dockerfile -t l1-copilot-frontend:1.0.0 ./frontend
-# NOTA: requiere que docker/frontend-nginx.conf se haya copiado a frontend/nginx.conf
-#   (o ajustar el COPY de abajo si se prefiere otro layout).
-# Ver docs/infraestructura/05-frontend.md.
+#   docker build -f docker/frontend.Dockerfile -t registry.local/<proyecto>-frontend:<tag> ./frontend
+# NOTA: deploy.sh copia docker/frontend-nginx.conf a <contexto>/nginx.conf antes del build.
 
 # ---- Stage 1: build ----
 FROM node:20-alpine AS build

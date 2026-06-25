@@ -5,6 +5,24 @@ Minikube). Sin dependencias de nube: coste cero. El propio clúster es, además,
 
 > La documentación de arquitectura (tools MCP, núcleo RAG, organización del código) vive en `docs/arquitectura/`.
 
+> ## ⚠️ Actualización (despliegue real sobre el clúster compartido)
+>
+> Estas guías 01-07 se escribieron para un despliegue **autónomo con NGINX Ingress y
+> Weaviate propio** en el namespace `autoops`. El despliegue real reutiliza el
+> **clúster compartido de Rancher Desktop/k3s** y diverge en puntos importantes:
+>
+> | Guía dice | Realidad actual |
+> |---|---|
+> | NGINX Ingress (`ingress-nginx`) | **Traefik** (incluido en k3s). Anotaciones `traefik.ingress.kubernetes.io/...`, no las de nginx. |
+> | Weaviate propio en ns `autoops` | **Weaviate compartido en ns `infra`** (criterio Postgres). Host `weaviate.infra.svc.cluster.local`, clase `AutoopsDocChunk`. |
+> | "UI dentro del jar, sin frontend" (guía 01/04) | **Frontend Angular separado** (imagen `autoops-frontend`, nginx). Ingress: `/` → front, `/search` `/sse` `/actuator` → back. |
+> | Manifiestos sueltos `k8s/*.yaml` | Chart Helm `infra/charts/generic-app` + `infra/values-autoops-*.yaml`, desplegado con `infra/scripts/deploy.sh --project autoops`. |
+> | (sin logs) | **Loki + Grafana** en ns `observability` (`infra/scripts/07-setup-observability.sh`). |
+>
+> **Fuente de verdad operativa:** [`infra/INFRA.md`](../../infra/INFRA.md). Las guías
+> 02-07 conservan el detalle conceptual (RBAC read-only, esquema `DocChunk`, SSE…),
+> pero los comandos `kubectl apply -f k8s/...` deben leerse como el flujo `infra/`.
+
 ## Componentes a desplegar
 
 | Componente | Tecnología | Imagen | Puerto | Exposición |

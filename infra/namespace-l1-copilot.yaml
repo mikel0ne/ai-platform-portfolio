@@ -1,0 +1,10 @@
+# Namespace de la aplicación L1 Support Copilot.
+# El chart generic-app NO crea namespaces; aplicar este manifiesto antes del
+# primer helm install:
+#   kubectl apply -f infra/namespace-l1-copilot.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: l1-copilot
+  labels:
+    app.kubernetes.io/part-of: l1-copilot

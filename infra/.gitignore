@@ -1,0 +1,15 @@
+# Ficheros de secrets locales — NUNCA commitear
+.env
+.env.*
+!.env.example
+# Excepciones: ficheros compartidos sin credenciales sensibles (la API key de
+# Gemini va en .env.<project>.local, gitignored por el patrón .env.*).
+!.env.l1-copilot
+!.env.autoops
+# Plantillas .local.example (sin secretos reales) sí se commitean.
+!.env.*.local.example
+!.env.local.example
+
+# Helm
+charts/*/charts/
+*.tgz

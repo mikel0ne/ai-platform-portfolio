@@ -1,0 +1,94 @@
+# =============================================================================
+# weaviate.yaml — Base vectorial COMPARTIDA del clúster (namespace `infra`)
+# =============================================================================
+# Mismo criterio que el Postgres compartido: UNA sola instancia de Weaviate para
+# todo el portfolio. Cada proyecto usa su propia clase (p.ej. AutoOps →
+# AutoopsDocChunk), no una instancia por proyecto.
+#
+# Sin módulo vectorizador (vectorizer: none): cada app trae sus vectores
+# (AutoOps los calcula con Gemini text-embedding-004, 768 dims). Sin auth (local).
+#
+# Lo aplica infra/scripts/06-setup-weaviate.sh. DNS interno:
+#   weaviate.infra.svc.cluster.local  (HTTP 8080, gRPC 50051)
+# =============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: weaviate-data
+  namespace: infra
+  labels:
+    app: weaviate
+    app.kubernetes.io/part-of: infra
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: weaviate
+  namespace: infra
+  labels:
+    app: weaviate
+    app.kubernetes.io/part-of: infra
+spec:
+  serviceName: weaviate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weaviate
+  template:
+    metadata:
+      labels:
+        app: weaviate
+        app.kubernetes.io/part-of: infra
+    spec:
+      containers:
+        - name: weaviate
+          image: cr.weaviate.io/semitechnologies/weaviate:1.27.0
+          args: ["--host", "0.0.0.0", "--port", "8080", "--scheme", "http"]
+          ports:
+            - { containerPort: 8080, name: http }
+            - { containerPort: 50051, name: grpc }
+          env:
+            - { name: PERSISTENCE_DATA_PATH, value: /var/lib/weaviate }
+            - { name: AUTHENTICATION_ANONYMOUS_ENABLED, value: "true" }   # local: sin auth
+            - { name: QUERY_DEFAULTS_LIMIT, value: "25" }
+            - { name: DEFAULT_VECTORIZER_MODULE, value: "none" }          # las apps traen sus vectores
+            - { name: ENABLE_MODULES, value: "reranker-transformers" }    # rerank nativo (lo usa AutoOps)
+            - { name: RERANKER_INFERENCE_API, value: "http://weaviate-reranker.infra.svc.cluster.local:8080" }
+            - { name: CLUSTER_HOSTNAME, value: "node1" }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/weaviate }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /v1/.well-known/ready, port: 8080 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /v1/.well-known/live, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: weaviate-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weaviate
+  namespace: infra
+  labels:
+    app: weaviate
+    app.kubernetes.io/part-of: infra
+spec:
+  selector:
+    app: weaviate
+  ports:
+    - { port: 8080,  targetPort: 8080,  name: http }
+    - { port: 50051, targetPort: 50051, name: grpc }

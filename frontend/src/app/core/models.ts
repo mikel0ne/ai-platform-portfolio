@@ -1,103 +1,38 @@
-export interface UserDto {
-  id: string;
-  name: string;
-  age: number;
-  avatarUrl?: string | null;
-  /** true si al usuario se le trata de usted (lo decide el backend según la edad). */
-  formal: boolean;
+/**
+ * Contratos del chat de búsqueda de AutoOps (front secundario).
+ * Espejo de los DTOs del backend (docs/arquitectura/05-contratos-api-datos.md §2-3):
+ * el endpoint `POST /search` reutiliza el núcleo RAG y redacta la respuesta con el LLM interno.
+ */
+
+/** Cita que respalda la respuesta: fichero del corpus, sección y score de recuperación. */
+export interface DocCitation {
+  fuente: string;
+  seccion: string;
+  score: number;
 }
 
-export type Intent = 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
+/** Nivel de confianza del RAG: `baja` = no se superó el umbral, el usuario debe matizar. */
+export type Confianza = 'alta' | 'baja';
 
-/** Acción de confirmación (botones) para una operación irreversible, p. ej. cancelar un pedido. */
-export interface ConfirmAction {
-  orderId: number;
-  title: string;
-  warning: string;
-  confirmLabel: string;
-  confirmPayload: string;
-  cancelLabel: string;
-  cancelPayload: string;
+/** Petición a `POST /search`. */
+export interface SearchRequest {
+  consulta: string;
 }
 
-export interface OrderCard {
-  id: number;
-  description: string;
-  status: string;
-  imageUrl?: string;
+/** Respuesta de `POST /search`. */
+export interface SearchResponse {
+  respuesta: string;
+  citas: DocCitation[];
+  confianza: Confianza;
 }
 
-export interface TicketCard {
-  id: number;
-  code: string;
-  title: string;
-  status: string;
-  createdAt: string;
-}
-
-export interface TicketDetail {
-  id: number;
-  code: string;
-  title: string;
-  message: string;
-  status: string;
-  orderId?: number | null;
-  createdAt: string;
-}
-
-/** Tarjeta de devolución: enlace clicable a la etiqueta de devolución (/returns/{id}). */
-export interface ReturnCard {
-  id: number;
-  code: string;
-  description: string;
-  status: string;
-  createdAt: string;
-}
-
-/** Etiqueta de devolución para la página /returns/{id}. */
-export interface ReturnLabel {
-  id: number;
-  code: string;
-  orderDescription: string;
-  status: string;
-  carrier: string;
-  destinationName: string;
-  destinationAddress: string;
-  barcode: string;
-  createdAt: string;
-}
-
-export interface ChatRequest {
-  conversationId: string;
-  message: string;
-}
-
-export interface ChatResponse {
-  conversationId: string;
-  reply: string;
-  intent: Intent;
-  resolved: boolean;
-  orders?: OrderCard[];
-  /**
-   * true → las tarjetas de `orders` son un LISTADO para elegir (clicables).
-   * false → son el detalle del pedido ya en foco (no clicables, ya estamos dentro).
-   * Lo decide el backend (awaiting==ORDER_CHOICE), no el tamaño de la lista.
-   */
-  ordersSelectable?: boolean;
-  tickets?: TicketCard[];
-  returns?: ReturnCard[];
-  confirm?: ConfirmAction | null;
-}
-
-export interface ChatMessage {
+/** Mensaje renderizado en el hilo de búsqueda (modelo de vista). */
+export interface SearchMessage {
   from: 'user' | 'agent';
   text: string;
-  intent?: Intent;
   at: Date;
-  orders?: OrderCard[];
-  /** Ver ChatResponse.ordersSelectable: si las tarjetas de pedido son clicables. */
-  ordersSelectable?: boolean;
-  tickets?: TicketCard[];
-  returns?: ReturnCard[];
-  confirm?: ConfirmAction | null;
+  citas?: DocCitation[];
+  confianza?: Confianza;
+  /** true si la burbuja es un error de red/servidor (estilo distinto, sin citas). */
+  error?: boolean;
 }

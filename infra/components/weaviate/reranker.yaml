@@ -1,0 +1,58 @@
+# =============================================================================
+# reranker.yaml — módulo reranker-transformers de Weaviate (namespace `infra`)
+# =============================================================================
+# Cross-encoder que reordena por relevancia los resultados de la búsqueda híbrida.
+# El código de AutoOps (WeaviateGateway) usa rerank de forma nativa en la query
+# (_additional { rerank ... }), así que ESTE módulo es necesario para el /search.
+#
+# Lo aplica infra/scripts/06-setup-weaviate.sh junto con weaviate.yaml.
+# Weaviate lo descubre vía RERANKER_INFERENCE_API (ver weaviate.yaml).
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weaviate-reranker
+  namespace: infra
+  labels:
+    app: weaviate-reranker
+    app.kubernetes.io/part-of: infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: weaviate-reranker
+  template:
+    metadata:
+      labels:
+        app: weaviate-reranker
+        app.kubernetes.io/part-of: infra
+    spec:
+      containers:
+        - name: reranker
+          image: cr.weaviate.io/semitechnologies/reranker-transformers:cross-encoder-ms-marco-MiniLM-L-6-v2
+          ports:
+            - { containerPort: 8080, name: http }
+          env:
+            - { name: ENABLE_CUDA, value: "0" }
+          resources:
+            requests: { cpu: 250m, memory: 512Mi }
+            limits:   { memory: 1Gi }
+          readinessProbe:
+            httpGet: { path: /.well-known/ready, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: weaviate-reranker
+  namespace: infra
+  labels:
+    app: weaviate-reranker
+    app.kubernetes.io/part-of: infra
+spec:
+  selector:
+    app: weaviate-reranker
+  ports:
+    - { port: 8080, targetPort: 8080, name: http }
