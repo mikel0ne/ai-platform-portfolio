@@ -1,0 +1,17 @@
+[
+  { "message": "¿dónde está mi pedido?", "expectedIntent": "TRACKING" },
+  { "message": "¿ha salido ya mi pedido?", "expectedIntent": "TRACKING" },
+  { "message": "quiero cancelar el pedido 200", "expectedIntent": "CANCEL" },
+  { "message": "anula mi compra del 456", "expectedIntent": "CANCEL" },
+  { "message": "el monitor que pedí llegó con la pantalla rota", "expectedIntent": "SUPPORT" },
+  { "message": "me ha llegado el producto roto y no enciende", "expectedIntent": "SUPPORT" },
+  { "message": "¿cuánto tardan las devoluciones?", "expectedIntent": "FAQ" },
+  { "message": "¿cómo funciona la garantía?", "expectedIntent": "FAQ" },
+  { "message": "¿y ahora qué hago con esto?", "expectedIntent": "OTHER" },
+  { "message": "¿qué hago con la incidencia que has creado?", "expectedIntent": "OTHER" },
+  { "message": "menudo desastre de tienda, ya me diréis", "expectedIntent": "OTHER" },
+  { "message": "gracias, muy amable", "expectedIntent": "OTHER" },
+  { "message": "hola, buenas", "expectedIntent": "OTHER" },
+  { "message": "¿cómo te llamas?", "expectedIntent": "CHATTY" },
+  { "message": "¿qué tal llevas el día?", "expectedIntent": "CHATTY" }
+]

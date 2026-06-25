@@ -235,7 +235,26 @@ bash infra/scripts/07-setup-observability.sh
 
 ---
 
-## Estructura del repositorio
+## Estructura del repositorio (monorepo)
+
+```
+<repo>/                         # un solo repo/rama con la plataforma + un dir por proyecto
+├── infra/                      # TODO lo cross-project (charts, scripts, manifests compartidos)
+├── docker/                     # Dockerfiles genéricos (backend Java, frontend nginx) — compartidos
+├── .run/                       # Run configs IntelliJ (prefijo por proyecto: «autoops · …»)
+├── scripts/                    # scripts generales (start/stop local)
+├── llms-*.txt · CLAUDE.md · README.md
+├── autoops/                    # proyecto AutoOps MCP
+│   ├── backend/  frontend/  docs/  corpus/
+└── l1-copilot/                 # proyecto L1 Support Copilot
+    ├── backend/  frontend/  docs/  scripts/
+```
+
+> Los descriptores `infra/projects/<p>.env` fijan el contexto de build de cada
+> proyecto (`autoops/backend`, `l1-copilot/backend`…). Cambiar de layout = cambiar
+> esa línea; `deploy.sh` no se toca.
+
+### Contenido de `infra/`
 
 ```
 infra/
