@@ -1,0 +1,110 @@
+# =============================================================================
+# values-autoops-backend.yaml — Backend del servidor AutoOps MCP
+# Chart: infra/charts/generic-app
+# =============================================================================
+# Despliegue (lo orquesta infra/scripts/deploy.sh --project autoops):
+#   ./infra/scripts/deploy.sh --project autoops --component backend --tag 0.1.0
+#
+# El backend es a la vez:
+#   - servidor MCP por SSE  (/sse)         ← lo consume Claude Code / Copilot
+#   - API REST del chat     (/search)      ← lo consume el frontend Angular
+#   - Actuator              (/actuator)    ← health para las probes
+# RAG sobre Weaviate COMPARTIDO en el namespace `infra` (criterio Postgres):
+# una sola instancia, AutoOps usa su propia clase (AutoopsDocChunk).
+# =============================================================================
+
+namespace: autoops
+
+image:
+  repository: registry.local/autoops-backend
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+strategy:
+  # El estado vive en Weaviate; el pod es prácticamente stateless. RollingUpdate
+  # con maxUnavailable=0 evita cortes. El SSE del MCP reconecta solo.
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+
+container:
+  port: 8080          # server.port de application.yml (sin context-path)
+  portName: http
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Variables no sensibles (perfil k8s + conexión al Weaviate compartido del ns infra).
+# Binding relajado de Spring: AUTOOPS_WEAVIATE_HOST → autoops.weaviate.host, etc.
+configmap:
+  enabled: true
+  data:
+    SPRING_PROFILES_ACTIVE: "k8s"
+    AUTOOPS_LLM_PROVIDER: "gemini"
+    # Modelo de embeddings del free tier real (text-embedding-004 NO está disponible
+    # en esta API/key; gemini-embedding-001 → 100 RPM / 1000 RPD).
+    AUTOOPS_LLM_EMBEDDING_MODEL_NAME: "gemini-embedding-001"
+    AUTOOPS_WEAVIATE_HOST: "weaviate.infra.svc.cluster.local"
+    AUTOOPS_WEAVIATE_PORT: "8080"
+    AUTOOPS_WEAVIATE_GRPC_PORT: "50051"
+    AUTOOPS_WEAVIATE_CLASS_NAME: "AutoopsDocChunk"
+    # Corpus horneado en la imagen en /app/corpus (ver docker/backend.Dockerfile).
+    AUTOOPS_INGESTION_CORPUS_PATH: "/app/corpus"
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+
+# Único Secret: la API key de Gemini (chat + embeddings, uso interno).
+# El chart NO crea el Secret; lo sincroniza deploy.sh desde .env.autoops.local.
+secretEnv:
+  - name: GEMINI_API_KEY
+    secretName: autoops-llm-secret
+    secretKey: GEMINI_API_KEY
+
+# ServiceAccount de SOLO LECTURA para las tools K8s (lo crea infra/rbac-autoops.yaml,
+# aplicado por deploy.sh). El chart solo lo referencia en el pod.
+serviceAccount:
+  create: true
+  name: autoops-mcp
+
+# Actuator en la raíz (AutoOps no usa context-path).
+probes:
+  readiness:
+    enabled: true
+    httpGet:
+      path: /actuator/health/readiness
+      port: http
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    failureThreshold: 6
+  liveness:
+    enabled: true
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    initialDelaySeconds: 40
+    periodSeconds: 20
+    failureThreshold: 3
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    # CPU holgada (2 cores): el chart genérico siempre inyecta un límite; este es
+    # suficientemente alto para no throttlear la JVM en el nodo local.
+    cpu: "2000m"
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+
+# El Ingress lo monta infra/scripts/setup-app-ingress.sh --project autoops
+# (host autoops.local, rutas /search /sse /actuator → backend, / → frontend).
+ingress:
+  enabled: false
+
+ingressExtraPaths: []

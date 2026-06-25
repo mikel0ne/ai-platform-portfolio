@@ -1,0 +1,30 @@
+# =============================================================================
+# grafana-ingress.yaml — acceso a Grafana por Traefik en grafana.local
+# =============================================================================
+# El Service de Grafana lo crea el chart loki-stack con nombre <release>-grafana.
+# Con release "loki" → Service "loki-grafana" (puerto 80).
+#
+# Resuelve grafana.local con: infra/scripts/add-host.ps1 -Hostname grafana.local
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: observability
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: "grafana.local"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: loki-grafana
+                port:
+                  number: 80

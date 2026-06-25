@@ -1,0 +1,18 @@
+apiVersion: v2
+name: generic-app
+description: |
+  Chart genérico para aplicaciones sin estado (Deployments).
+  Válido para backends Java/Spring Boot, frontends Angular/React/nginx,
+  y cualquier microservicio que siga el patrón Deployment + Service.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - generic
+  - java
+  - spring-boot
+  - angular
+  - nginx
+  - microservice
+maintainers:
+  - name: infra

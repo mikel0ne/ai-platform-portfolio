@@ -1,0 +1,111 @@
+# =============================================================================
+# values-l1-copilot-backend.yaml — Backend del L1 Support Copilot
+# Chart: infra/charts/generic-app
+# =============================================================================
+# Despliegue:
+#   # 1) Crear el namespace y los Secrets ANTES (el chart NO los crea):
+#   kubectl apply -f infra/namespace-l1-copilot.yaml
+#   kubectl create secret generic gemini-api-key -n l1-copilot \
+#     --from-literal=GEMINI_API_KEY=<tu-api-key>
+#   kubectl create secret generic postgres-credentials -n l1-copilot \
+#     --from-literal=POSTGRES_USER=appuser \
+#     --from-literal=POSTGRES_PASSWORD=change-me
+#
+#   # 2) Build + push de la imagen al registry local (ver infra/INFRA.md):
+#   docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile .
+#   docker push registry.local/l1-copilot-backend:1.0.0
+#
+#   # 3) Helm install:
+#   helm upgrade --install l1-copilot-backend infra/charts/generic-app \
+#     -f infra/values-l1-copilot-backend.yaml
+# =============================================================================
+# IMPORTANTE: replicaCount=1 y strategy=Recreate mientras el checkpointer del
+# grafo sea MemorySaver (estado conversacional en memoria del pod). No habilitar
+# HPA hasta tener un BaseCheckpointSaver persistente.
+# =============================================================================
+
+namespace: l1-copilot
+
+image:
+  repository: registry.local/l1-copilot-backend
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+strategy:
+  type: Recreate   # estado conversacional en memoria — ver nota arriba
+
+container:
+  port: 8080   # debe coincidir con server.port de application-prod.yml
+  portName: http
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Variables de entorno no sensibles (perfil prod + JDBC hacia el Postgres compartido)
+configmap:
+  enabled: true
+  data:
+    SPRING_PROFILES_ACTIVE: "prod"
+    SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot"
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+
+# Variables sensibles — el chart NO crea estos Secrets. Crearlos antes con kubectl
+# o con infra/scripts/create-secrets.ps1.
+secretEnv:
+  - name: GEMINI_API_KEY
+    secretName: gemini-api-key
+    secretKey: GEMINI_API_KEY
+  - name: SPRING_DATASOURCE_USERNAME
+    secretName: postgres-credentials
+    secretKey: POSTGRES_USER
+  - name: SPRING_DATASOURCE_PASSWORD
+    secretName: postgres-credentials
+    secretKey: POSTGRES_PASSWORD
+
+probes:
+  # El backend vive bajo /api (server.servlet.context-path en application.yml),
+  # asi que el actuator queda en /api/actuator/health/*.
+  readiness:
+    enabled: true
+    httpGet:
+      path: /api/actuator/health/readiness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 6
+  liveness:
+    enabled: true
+    httpGet:
+      path: /api/actuator/health/liveness
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    failureThreshold: 3
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    cpu: 1000m
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+
+# Ingress: host unico l1-copilot.local, routing por path (puerto 80 estandar).
+# El Ingress lo gestiona el script 06-setup-app-ingress.sh directamente con kubectl.
+# Aqui se deja desactivado para evitar conflictos con el recurso manual.
+#
+# URLs resultantes (anadir hosts con infra/scripts/add-copilot-host.ps1):
+#   http://l1-copilot.local/          <- Angular frontend
+#   http://l1-copilot.local/api       <- REST API
+#   http://l1-copilot.local/actuator  <- Actuator
+ingress:
+  enabled: false
+
+ingressExtraPaths: []

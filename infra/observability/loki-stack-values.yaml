@@ -1,0 +1,55 @@
+# =============================================================================
+# loki-stack-values.yaml — valores del chart grafana/loki-stack
+# =============================================================================
+# Stack de logs COMPARTIDO del clúster (ns `observability`). Recoge los logs de
+# TODOS los namespaces (autoops, l1-copilot, infra…) vía Promtail (DaemonSet).
+# Ligero, pensado para Rancher Desktop local.
+#
+# Lo instala infra/scripts/07-setup-observability.sh:
+#   helm upgrade --install loki grafana/loki-stack -n observability -f <este fichero>
+#
+# Componentes:
+#   loki      — almacén de logs (single-binary)
+#   promtail  — DaemonSet que tailea /var/log/pods de cada nodo → loki
+#   grafana   — UI + datasource Loki ya preconfigurado
+# =============================================================================
+
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 5Gi
+  # Retención corta: es un entorno local de portfolio.
+  config:
+    table_manager:
+      retention_deletes_enabled: true
+      retention_period: 168h   # 7 días
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits:   { memory: 512Mi }
+
+promtail:
+  enabled: true
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 256Mi }
+
+grafana:
+  enabled: true
+  # Credenciales locales (cámbialas si te expones fuera de localhost).
+  adminUser: admin
+  adminPassword: admin
+  # El Ingress lo monta infra/observability/grafana-ingress.yaml (Traefik).
+  ingress:
+    enabled: false
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 256Mi }
+  # loki-stack añade automáticamente el datasource Loki apuntando al Service interno.
+
+# Prometheus va aparte; aquí solo logs.
+prometheus:
+  enabled: false

@@ -1,27 +1,32 @@
-# Frontend
+# Frontend — Chat de búsqueda de AutoOps
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 17.3.17.
+SPA Angular (front *secundario* del proyecto). Es una **única vista**: un chat que consulta la
+documentación interna vía el endpoint RAG del backend y muestra la respuesta **con sus citas y el nivel
+de confianza**. Sin login, historial ni K8s — el front principal es el servidor MCP (ver
+`docs/arquitectura/02-arquitectura-sistema.md`).
 
-## Development server
+## Contrato
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+`POST /search` → `{ consulta }` ⇒ `{ respuesta, citas: [{ fuente, seccion, score }], confianza }`
+(ver `docs/arquitectura/05-contratos-api-datos.md` §2-3).
 
-## Code scaffolding
+## Desarrollo
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+```bash
+npm install
+npm start            # ng serve en http://localhost:4199
+```
 
-## Build
+`proxy.conf.json` redirige `/search` y `/actuator` al backend en `http://localhost:8080`, así que arranca
+el backend (`scripts/start.sh`) para que las consultas respondan. El estado vacío y los ejemplos funcionan
+sin backend.
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+## Build y tests
 
-## Running unit tests
+```bash
+npm run build                                  # bundle de producción en dist/frontend
+npm test -- --watch=false --browsers=ChromeHeadless
+```
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Running end-to-end tests
-
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+En despliegue, nginx sirve los estáticos y el Ingress enruta `/search` (y el SSE de MCP) al backend
+(`docker/frontend-nginx.conf`).

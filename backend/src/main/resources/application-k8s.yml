@@ -1,10 +1,13 @@
 # Perfil de despliegue en Kubernetes (SPRING_PROFILES_ACTIVE=k8s).
-# Diferencias con el perfil por defecto: Weaviate por su Service interno y logs en INFO.
+# Diferencias con el perfil por defecto: Weaviate COMPARTIDO en el namespace
+# `infra` (criterio Postgres: una instancia, una clase por proyecto) y logs INFO.
+# Estos valores los puede sobreescribir el ConfigMap del chart (values-autoops-backend).
 autoops:
   weaviate:
-    host: weaviate.autoops.svc.cluster.local
+    host: weaviate.infra.svc.cluster.local
     port: 8080
     grpc-port: 50051
+    class-name: AutoopsDocChunk
 
 logging:
   level:

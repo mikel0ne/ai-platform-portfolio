@@ -1,0 +1,97 @@
+# =============================================================================
+# values-java.yaml — Plantilla para backends Java / Spring Boot
+# =============================================================================
+# Uso:
+#   helm upgrade --install my-backend infra/charts/generic-app \
+#     -f infra/charts/generic-app/values-examples/values-java.yaml \
+#     --set image.repository=my-backend \
+#     --set image.tag=1.0.0
+# =============================================================================
+
+namespace: default   # cambiar por el namespace de tu proyecto
+
+image:
+  repository: my-backend   # imagen construida localmente o en registry
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+strategy:
+  # RollingUpdate: K8s arranca el nuevo pod, espera readiness, luego mata el viejo.
+  # Cambia a Recreate SOLO si la app guarda estado conversacional en memoria (ej: LangGraph MemorySaver).
+  type: RollingUpdate
+
+container:
+  port: 8080
+  portName: http
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Variables de entorno no sensibles (irán en un ConfigMap)
+configmap:
+  enabled: true
+  data:
+    SPRING_PROFILES_ACTIVE: "prod"
+    SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/mydb"
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+
+# Variables sensibles — el chart las referencia pero NO crea los Secrets.
+# Créalos antes con: .\scripts\create-secrets.ps1  o con kubectl directamente.
+secretEnv:
+  - name: DB_PASSWORD
+    secretName: my-backend-secrets
+    secretKey: DB_PASSWORD
+  - name: API_KEY
+    secretName: my-backend-secrets
+    secretKey: API_KEY
+
+probes:
+  readiness:
+    enabled: true
+    httpGet:
+      path: /actuator/health/readiness
+      port: http
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    failureThreshold: 6
+  liveness:
+    enabled: true
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    initialDelaySeconds: 60
+    periodSeconds: 15
+    failureThreshold: 3
+
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 1Gi
+    cpu: 1000m
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+
+# Ingress: descomenta y ajusta si necesitas acceso externo
+# ingress:
+#   enabled: true
+#   className: nginx
+#   host: myapp.localtest.me
+#   paths:
+#     - path: /api
+#       pathType: Prefix
+#     - path: /actuator/health
+#       pathType: Prefix
+
+# HPA: descomenta cuando la app sea stateless y pueda escalar
+# hpa:
+#   enabled: true
+#   minReplicas: 1
+#   maxReplicas: 4
+#   targetCPUUtilizationPercentage: 70

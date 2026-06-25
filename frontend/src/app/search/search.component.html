@@ -1,0 +1,45 @@
+<section class="search">
+  <div class="toolbar">
+    <span class="hint">Pregunta a la documentación interna · respuestas con citas</span>
+    @if (store.messages().length > 0) {
+      <button class="reset" (click)="store.clear()" [disabled]="store.searching()">Limpiar</button>
+    }
+  </div>
+
+  <div class="scroller" #scroller>
+    @if (store.messages().length === 0) {
+      <div class="empty">
+        <div class="empty-icon" aria-hidden="true">📚</div>
+        <h2>Busca en la documentación interna</h2>
+        <p>Respuestas fundamentadas en el corpus, con las fuentes que las respaldan. Prueba con:</p>
+        <div class="examples">
+          @for (ex of examples; track ex) {
+            <button class="example" (click)="ask(ex)" [disabled]="store.searching()">{{ ex }}</button>
+          }
+        </div>
+      </div>
+    } @else {
+      <div class="stream">
+        @for (m of store.messages(); track $index) {
+          <app-answer-bubble [msg]="m"></app-answer-bubble>
+        }
+        @if (store.searching()) {
+          <app-typing-indicator></app-typing-indicator>
+        }
+      </div>
+    }
+  </div>
+
+  <form class="composer" (ngSubmit)="send()">
+    <input
+      type="text"
+      name="consulta"
+      [(ngModel)]="draft"
+      placeholder="Escribe tu pregunta…"
+      autocomplete="off"
+      [disabled]="store.searching()"
+      aria-label="Consulta"
+    />
+    <button type="submit" [disabled]="store.searching() || !draft.trim()">Buscar</button>
+  </form>
+</section>

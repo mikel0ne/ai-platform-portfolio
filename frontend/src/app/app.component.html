@@ -1,11 +1,9 @@
 <header class="app-header">
-  <div class="brand">L1 Support Copilot</div>
-  @if (user(); as u) {
-    <div class="who">
-      <span class="user">{{ u.name }}</span>
-      <button class="logout" (click)="logout()">Salir</button>
-    </div>
-  }
+  <div class="brand">
+    <span class="brand-name">AutoOps</span>
+    <span class="brand-sub">Búsqueda en documentación</span>
+  </div>
+  <span class="tag">solo lectura · RAG con citas</span>
 </header>
 
 <main>
