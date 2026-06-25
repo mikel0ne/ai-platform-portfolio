@@ -1,11 +1,16 @@
-# 04 — Dockerización del servidor
+# 04 — Dockerización
 
-`autoops-mcp` se empaqueta con un **build multi-stage** para producir una imagen pequeña y reproducible sin
-requerir Java instalado en quien construye (solo Docker). Es **una sola imagen**: el chat de búsqueda es una UI
-estática servida por la propia app, no un servicio aparte.
+> **Son DOS imágenes**, no una: `registry.local/autoops-backend` (Spring Boot, build multi-stage Maven) y
+> `registry.local/autoops-frontend` (Angular construido con `npm` y servido por nginx). Los Dockerfiles son
+> **compartidos** por todo el monorepo: `docker/backend.Dockerfile` y `docker/frontend.Dockerfile`. El corpus
+> del RAG se hornea en la imagen del backend (`deploy.sh` lo copia al contexto desde `CORPUS_DIR`).
 
-Convención de etiquetado: `autoops/mcp:<versión>` con SemVer manual (`0.1.0` para el MVP). En local no hay
-registry: `imagePullPolicy: IfNotPresent`.
+`autoops-backend` se empaqueta con un **build multi-stage** para producir una imagen pequeña sin requerir Java
+instalado en quien construye (solo Docker/nerdctl).
+
+Convención de etiquetado: `registry.local/autoops-<componente>:<versión>` (SemVer manual). Push al registry
+local; `imagePullPolicy: IfNotPresent`. **Pasa siempre un `--tag` único por build** (mismo tag = el pod no se
+actualiza). Lo orquesta `infra/scripts/deploy.sh --project autoops --component backend|frontend|all`.
 
 ## 1. Dockerfile
 

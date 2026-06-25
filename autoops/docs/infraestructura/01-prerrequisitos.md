@@ -14,11 +14,13 @@
 Opcionales pero recomendadas:
 
 - **k9s** — TUI para inspeccionar el clúster cómodamente.
-- **Helm 3** — solo para instalar el controlador NGINX Ingress en Minikube (en Docker Desktop basta un
-  `kubectl apply`).
+- **Helm 3** — viene con Rancher Desktop; lo usa `deploy.sh` y el stack de observabilidad.
 
-> Ya **no** hace falta Node.js: no hay frontend Angular. El chat de búsqueda es una UI estática mínima servida
-> por la propia app.
+> **Node.js 20+ SÍ hace falta**: AutoOps tiene un **frontend Angular separado** (`autoops/frontend/`,
+> chat de búsqueda) que se construye con `npm` y se sirve por nginx en su propia imagen.
+
+> **Clúster real:** el portfolio usa **Rancher Desktop (k3s)** con ingress **Traefik** (no Docker
+> Desktop + nginx-ingress). El registry local es `registry.local`. Ver `infra/INFRA.md`.
 
 ## Elección del clúster local
 
