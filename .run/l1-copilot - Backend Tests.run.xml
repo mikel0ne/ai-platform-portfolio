@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Backend - Tests" type="MavenRunConfiguration" factoryName="Maven">
+  <configuration default="false" name="l1-copilot · Backend Tests" type="MavenRunConfiguration" factoryName="Maven">
     <MavenSettings>
       <option name="myGeneralSettings" />
       <option name="myRunnerSettings" />
@@ -23,7 +23,7 @@
             <list />
           </option>
           <option name="resolveToWorkspace" value="false" />
-          <option name="workingDirPath" value="" />
+          <option name="workingDirPath" value="$PROJECT_DIR$/l1-copilot/backend" />
         </MavenRunnerParameters>
       </option>
     </MavenSettings>
