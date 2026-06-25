@@ -7,8 +7,9 @@
 # NUNCA modifica el clúster ni lee Secrets.
 #
 # Lo aplica deploy.sh automáticamente (convención rbac-<project>.yaml) tras crear
-# el namespace. El values del backend referencia este SA con:
-#   serviceAccount: { create: true, name: autoops-mcp }
+# el namespace. El values del backend referencia este SA (sin crearlo, create:false
+# — su ciclo de vida es cluster-scoped, fuera del release de Helm) con:
+#   serviceAccount: { create: false, name: autoops-mcp }
 #
 # Verificación (las dos últimas DEBEN dar "no"):
 #   kubectl auth can-i list pods    --as=system:serviceaccount:autoops:autoops-mcp -A  # yes
