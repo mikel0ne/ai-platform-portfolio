@@ -12,7 +12,7 @@ graph LR
 
 - **Frontend Angular**: SPA con interfaz de chat y un selector de "usuario logueado" simulado. No contiene lógica de negocio.
 - **Backend Spring Boot**: aloja el grafo LangGraph4j, las tools, el acceso a datos y la integración con Gemini. Es el único componente con la API key.
-- **Gemini (Google AI Studio)**: LLM usado para enrutamiento de intención, extracción de entidades y redacción de respuestas. Modelo: `gemini-2.5-flash-lite`.
+- **Gemini (Google AI Studio)**: LLM usado para enrutamiento de intención, extracción de entidades y redacción de respuestas. Modelo: `gemini-3.1-flash-lite`.
 - **Base de datos**: H2 en memoria en desarrollo (perfil `dev`); PostgreSQL desplegado con Helm en el namespace `infra` de Rancher Desktop en producción (ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)).
 
 ## Vista de contenedores/componentes del backend (C4 nivel 2-3)
@@ -20,31 +20,33 @@ graph LR
 ```mermaid
 graph TB
     subgraph Backend [Spring Boot]
-        C[ChatController<br/>REST] --> CS[ConversationService]
-        CS --> G[CompiledGraph&lt;AgentState&gt;<br/>LangGraph4j]
-        G --> N1[Nodo router]
-        G --> N2[Nodo tracking]
-        G --> N3[Nodo cancel]
-        G --> N4[Nodo support]
-        G --> N5[Nodo responder]
-        N1 & N2 & N3 & N4 & N5 --> LC[LangChain4j<br/>ChatLanguageModel Gemini]
-        N2 & N3 & N4 --> T[Tools Java<br/>OrderTools / TicketTools]
-        T --> R[Spring Data JPA<br/>OrderRepository, TicketRepository]
+        C[ChatController / TicketController /<br/>ReturnController · REST] --> CS[ConversationService]
+        CS --> G[CompiledGraph&lt;SupportState&gt;<br/>LangGraph4j]
+        G --> RT[SupportRouting<br/>aristas condicionales]
+        G --> ND[15 nodos: router, verify, clarify,<br/>resolve_order, tracking, cancel_check/exec,<br/>return_check/exec, support, tickets, faq,<br/>chatty, fallback, respond]
+        ND --> AI[AiServices LangChain4j<br/>IntentClassifier, Verifier,<br/>Responder, TicketWriter]
+        AI --> LC[ChatModel Gemini<br/>+ CachingChatModel / FileCacheManager]
+        ND --> T[Tools Java<br/>OrderTools / TicketTools]
+        T --> R[Spring Data JPA<br/>Order / Ticket / UserRepository]
         G --> CP[(Checkpointer<br/>MemorySaver por threadId)]
+        CS --> TL[TurnLogger → turn_log]
     end
     R --> DB[(BD)]
+    TL --> DB
 ```
 
 Responsabilidades por capa:
 
 | Capa | Componentes | Responsabilidad |
 |---|---|---|
-| API | `ChatController` | Validar entrada, extraer `userId` (sesión simulada) y `conversationId`, devolver DTOs |
-| Orquestación | `ConversationService` | Invocar el grafo compilado con `RunnableConfig.threadId(conversationId)`, mapear estado final → respuesta |
-| Agente | `SupportAgentGraph` (builder del `StateGraph`), nodos, aristas | Toda la lógica de decisión del agente |
-| Herramientas | `OrderTools`, `TicketTools` | Operaciones deterministas sobre BD, reglas de negocio, anotadas con `@Tool` |
+| API | `ChatController`, `TicketController`, `ReturnController`, `ApiExceptionHandler` | Validar entrada, extraer `userId` (sesión simulada) y `conversationId`, devolver DTOs |
+| Orquestación | `ConversationService`, `TurnLogger` | Invocar el grafo con `RunnableConfig.threadId(conversationId)`, mapear estado→respuesta, registrar el turno (`turn_log`) |
+| Agente | `SupportAgentGraph` (builder), `SupportRouting` (aristas), `SupportState`, 15 nodos | Toda la lógica de decisión del agente |
+| AiServices | `IntentClassifier`, `Verifier`, `Responder`, `TicketWriter`, `FaqKnowledgeBase` | Interfaces `@SystemMessage`; prompts del grafo |
+| Herramientas | `OrderTools`, `TicketTools` | Operaciones deterministas sobre BD, reglas de negocio, `@Tool` |
 | Datos | Entidades + repositorios JPA | Persistencia |
-| Configuración | `Config` (beans LangChain4j), `AgentConfig` (bean `CompiledGraph`) | Wiring |
+| Configuración | `Config` (beans `ChatModel` por temperatura/rol), `AgentConfig` (`CompiledGraph` + `MemorySaver` + AiServices), `config/qualifier/` (`@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`) | Wiring |
+| Caché | `CachingChatModel`, `FileCacheManager` | Cachea respuestas del modelo en fichero |
 
 ## Flujo de una petición extremo a extremo
 
@@ -62,16 +64,16 @@ sequenceDiagram
 
     A->>C: POST /api/chat {conversationId, userId, message}
     C->>S: chat(userId, conversationId, message)
-    S->>G: invoke({messages:[user msg], userId}, threadId=conversationId)
+    S->>G: invoke({userId, userMessage, treatment, history}, threadId=conversationId)
     G->>L: [nodo router] clasifica intención
     L-->>G: TRACKING
-    Note over G: arista condicional → flujo tracking<br/>estado: orderId == null
-    G->>T: [nodo tracking] getRecentOrders("u-001")
+    Note over G: arista condicional → resolve_order<br/>estado: orderId == null
+    G->>T: [nodo resolve_order] getRecentOrders("u-001")
     T->>D: findTop3ByUserId...
     D-->>T: [#123 portátil, #456 ratón]
-    G->>L: [nodo responder] redacta pregunta de desambiguación
+    G->>L: [nodo respond] redacta pregunta de desambiguación
     L-->>G: "Tienes 2 pedidos recientes…¿cuál?"
-    G-->>S: estado final {pendingClarification=true, ...}
+    G-->>S: estado final {awaiting=ORDER_CHOICE, ...}
     Note over G: checkpoint guardado para threadId
     S-->>C: ChatResponse{reply, resolved=false}
     C-->>A: 200 OK
@@ -90,7 +92,7 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 **Motivo:** Encaja con el modelo request/response de REST, evita mantener hilos bloqueados esperando al usuario, y el checkpointer (`MemorySaver`) hace la reanudación trivial. Alternativa descartada: `interruptBefore` + `update_state`, más potente pero innecesariamente compleja para 3 skills.
 
 ### ADR-3: El LLM clasifica, el código decide
-**Decisión:** El nodo router usa el LLM solo para producir una etiqueta (`TRACKING|CANCEL|SUPPORT|OTHER`) con salida estructurada; las aristas condicionales son `switch` Java sobre esa etiqueta. Las reglas de negocio (¿se puede cancelar?) viven en las tools.
+**Decisión:** El nodo router usa el LLM solo para producir una etiqueta (`TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE`, más slots `orderRelated`/`navigation`/`confirmation`) con salida estructurada; las aristas condicionales (`SupportRouting`) son `switch` Java sobre esa etiqueta. Las reglas de negocio (¿se puede cancelar?) viven en las tools.
 **Motivo:** Determinismo, testabilidad (los nodos de decisión se testean sin LLM mockeando el estado) y seguridad.
 
 ### ADR-4: `userId` fuera del alcance del LLM
@@ -99,7 +101,7 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 
 ### ADR-5: H2 en dev, PostgreSQL en despliegue
 **Decisión:** Perfil `dev` con H2 en memoria + seed automático; perfil `prod` con PostgreSQL.
-**Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL separados por dialecto (`schema-h2.sql`/`data-h2.sql` en dev con `spring.sql.init.platform=h2`; versión Postgres en `schema-postgresql.sql`/`data-postgresql.sql` aplicada a la BD del proyecto por `scripts/setup-l1-copilot-db.sh` — ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)). La separación es necesaria porque la aritmética de fechas del seed no es portable entre H2 y PostgreSQL.
+**Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL separados por dialecto (`schema-h2.sql`/`data-h2.sql` en dev con `spring.sql.init.platform=h2`; versión Postgres en `schema-postgresql.sql`/`data-postgresql.sql` aplicada a la BD del proyecto por `l1-copilot/scripts/setup-l1-copilot-db.sh` — ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)). La separación es necesaria porque la aritmética de fechas del seed no es portable entre H2 y PostgreSQL.
 
 ### ADR-6: Memoria conversacional en `MemorySaver`
 **Decisión:** Checkpointer en memoria del proceso.

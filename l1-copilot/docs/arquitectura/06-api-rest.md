@@ -1,6 +1,6 @@
 # 06 — API REST
 
-API mínima entre el frontend Angular y el agente. Convive con los endpoints ya existentes del proyecto (`/api/llm/**`, `/api/cache/**`); el agente añade su propio namespace `/api/copilot/**`.
+API mínima entre el frontend Angular y el agente. El agente vive bajo `/api/copilot/**`; también existe `/api/cache/**` (gestión de la caché). El antiguo andamiaje `/api/llm/**` se eliminó (mejora #2).
 
 ## Endpoints
 
@@ -34,7 +34,7 @@ Semántica de los campos:
 |---|---|
 | `conversationId` | UUID generado por el **frontend** en el primer mensaje y repetido en los siguientes; es el `threadId` del checkpointer |
 | `reply` | texto del agente para mostrar en el chat |
-| `intent` | intención vigente (`TRACKING`/`CANCEL`/`RETURN`/`SUPPORT`/`TICKETS`/`FAQ`/`CHATTY`/`OTHER`) — útil para depurar y para pintar un badge en la UI |
+| `intent` | intención vigente (`TRACKING`/`CANCEL`/`RETURN`/`SUPPORT`/`TICKETS`/`FAQ`/`CHATTY`/`OTHER`/`NONE`) — útil para depurar y para pintar un badge en la UI |
 | `resolved` | `true` cuando la gestión del turno cerró el caso (envío informado, pedido cancelado, devolución iniciada, ticket creado) — la UI puede mostrar "¿algo más?" |
 | `orders` | tarjetas de pedido para renderizar (menú de elección o ilustración del pedido informado) |
 | `tickets` | tarjetas-enlace a incidencias creadas en el turno (abren `/tickets/{id}`) |
@@ -55,10 +55,12 @@ Devuelve los usuarios del seed para el selector de "login" simulado del frontend
 
 ```json
 [
-  { "id": "u-001", "name": "Ana García" },
-  { "id": "u-002", "name": "Luis Pérez" }
+  { "id": "u-001", "name": "Ana García", "age": 28, "avatarUrl": "/assets/avatars/ana.jpg",  "formal": false },
+  { "id": "u-002", "name": "Luis Pérez", "age": 70, "avatarUrl": "/assets/avatars/luis.jpg", "formal": true }
 ]
 ```
+
+(`formal` lo decide el backend según la edad —umbral de `TreatmentPolicy`— para que el frontend ajuste el tono de sus textos.)
 
 ### Endpoints de apoyo (ya existentes / Actuator)
 
@@ -77,7 +79,7 @@ public record ChatResponse(String conversationId, String reply, String intent, b
                            List<TicketCardDto> tickets,
                            List<ReturnCardDto> returns, ConfirmActionDto confirm) {}
 
-public record UserDto(String id, String name) {}
+public record UserDto(String id, String name, int age, String avatarUrl, boolean formal) {}
 ```
 
 > **`ordersSelectable`** distingue de forma determinista las dos situaciones en que el agente emite tarjetas de pedido: el **listado** ofrecido para elegir (`awaiting==ORDER_CHOICE` → `true`, la UI las hace clicables) frente al **detalle del pedido ya en foco** (`false`, no clicables: el usuario ya está dentro). No se infiere del número de tarjetas, porque un listado puede tener un único pedido y el detalle en foco es siempre una sola tarjeta.
@@ -97,20 +99,28 @@ public class ChatController {
 
     private final ConversationService conversationService;
     private final UserRepository userRepository;
+    private final TreatmentPolicy treatmentPolicy;   // decide tú/usted por edad
 
     @PostMapping("/chat")
     public ChatResponse chat(@RequestHeader("X-User-Id") String userId,
                              @Valid @RequestBody ChatRequest request) {
+        ensureKnownUser(userId);   // 401 UnknownUserException si el usuario no existe en BD
         ChatResult result = conversationService.chat(userId, request.conversationId(), request.message());
         return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
-                result.resolved(), result.orders(), result.tickets(), result.returns(), result.confirm());
+                result.resolved(), result.orders(), result.ordersSelectable(),
+                result.tickets(), result.returns(), result.confirm());
     }
 
     @GetMapping("/users")
     public List<UserDto> demoUsers() {
         return userRepository.findAll().stream()
-                .map(u -> new UserDto(u.getId(), u.getName()))
+                .map(u -> new UserDto(u.getId(), u.getName(), u.getAge(),
+                                      u.getAvatarUrl(), treatmentPolicy.isFormal(u)))  // formal: derivado de la edad
                 .toList();
+    }
+
+    private void ensureKnownUser(String userId) {
+        if (!userRepository.existsById(userId)) throw new UnknownUserException(userId);
     }
 }
 ```

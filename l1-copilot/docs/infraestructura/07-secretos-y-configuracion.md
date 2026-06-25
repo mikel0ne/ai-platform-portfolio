@@ -7,10 +7,10 @@ el repo jamás.**
 
 | Dato | Sensible | Dónde vive | Quién lo consume |
 |---|---|---|---|
-| `GEMINI_API_KEY` | 🔴 sí | Secret `gemini-api-key` en `l1-copilot` (creado a mano) | backend |
-| Password de Postgres compartido | 🔴 sí | Secret `postgres-credentials` en `infra` (lo crea [`03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh)) + Secret `postgres-credentials` en `l1-copilot` (creado a mano) | postgres / backend |
+| `GEMINI_API_KEY` | 🔴 sí | Secret `gemini-api-key` en `l1-copilot` (lo sincroniza `deploy.sh` desde `.env.l1-copilot` + `.env.local`) | backend |
+| Password de Postgres compartido | 🔴 sí | Secret `postgres-credentials` en `infra` (lo crea [`03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh)) + Secret `postgres-credentials` en `l1-copilot` (lo sincroniza `deploy.sh`) | postgres / backend |
 | Perfil Spring, URL JDBC, opciones JVM | no | ConfigMap (lo crea el chart a partir de `configmap.data` en `values-l1-copilot-backend.yaml`) | backend |
-| Esquema + seed SQL del proyecto | no | `backend/src/main/resources/schema-postgresql.sql` y `data-postgresql.sql` (en repo) | [`scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) |
+| Esquema + seed SQL del proyecto | no | `l1-copilot/backend/src/main/resources/schema-postgresql.sql` y `data-postgresql.sql` (en repo) | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) |
 | Values del chart (recursos, host, probes…) | no | `infra/values-l1-copilot-*.yaml` (en repo) | helm install/upgrade |
 | Modelo Gemini, TTL caché… | no | `application*.yml` dentro de la imagen | backend |
 
@@ -26,12 +26,13 @@ values/ConfigMap/yml.**
 ## Reglas
 
 1. **Ningún Secret con valores reales en git.** El repo no contiene plantillas YAML
-   de Secret; los Secrets se crean siempre imperativamente (kubectl o
-   `infra/scripts/create-secrets.ps1`). `infra/.gitignore` excluye ficheros `.env*`.
-2. **Los secretos se crean imperativamente:**
-   - Una línea de `kubectl create secret`, o
-   - [`infra/scripts/create-secrets.ps1`](../../infra/scripts/create-secrets.ps1) que
-     lee un `.env` git-ignorado y materializa el Secret (ver §3).
+   de Secret; la `GEMINI_API_KEY` real vive solo en `infra/.env.local` (git-ignored,
+   compartida por todos los proyectos del portfolio).
+   `infra/.gitignore` excluye ficheros `.env*` (salvo los `.example` y los de placeholders).
+2. **Los secretos se materializan desde el `.env`:**
+   - `deploy.sh` los sincroniza en cada despliegue (camino recomendado, ver arriba), o
+   - [`infra/scripts/create-secrets.ps1`](../../infra/scripts/create-secrets.ps1) / una línea
+     de `kubectl create secret` para casos puntuales.
    - En un entorno serio: External Secrets / Sealed Secrets / Vault.
    **Nunca** en `infra/values-*.yaml`: esos values están versionados.
 3. **El backend recibe secretos como variables de entorno** vía `secretEnv` en el
@@ -49,25 +50,33 @@ values/ConfigMap/yml.**
    kubectl get secret gemini-api-key -n l1-copilot -o jsonpath="{.data}" | jq 'keys'
    ```
 
-## Camino recomendado: `create-secrets.ps1` con un `.env`
+## Camino recomendado: `.env.l1-copilot` + `.env.local` sincronizado por `deploy.sh`
 
-Crea un fichero `.env` git-ignorado (p. ej. `secrets-l1-copilot.env`):
+Fuente de verdad única de los Secrets (centralizada, cross-project — ver
+[`infra/INFRA.md`](../../infra/INFRA.md)):
+
+- `infra/.env.l1-copilot` — claves del proyecto con **placeholders** (el `POSTGRES_USER`/
+  `POSTGRES_PASSWORD` ya van con su valor real aquí: son públicos en este POC, ver
+  `infra/INFRA.md`), versionado.
+- `infra/.env.local` — la `GEMINI_API_KEY` **real**, git-ignored, **compartida por todos
+  los proyectos del portfolio** (plantilla: `infra/.env.local.example`).
+- `infra/.env.l1-copilot.local` — override puntual de ESTE proyecto (git-ignored,
+  opcional; plantilla: `infra/.env.l1-copilot.local.example`), p.ej. rotar Postgres
+  solo en tu entorno. Normalmente no hace falta crearlo.
 
 ```env
+# infra/.env.local  (git-ignored, compartido por todos los proyectos)
 GEMINI_API_KEY=AIza...
-POSTGRES_USER=appuser
-POSTGRES_PASSWORD=change-me
 ```
 
-Y materializa los Secrets:
+Qué clave va a qué Secret lo declara `infra/projects/l1-copilot.env` (`SECRETS_BACKEND`):
+`gemini-api-key` ← `GEMINI_API_KEY`; `postgres-credentials` ← `POSTGRES_USER`
+`POSTGRES_PASSWORD`. **`deploy.sh` materializa los Secrets automáticamente** (`sync_secrets`)
+en cada despliegue; no hay que crearlos a mano.
 
-```powershell
-.\infra\scripts\create-secrets.ps1 -Namespace l1-copilot -SecretName gemini-api-key      -EnvFile secrets-l1-copilot.env
-.\infra\scripts\create-secrets.ps1 -Namespace l1-copilot -SecretName postgres-credentials -EnvFile secrets-l1-copilot.env
-```
-
-> El script es idempotente (usa `kubectl apply` con `--dry-run=client -o yaml`); se
-> puede re-ejecutar tras rotar la key.
+> Alternativa puntual (sin desplegar): `infra/scripts/create-secrets.ps1 -Namespace
+> l1-copilot -SecretName <secret> -EnvFile <fichero.env>`, idempotente (usa `kubectl apply`
+> con `--dry-run=client -o yaml`).
 
 ## Por qué la URL JDBC no es secreta
 

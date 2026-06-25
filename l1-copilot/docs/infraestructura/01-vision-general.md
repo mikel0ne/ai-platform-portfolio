@@ -45,19 +45,23 @@ infra por DNS entre namespaces (`postgres.infra.svc.cluster.local`).
 ### D-4: El esquema de la BD del proyecto se aplica con un script propio
 El Postgres compartido se levanta vacío (solo crea `appdb`/`appuser`). Cada proyecto
 crea **su BD y su esquema** con un script propio: en este repo,
-[`scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) crea la BD
-`l1_copilot` y aplica `backend/src/main/resources/schema-postgresql.sql` +
+[`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) crea la
+BD `l1_copilot` y aplica `l1-copilot/backend/src/main/resources/schema-postgresql.sql` +
 `data-postgresql.sql`. El backend arranca con `ddl-auto: validate` y
 `sql.init.mode: never` (no toca el esquema en prod).
 
 - En un entorno real: migraciones Flyway/Liquibase ejecutadas por la app o un Job.
 
-### D-5: Traefik único con host `copilot.localtest.me`
+### D-5: Traefik único con host `l1-copilot.local`
 Un solo host sirve la SPA (`/`) y la API (`/api`): el frontend usa rutas relativas, no
-hay CORS y el modelo es idéntico al de producción. `*.localtest.me` resuelve a
-`127.0.0.1` públicamente → no hay que tocar `C:\Windows\System32\drivers\etc\hosts`.
-El Ingress lo genera el chart `generic-app` con el recurso `Ingress` estándar
-(`ingressClassName: traefik`), no CRDs de Traefik: portable a cualquier controller.
+hay CORS y el modelo es idéntico al de producción. `l1-copilot.local` se resuelve a
+`127.0.0.1` añadiendo una entrada al fichero `hosts` de Windows con
+[`infra/scripts/add-copilot-host.ps1`](../../infra/scripts/add-copilot-host.ps1) (una vez).
+El Ingress (recurso `Ingress` estándar, `ingressClassName: traefik`, no CRDs de Traefik) lo
+aplica el script genérico
+[`infra/scripts/setup-app-ingress.sh --project l1-copilot`](../../infra/scripts/setup-app-ingress.sh),
+**no** el chart del backend (en los values el Ingress va deshabilitado): así una única
+regla enruta `/` → frontend y `/api` → backend.
 
 ### D-6: Chart genérico `generic-app` para las aplicaciones
 Cada app del portfolio se despliega con el mismo chart (Deployment + Service +
@@ -94,17 +98,27 @@ extensión en la arquitectura (ADR-6).
 
 ```
 infra/                                      # FUENTE DE VERDAD de la infraestructura
-├── INFRA.md                                # documentación cross-project de infra
+├── INFRA.md                                # documentación cross-project de infra (canónica)
 ├── .gitignore                              # bloquea .env con secretos
-├── scripts/                                # instalación del clúster e infra compartida
+├── scripts/                                # instalación del clúster + despliegue genérico
 │   ├── 01-install-rancher-desktop.sh           # instala Rancher Desktop (winget desde WSL)
 │   ├── 02-setup-registry.sh                    # registry:2 en namespace registry, NodePort 30500
 │   ├── 03-setup-postgres.sh                    # postgres:16-alpine en namespace infra
 │   ├── 04-setup-postgres-ingress.sh            # opcional: Traefik TCP postgres en localhost:5432
 │   ├── 05-setup-registry-ingress.sh            # opcional: Traefik TCP registry en localhost:15000
+│   ├── 06-setup-weaviate.sh                     # opcional: Weaviate compartido (lo usa AutoOps)
+│   ├── 07-setup-observability.sh               # opcional: stack de observabilidad
+│   ├── deploy.sh                               # GENÉRICO: build+push+secrets+helm por --project/--component
+│   ├── setup-app-ingress.sh                    # GENÉRICO: Ingress de la app por --project
+│   ├── add-copilot-host.ps1                    # Admin: l1-copilot.local → 127.0.0.1 en hosts Windows
 │   ├── add-postgres-host.ps1                   # Admin: postgres.local → 127.0.0.1 en hosts Windows
 │   ├── add-registry-host.ps1                   # Admin: registry.local → 127.0.0.1 en hosts Windows
-│   └── create-secrets.ps1                      # convierte un .env en Secret de K8s
+│   └── create-secrets.ps1                      # convierte un .env en Secret de K8s (uso puntual)
+├── projects/
+│   └── l1-copilot.env                          # descriptor del proyecto (lo leen deploy.sh / setup-app-ingress.sh)
+├── .env.l1-copilot                          # claves del proyecto (placeholders, versionado)
+├── .env.local                               # GEMINI_API_KEY real, compartida por todos los proyectos del portfolio (git-ignored); ejemplo: .env.local.example
+├── .env.l1-copilot.local                    # override puntual de este proyecto, opcional (git-ignored); ejemplo: .env.l1-copilot.local.example
 ├── charts/generic-app/                     # chart Helm reutilizable para apps stateless
 │   ├── Chart.yaml
 │   ├── values.yaml                             # contrato completo (todos los parámetros)
@@ -114,8 +128,9 @@ infra/                                      # FUENTE DE VERDAD de la infraestruc
 ├── values-l1-copilot-backend.yaml          # values del backend (release l1-copilot-backend)
 └── values-l1-copilot-frontend.yaml         # values del frontend (release l1-copilot-frontend)
 
-scripts/                                    # scripts ESPECÍFICOS del proyecto
-└── setup-l1-copilot-db.sh                  # crea BD l1_copilot y aplica schema+seed
+l1-copilot/scripts/                         # scripts ESPECÍFICOS del proyecto
+├── setup-l1-copilot-db.sh                  # crea BD l1_copilot y aplica schema+seed
+└── seed-l1-copilot-db.sh                   # recarga solo el seed (TRUNCATE + INSERT)
 
 docker/
 ├── backend.Dockerfile                      # multi-stage Maven → JRE 17
@@ -135,5 +150,6 @@ graph LR
 ```
 
 El backend no arranca sano sin Postgres y sin la BD del proyecto (readiness incluye la
-conexión). El Ingress lo monta el chart del backend (`values-l1-copilot-backend.yaml`)
-con `ingressExtraPaths` apuntando al Service del frontend.
+conexión). El Ingress **no** lo monta el chart: en los values va deshabilitado y se aplica
+aparte con `infra/scripts/setup-app-ingress.sh --project l1-copilot`, que crea un único
+`Ingress` (`l1-copilot-app`) enrutando `/` → frontend y `/api` → backend.

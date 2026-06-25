@@ -7,7 +7,7 @@ SPA mínima pero cuidada: una interfaz de chat con "login" simulado. Su único t
 | Tema | Decisión |
 |---|---|
 | Versión | Angular 17+ (standalone components, signals, control flow `@if/@for`) |
-| Ubicación | carpeta `frontend/` dentro de este mismo repo (prototipo monorepo; simplifica la demo y el despliegue conjunto) |
+| Ubicación | carpeta `l1-copilot/frontend/` dentro del monorepo (simplifica la demo y el despliegue conjunto) |
 | Estado | servicios con signals; sin NgRx (sobredimensionado aquí) |
 | Estilos | CSS propio o Angular Material (a gusto); diseño tipo chat clásico |
 | Comunicación | `HttpClient` + proxy de desarrollo (`/api` → `localhost:8080`); sin CORS |
@@ -16,13 +16,15 @@ SPA mínima pero cuidada: una interfaz de chat con "login" simulado. Su único t
 ## Estructura
 
 ```
-frontend/
+l1-copilot/frontend/
 ├── proxy.conf.json                  # { "/api": { "target": "http://localhost:8080" } }
 ├── src/app/
 │   ├── app.component.ts             # shell: header con usuario activo + router-outlet
-│   ├── app.routes.ts                # '' → Login, 'chat' → Chat (guard), 'tickets/:id' → detalle, 'returns/:id' → etiqueta de devolución
+│   ├── app.routes.ts                # '' → Login, 'chat' → Chat (authGuard), 'tickets/:id' → detalle, 'returns/:id' → etiqueta de devolución
 │   ├── core/
+│   │   ├── models.ts               # interfaces TS (UserDto, ChatResponse, *Card, etc.)
 │   │   ├── auth.service.ts          # usuario simulado (signal<UserDto|null>, sessionStorage)
+│   │   ├── auth.guard.ts            # authGuard: protege la ruta 'chat'
 │   │   ├── auth.interceptor.ts      # añade X-User-Id a toda petición /api
 │   │   └── chat-api.service.ts      # POST /api/copilot/chat, GET /api/copilot/{users,tickets/:id,returns/:id}
 │   ├── login/
@@ -42,11 +44,16 @@ frontend/
 
 ```ts
 // core/models.ts
-export interface UserDto { id: string; name: string; }
+export interface UserDto {
+  id: string; name: string; age: number;
+  avatarUrl?: string | null;
+  formal: boolean;   // true → trato de usted (lo decide el backend según la edad)
+}
 export interface ChatRequest { conversationId: string; message: string; }
 export interface ChatResponse {
   conversationId: string;
   reply: string;
+  // Contrato correcto (debe reflejar el enum Intent del backend, incluido TICKETS):
   intent: 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'TICKETS' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
   resolved: boolean;
   orders?: OrderCard[];     // tarjetas de pedido (listado para elegir o detalle en foco)
@@ -142,12 +149,12 @@ Detalles de UX que venden el prototipo:
 ## Arranque en desarrollo
 
 ```bash
-cd frontend
+cd l1-copilot/frontend
 npm install
 ng serve --proxy-config proxy.conf.json   # http://localhost:4200, /api → :8080
 ```
 
-Backend en paralelo: `cd backend && mvn spring-boot:run` con `GEMINI_API_KEY` exportada.
+Backend en paralelo: `cd l1-copilot/backend && mvn spring-boot:run` con `GEMINI_API_KEY` exportada.
 
 ## Build de producción
 

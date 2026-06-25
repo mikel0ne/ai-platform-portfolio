@@ -8,17 +8,29 @@ Documento central del agente. Define el estado, los nodos, las aristas y el cicl
 graph TB
     START((START)) --> router
 
-    router{{"router<br/>(LLM: clasifica intención<br/>+ extrae orderId si aparece)"}}
+    router{{"router<br/>(LLM: intención + foco/<br/>navegación/confirmación)"}}
 
-    router -->|TRACKING / CANCEL / RETURN<br/>sin orderId| resolve_order
-    router -->|TRACKING con orderId| tracking
-    router -->|CANCEL con orderId| cancel_check
-    router -->|RETURN con orderId| return_check
-    router -->|SUPPORT sobre pedido<br/>sin orderId| resolve_order
-    router -->|SUPPORT genérica / con orderId| support
+    router -->|"CANCEL / RETURN / SUPPORT<br/>acción fresca (revalidar)"| verify
+    router -->|"TRACKING/CANCEL/RETURN/<br/>SUPPORT sin foco"| resolve_order
+    router -->|TRACKING con foco| tracking
+    router -->|CANCEL con foco en curso| cancel_check
+    router -->|RETURN con foco en curso| return_check
+    router -->|SUPPORT genérica| support
+    router -->|TICKETS| tickets
     router -->|FAQ| faq
     router -->|CHATTY| chatty
     router -->|OTHER| fallback
+
+    verify{{"verify<br/>(LLM: SURE / DOUBT / REJECT<br/>sobre la decisión del router)"}}
+    verify -->|SURE → ejecuta| tracking
+    verify -->|SURE| cancel_check
+    verify -->|SURE| return_check
+    verify -->|SURE (falta foco)| resolve_order
+    verify -->|SURE| support
+    verify -->|DOUBT| clarify
+    verify -->|REJECT| fallback
+
+    clarify["clarify<br/>(pre-arma el gate / pide concretar)"] --> respond
 
     resolve_order["resolve_order<br/>(tool: getRecentOrders<br/>o mapea respuesta del usuario)"]
     resolve_order -->|resuelto e intent=TRACKING| tracking
@@ -30,18 +42,18 @@ graph TB
     tracking["tracking<br/>(tool: trackShipment)"] --> respond
 
     cancel_check["cancel_check<br/>(tool: checkCancellable)"]
-    cancel_check -->|cancelable, sin confirmar| respond
     cancel_check -->|confirmado por usuario| cancel_exec
-    cancel_check -->|no cancelable| respond
+    cancel_check -->|pedir confirmación / no cancelable| respond
     cancel_exec["cancel_exec<br/>(tool: cancelOrder)"] --> respond
 
     return_check["return_check<br/>(tool: checkReturnable)"]
-    return_check -->|devolvible, sin confirmar| respond
     return_check -->|confirmado por usuario| return_exec
-    return_check -->|no devolvible| respond
+    return_check -->|pedir confirmación / no devolvible| respond
     return_exec["return_exec<br/>(tool: requestReturn)"] --> respond
 
-    support["support<br/>(recopila datos del ticket<br/>tool: createTicket cuando completo)"] --> respond
+    support["support<br/>(gate de incidencia;<br/>tool: createTicket cuando completo)"] --> respond
+
+    tickets["tickets<br/>(tool: lista los tickets del usuario)"] --> respond
 
     faq["faq<br/>(base de conocimiento estática:<br/>faq.md vía FaqKnowledgeBase)"] --> respond
 
@@ -55,50 +67,75 @@ graph TB
 Puntos clave:
 
 - **Cada turno HTTP recorre el grafo de `START` a `END`** (ADR-2). El "ciclo" conversacional se materializa entre turnos: el grafo termina con una pregunta, el checkpointer conserva el estado y el siguiente mensaje del usuario reentra por `router`, que ahora ve en el estado que hay una clarificación pendiente.
+- **15 nodos** en total: `router, verify, clarify, resolve_order, tracking, cancel_check, cancel_exec, return_check, return_exec, support, tickets, faq, chatty, fallback, respond`.
+- **`verify` es la red de seguridad de las acciones frescas** (CANCEL/RETURN/SUPPORT sin gestión ya en curso): re-lee la decisión del router y devuelve `SURE` (ejecuta), `DOUBT` (→ `clarify`, suaviza el tono) o `REJECT` (→ `fallback`). Una navegación o una gestión ya en curso **no** se revalidan (ver `navigating`/`awaiting`).
 - `resolve_order` es el **subflujo reutilizable de desambiguación**: lo comparten TRACKING, CANCEL, RETURN y las incidencias SUPPORT que son sobre un pedido (ver [Identificar el pedido como paso previo también en SUPPORT](#identificar-el-pedido-como-paso-previo-también-en-support)).
 - `respond` es el único nodo que redacta texto para el usuario: centraliza tono, idioma y formato.
 
+> **Las aristas condicionales no viven en `SupportAgentGraph`**, sino en la clase aparte
+> [`SupportRouting`](../../backend/src/main/java/io/github/mikel0ne/l1copilot/agent/SupportRouting.java)
+> como funciones estáticas puras (`fromRouter`, `fromVerify`, `fromResolveOrder`,
+> `fromCancelCheck`, `fromReturnCheck`) con constantes `TO_*` para los destinos.
+
 ## El estado: `SupportState`
 
-Extiende `org.bsc.langgraph4j.state.AgentState`. El esquema define cómo se fusionan las actualizaciones parciales que devuelve cada nodo (`Channels.base` = reemplazo, `Channels.appender` = acumulación en lista).
+Extiende `org.bsc.langgraph4j.state.AgentState`. El `SCHEMA` solo declara **un canal explícito**: `history` como `appender` (acumulación). El resto de claves usan el comportamiento por defecto (`Channels.base` = reemplazo) y se **leen** con `value(clave, default)`; no se declaran en el `SCHEMA`. Todos los valores son tipos serializables simples (String, Long, Boolean, Map) para que el checkpointer no necesite serializers a medida.
 
 ```java
 public class SupportState extends AgentState {
 
+    // ÚNICO canal declarado: el historial se ACUMULA (appender). Lo demás es base (reemplazo).
     public static final Map<String, Channel<?>> SCHEMA = Map.of(
-        "messages",        Channels.appender(ArrayList::new), // historial ChatMessage serializado
-        "userId",          Channels.base(() -> ""),
-        "intent",          Channels.base(() -> Intent.NONE.name()), // TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE
-        "suspendedIntent", Channels.base(() -> (String) null),       // gestión en pausa por una digresión (FAQ/CHATTY)
-        "clarifyAttempts", Channels.base(() -> 0),                   // turnos ambiguos seguidos con gestión en curso
-        "orderId",         Channels.base(() -> (Long) null),
-        "candidateOrders", Channels.base(List::of),           // List<OrderSummary> ofrecidos al usuario
-        "awaiting",        Channels.base(() -> Awaiting.NOTHING.name()), // NOTHING|ORDER_CHOICE|CANCEL_CONFIRM|RETURN_CONFIRM|TICKET_CONFIRM|TICKET_INFO
-        "pendingCancelId", Channels.base(() -> 0L),                   // pedido a la espera de confirmar cancelación (botón)
-        "pendingReturnId", Channels.base(() -> 0L),                   // pedido a la espera de confirmar devolución (botón)
-        "ticketDraft",     Channels.base(() -> (String) null),
-        "toolResult",      Channels.base(() -> (String) null), // resultado serializado de la última tool
-        "resolved",        Channels.base(() -> false)
+        "history", Channels.appender(ArrayList::new)   // "USER: ..."/"AGENT: ..."
     );
 
     public SupportState(Map<String, Object> initData) { super(initData); }
 
-    public String userId()            { return this.<String>value("userId").orElseThrow(); }
-    public Intent intent()            { return Intent.valueOf(this.<String>value("intent").orElse("NONE")); }
-    public Optional<Long> orderId()   { return this.value("orderId"); }
-    public Awaiting awaiting()        { return Awaiting.valueOf(this.<String>value("awaiting").orElse("NOTHING")); }
-    public List<OrderSummary> candidateOrders() { return this.<List<OrderSummary>>value("candidateOrders").orElse(List.of()); }
-    public boolean resolved()         { return this.<Boolean>value("resolved").orElse(false); }
-    public Optional<String> toolResult() { return this.value("toolResult"); }
-    public List<ChatMessage> messages()  { return this.<List<ChatMessage>>value("messages").orElse(List.of()); }
+    // --- Identidad y turno ---
+    public String userId();          // lo fija la capa HTTP, jamás el LLM
+    public String userMessage();     // último mensaje del usuario (este turno)
+    public Treatment treatment();    // registro tú/usted (lo siembra el servicio)
+    public List<String> history();   // historial acumulado (canal appender)
+
+    // --- Intención y foco ---
+    public Intent intent();                    // TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE
+    public Optional<Intent> suspendedIntent(); // gestión en pausa por digresión FAQ/CHATTY
+    public Optional<Long> orderId();           // pedido en foco (comprometido)
+    public Optional<Long> proposedOrderId();   // foco propuesto por el router, sin comprometer (lo asciende verify)
+    public List<String> candidates();          // pedidos ofrecidos para desambiguar (texto plano)
+    public Awaiting awaiting();                // pregunta pendiente del turno anterior
+
+    // --- Verificación y navegación ---
+    public Verdict verdict();        // SURE|DOUBT|REJECT (lo fija verify; default SURE)
+    public boolean tentative();      // avanzar con decisión solo "plausible" (suaviza el tono)
+    public boolean navigating();     // BACK_TO_LIST/BACK_TO_MENU: no revalidar en verify
+    public int clarifyAttempts();    // turnos ambiguos seguidos con gestión en curso
+
+    // --- Acciones con confirmación (human-in-the-loop) ---
+    public boolean cancellable();   public Optional<Long> pendingCancelId();
+    public boolean returnable();    public Optional<Long> pendingReturnId();
+    public String confirmation();   // YES|NO|NONE detectado por el router
+    public boolean orderRelated();  // ¿la incidencia SUPPORT es sobre un pedido?
+    public String ticketDraft();    // borrador de incidencia acumulado entre turnos
+
+    // --- Salida del turno ---
+    public String toolResult();   // ÚNICA fuente de datos del nodo respond
+    public String reply();        // respuesta final del turno
+    public boolean resolved();    // el turno cerró la gestión
+    public List<Map<String,Object>> orderCards();   // tarjetas para la UI (hoy Map; ver mejora #8)
+    public List<Map<String,Object>> ticketCards();
+    public List<Map<String,Object>> returnCards();
 }
 ```
 
 Enums de control (decisiones de flujo **en Java**, no en prompts):
 
 ```java
-public enum Intent  { TRACKING, CANCEL, RETURN, SUPPORT, TICKETS, FAQ, CHATTY, OTHER, NONE }
-public enum Awaiting { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TICKET_CONFIRM, TICKET_INFO }
+public enum Intent     { TRACKING, CANCEL, RETURN, SUPPORT, TICKETS, FAQ, CHATTY, OTHER, NONE }
+public enum Awaiting   { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TICKET_CONFIRM, TICKET_INFO }
+public enum Verdict    { SURE, DOUBT, REJECT }                       // veredicto de verify
+public enum Navigation { NONE, BACK_TO_LIST, BACK_TO_MENU, BACK }    // navegación jerárquica
+public enum Treatment  { TU, USTED }                                 // registro de tratamiento
 ```
 
 `awaiting` es la pieza que implementa el ciclo: indica **qué pregunta dejó pendiente el turno anterior**, para que el router del turno siguiente interprete el mensaje del usuario como respuesta a esa pregunta y no como una petición nueva (aunque también debe detectar cambios de tema: "déjalo, mejor cancela el otro").
@@ -107,12 +144,16 @@ public enum Awaiting { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TI
 
 ## Construcción del grafo
 
+El builder solo cablea nodos y aristas; **la lógica de las aristas vive en `SupportRouting`** (funciones estáticas puras + constantes `TO_*`). Constructor con los **15 nodos** reales:
+
 ```java
 @Component
 @RequiredArgsConstructor
 public class SupportAgentGraph {
 
     private final RouterNode routerNode;
+    private final VerifyNode verifyNode;
+    private final ClarifyNode clarifyNode;
     private final ResolveOrderNode resolveOrderNode;
     private final TrackingNode trackingNode;
     private final CancelCheckNode cancelCheckNode;
@@ -120,13 +161,17 @@ public class SupportAgentGraph {
     private final ReturnCheckNode returnCheckNode;
     private final ReturnExecNode returnExecNode;
     private final SupportNode supportNode;
+    private final TicketsNode ticketsNode;
     private final FaqNode faqNode;
+    private final ChattyNode chattyNode;
     private final FallbackNode fallbackNode;
     private final RespondNode respondNode;
 
     public StateGraph<SupportState> build() throws GraphStateException {
-        return new StateGraph<>(SupportState.SCHEMA, stateSerializer())
+        return new StateGraph<>(SupportState.SCHEMA, SupportState::new)
             .addNode("router",        node_async(routerNode))
+            .addNode("verify",        node_async(verifyNode))
+            .addNode("clarify",       node_async(clarifyNode))
             .addNode("resolve_order", node_async(resolveOrderNode))
             .addNode("tracking",      node_async(trackingNode))
             .addNode("cancel_check",  node_async(cancelCheckNode))
@@ -134,6 +179,7 @@ public class SupportAgentGraph {
             .addNode("return_check",  node_async(returnCheckNode))
             .addNode("return_exec",   node_async(returnExecNode))
             .addNode("support",       node_async(supportNode))
+            .addNode("tickets",       node_async(ticketsNode))
             .addNode("faq",           node_async(faqNode))
             .addNode("chatty",        node_async(chattyNode))
             .addNode("fallback",      node_async(fallbackNode))
@@ -141,90 +187,68 @@ public class SupportAgentGraph {
 
             .addEdge(START, "router")
 
-            .addConditionalEdges("router",
-                edge_async(this::routeFromRouter),
-                Map.of(
-                    "resolve_order", "resolve_order",
-                    "tracking",      "tracking",
-                    "cancel_check",  "cancel_check",
-                    "return_check",  "return_check",
-                    "support",       "support",
-                    "faq",           "faq",
-                    "chatty",        "chatty",
-                    "fallback",      "fallback"))
+            // Aristas extraídas a SupportRouting (funciones estáticas puras):
+            .addConditionalEdges("router", edge_async(SupportRouting::fromRouter), Map.of(
+                    TO_VERIFY, "verify",            TO_RESOLVE_ORDER, "resolve_order",
+                    TO_TRACKING, "tracking",        TO_CANCEL_CHECK, "cancel_check",
+                    TO_RETURN_CHECK, "return_check", TO_SUPPORT, "support",
+                    TO_TICKETS, "tickets",          TO_FAQ, "faq",
+                    TO_CHATTY, "chatty",            TO_FALLBACK, "fallback"))
 
-            .addConditionalEdges("resolve_order",
-                edge_async(this::routeFromResolveOrder),
-                Map.of(
-                    "tracking",     "tracking",
-                    "cancel_check", "cancel_check",
-                    "return_check", "return_check",
-                    "ask_user",     "respond"))
+            .addConditionalEdges("verify", edge_async(SupportRouting::fromVerify), Map.of(
+                    TO_TRACKING, "tracking",        TO_CANCEL_CHECK, "cancel_check",
+                    TO_RETURN_CHECK, "return_check", TO_RESOLVE_ORDER, "resolve_order",
+                    TO_SUPPORT, "support",          TO_CLARIFY, "clarify",
+                    TO_FALLBACK, "fallback"))
+
+            .addEdge("clarify", "respond")
+
+            .addConditionalEdges("resolve_order", edge_async(SupportRouting::fromResolveOrder), Map.of(
+                    TO_TRACKING, "tracking",        TO_CANCEL_CHECK, "cancel_check",
+                    TO_RETURN_CHECK, "return_check", TO_SUPPORT, "support",
+                    TO_ASK_USER, "respond"))
+
+            .addConditionalEdges("cancel_check", edge_async(SupportRouting::fromCancelCheck), Map.of(
+                    TO_CANCEL_EXEC, "cancel_exec",  TO_ASK_USER, "respond"))
+
+            .addConditionalEdges("return_check", edge_async(SupportRouting::fromReturnCheck), Map.of(
+                    TO_RETURN_EXEC, "return_exec",  TO_ASK_USER, "respond"))
 
             .addEdge("tracking", "respond")
-
-            .addConditionalEdges("cancel_check",
-                edge_async(this::routeFromCancelCheck),
-                Map.of(
-                    "execute",  "cancel_exec",
-                    "ask_user", "respond"))
-
-            .addConditionalEdges("return_check",
-                edge_async(this::routeFromReturnCheck),
-                Map.of(
-                    "return_exec", "return_exec",
-                    "ask_user",    "respond"))
-
             .addEdge("cancel_exec", "respond")
             .addEdge("return_exec", "respond")
-            .addEdge("support",  "respond")
-            .addEdge("faq",      "respond")
+            .addEdge("support", "respond")
+            .addEdge("tickets", "respond")
+            .addEdge("faq", "respond")
+            .addEdge("chatty", "respond")
             .addEdge("fallback", "respond")
             .addEdge("respond", END);
-    }
-
-    // ---- Aristas condicionales: Java puro sobre el estado ----
-
-    private String routeFromRouter(SupportState s) {
-        return switch (s.intent()) {
-            case TRACKING -> s.orderId().isPresent() ? "tracking" : "resolve_order";
-            case CANCEL   -> s.orderId().isPresent() ? "cancel_check" : "resolve_order";
-            case RETURN   -> s.orderId().isPresent() ? "return_check" : "resolve_order";
-            // SUPPORT sobre un pedido sin foco: identifica el pedido antes de abrir el ticket.
-            // Una incidencia genérica (orderRelated=false) va directa a support.
-            case SUPPORT  -> supportNeedsOrder(s) ? "resolve_order" : "support";
-            case FAQ      -> "faq";
-            case CHATTY   -> "chatty";
-            default       -> "fallback";
-        };
-    }
-
-    private String routeFromResolveOrder(SupportState s) {
-        if (s.orderId().isEmpty()) return "ask_user";          // sigue ambiguo → preguntar
-        return switch (s.intent()) {
-            case CANCEL -> "cancel_check";
-            case RETURN -> "return_check";
-            case SUPPORT -> "support";   // pedido identificado → retoma la incidencia
-            default     -> "tracking";
-        };
-    }
-
-    private String routeFromCancelCheck(SupportState s) {
-        // cancel_check deja en el estado si el pedido es cancelable y si el usuario ya confirmó
-        boolean confirmed = s.awaiting() == Awaiting.NOTHING; // el nodo limpia awaiting al recibir confirmación
-        boolean cancellable = s.<Boolean>value("cancellable").orElse(false);
-        return (cancellable && confirmed) ? "execute" : "ask_user";
-    }
-
-    private String routeFromReturnCheck(SupportState s) {
-        // return_check deja en el estado si el pedido es devolvible y si el usuario ya confirmó
-        boolean returnable = s.<Boolean>value("returnable").orElse(false);
-        return (returnable && "YES".equals(s.confirmation())) ? "return_exec" : "ask_user";
     }
 }
 ```
 
-Imports estáticos relevantes: `org.bsc.langgraph4j.StateGraph.START`, `...END`, `org.bsc.langgraph4j.action.AsyncNodeAction.node_async`, `org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async`.
+> Nota: `TO_CANCEL_EXEC` vale literalmente `"execute"` (el resto de constantes coinciden con
+> el nombre del nodo). El serializer es `SupportState::new` (no hay serializer a medida).
+
+Las funciones de arista en `SupportRouting` son Java puro sobre el estado, p. ej.:
+
+```java
+public static String fromRouter(SupportState s) {
+    return switch (s.intent()) {
+        case TRACKING -> s.orderId().isPresent() ? TO_TRACKING : TO_RESOLVE_ORDER;
+        case CANCEL   -> routeAction(s, TO_CANCEL_CHECK);   // acción fresca → verify; en curso → check
+        case RETURN   -> routeAction(s, TO_RETURN_CHECK);
+        case SUPPORT  -> supportNeedsOrder(s) ? TO_RESOLVE_ORDER : routeAction(s, TO_SUPPORT);
+        case TICKETS  -> TO_TICKETS;
+        case FAQ      -> TO_FAQ;
+        case CHATTY   -> TO_CHATTY;
+        default       -> TO_FALLBACK;
+    };
+}
+// fromVerify: SURE → destino real; DOUBT → TO_CLARIFY; REJECT → TO_FALLBACK
+```
+
+Imports estáticos relevantes: `org.bsc.langgraph4j.StateGraph.START`, `...END`, `node_async`, `edge_async`, y las constantes `SupportRouting.TO_*`.
 
 ## Contrato de los nodos
 
@@ -250,7 +274,7 @@ public class RouterNode implements NodeAction<SupportState> {
         RouterDecision d = classifier.classify(
             lastUserMessage,
             state.awaiting().name(),
-            state.candidateOrders().toString());
+            state.candidates().toString());
 
         Map<String, Object> updates = new HashMap<>();
         if (d.intent() != Intent.NONE)  updates.put("intent", d.intent().name());
@@ -365,7 +389,8 @@ public Map<String, Object> apply(SupportState state) {
         return Map.of("orderId", recent.get(0).id(),
                       "awaiting", Awaiting.NOTHING.name());
 
-    return Map.of("candidateOrders", recent,    // varios → preguntar (el turno acabará en respond)
+    return Map.of("candidates", toLabels(recent),  // varios → preguntar (texto plano; ver SupportState)
+                  "orderCards", toCards(recent),    // tarjetas para la UI
                   "awaiting", Awaiting.ORDER_CHOICE.name(),
                   "toolResult", toJson(recent));
 }
@@ -402,9 +427,10 @@ public Map<String, Object> apply(SupportState state) {
     String reply = responder.write(           // AiService: redacta en español, tono cercano,
         state.intent().name(),                // sin inventar datos: SOLO puede usar toolResult
         state.awaiting().name(),
-        state.toolResult().orElse("(sin datos)"),
+        state.toolResult(),                   // String (vacío si no hay datos)
         lastUserText(state));
-    return Map.of("messages", List.of(AiMessage.from(reply)));
+    // history es el único canal appender; reply es base (reemplazo)
+    return Map.of("reply", reply, "history", List.of("AGENT: " + reply));
 }
 ```
 
@@ -455,17 +481,18 @@ public ChatResult chat(String userId, String conversationId, String message) {
             .build();
 
     var state = supportAgent.invoke(
-            Map.of("messages", List.of(UserMessage.from(message)),
-                   "userId", userId),
+            Map.of("userId", userId,
+                   "userMessage", message,
+                   "treatment", treatment.name(),
+                   "history", List.of("USER: " + message)),  // + reseteo de campos efímeros del turno
             config)
         .orElseThrow(() -> new IllegalStateException("El grafo no devolvió estado"));
 
-    String reply = lastAiText(state);
-    return new ChatResult(reply, state.intent().name(), state.resolved());
+    return new ChatResult(state.reply(), state.intent().name(), state.resolved());
 }
 ```
 
-Con el mismo `threadId`, `MemorySaver` restaura `intent`, `candidateOrders`, `awaiting`, etc. — así "El portátil" del segundo turno se entiende sin repetir nada.
+Con el mismo `threadId`, `MemorySaver` restaura `intent`, `candidates`, `awaiting`, `orderId`, etc. — así "El portátil" del segundo turno se entiende sin repetir nada.
 
 ## Observabilidad y testing del grafo
 

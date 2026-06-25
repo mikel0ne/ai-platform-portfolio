@@ -8,7 +8,7 @@
 |---|---|---|---|
 | Registry de imágenes | [`infra/scripts/02-setup-registry.sh`](../../infra/scripts/02-setup-registry.sh) | `registry` | NodePort `localhost:30500` |
 | PostgreSQL 16 (Alpine) | [`infra/scripts/03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh) | `infra` | en-cluster `postgres.infra.svc.cluster.local:5432` · NodePort `localhost:15432` |
-| BD del proyecto | [`scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | (dentro de Postgres) | BD `l1_copilot`, user `appuser` |
+| BD del proyecto | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | (dentro de Postgres) | BD `l1_copilot`, user `appuser` |
 
 ## 1. Registry de imágenes
 
@@ -29,9 +29,13 @@ curl -s http://localhost:30500/v2/_catalog        # {"repositories":[...]}
 Uso (en builds posteriores):
 
 ```bash
-docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./backend
+docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile l1-copilot/backend
 docker push registry.local/l1-copilot-backend:1.0.0
 ```
+
+> En la práctica no se hace a mano: `infra/scripts/deploy.sh --project l1-copilot
+> --component backend --tag <tag>` ya construye y empuja con el contexto correcto
+> (`CONTEXT_BACKEND="l1-copilot/backend"`, declarado en `infra/projects/l1-copilot.env`).
 
 El hostname canónico es `registry.local` (sin puerto, vía Traefik 80/443). El
 NodePort `localhost:30500` sigue disponible como fallback. Para que esto funcione,
@@ -83,18 +87,18 @@ al NodePort `postgres.local:15432`:
 
 | Script | Qué hace |
 |---|---|
-| [`scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | Crea la BD `l1_copilot` si no existe, aplica el esquema y al final llama al seed. Idempotente. |
-| [`scripts/seed-l1-copilot-db.sh`](../../scripts/seed-l1-copilot-db.sh) | Solo recarga el seed (`TRUNCATE` + `INSERT`). Útil cuando has corrompido los datos de demo o quieres reset. |
+| [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | Crea la BD `l1_copilot` si no existe, aplica el esquema y al final llama al seed. Idempotente. |
+| [`l1-copilot/scripts/seed-l1-copilot-db.sh`](../../scripts/seed-l1-copilot-db.sh) | Solo recarga el seed (`TRUNCATE` + `INSERT`). Útil cuando has corrompido los datos de demo o quieres reset. |
 
 ```bash
 # Bootstrap completo (BD + esquema + seed)
-bash scripts/setup-l1-copilot-db.sh
+bash l1-copilot/scripts/setup-l1-copilot-db.sh
 
 # Solo esquema (sin datos)
-bash scripts/setup-l1-copilot-db.sh --no-seed
+bash l1-copilot/scripts/setup-l1-copilot-db.sh --no-seed
 
 # Solo recargar el seed (BD ya existe)
-bash scripts/seed-l1-copilot-db.sh
+bash l1-copilot/scripts/seed-l1-copilot-db.sh
 ```
 
 Idempotencia:
@@ -135,7 +139,7 @@ BD `l1_copilot` muestra los pedidos del seed (#123 IN_DELIVERY, #456 PAID, #789 
 
 ```bash
 # Reaplicar el seed (idempotente: TRUNCATE + INSERT en el .sql)
-bash scripts/setup-l1-copilot-db.sh --reseed
+bash l1-copilot/scripts/seed-l1-copilot-db.sh
 
 # Backup
 kubectl exec -n infra deploy/postgres -- pg_dump -U appuser l1_copilot > backup.sql
@@ -153,7 +157,7 @@ kubectl exec -n infra deploy/postgres -- psql -U appuser -d postgres \
 | Síntoma | Causa típica | Arreglo |
 |---|---|---|
 | `docker push localhost:30500/...` falla | NodePort no expuesto o daemon Docker sin registry inseguro | re-ejecutar `02-setup-registry.sh` (idempotente) |
-| `setup-l1-copilot-db.sh` falla con "no such file" | no estás en la raíz del repo | `cd` al directorio que contiene `backend/`, `infra/`, `scripts/` |
+| `setup-l1-copilot-db.sh` falla con "no such file" | no estás en la raíz del repo | `cd` a la raíz del repo (la que contiene `l1-copilot/`, `infra/`, `docker/`) |
 | Backend: `password authentication failed` | el Secret `postgres-credentials` del namespace `l1-copilot` no coincide con `appuser/change-me` | regenerar el Secret (guía 07) |
-| Seed cargado dos veces (duplicados) | re-ejecutaste con `--reseed` y el SQL no incluye `TRUNCATE` | `TRUNCATE` está en `data-postgresql.sql`; revisar |
+| Seed cargado dos veces (duplicados) | re-ejecutaste `seed-l1-copilot-db.sh` y el SQL no incluye `TRUNCATE` | `TRUNCATE` está en `data-postgresql.sql`; revisar |
 | Pod postgres `CrashLoopBackOff` | PVC corrupto tras parada brusca | borrar PVC: `kubectl delete pvc postgres-pvc -n infra` (pierdes datos) y re-ejecutar `03-setup-postgres.sh` |

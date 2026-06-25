@@ -51,9 +51,35 @@ El usuario reporta un problema (producto roto, no funciona…). El agente:
 2. Recopila en varios turnos la información mínima del ticket: pedido afectado (opcional), descripción del problema.
 3. Crea un ticket en BD con `createTicket(userId, orderId?, descripcion)` y devuelve el número de ticket y expectativas ("un agente humano te contactará").
 
-### Intención residual (`OTHER` / smalltalk)
+> El gate de incidencia (human-in-the-loop) pasa por `verify` (revalida la acción), `support`
+> (acumula el borrador con confirmación) y, ante duda, `clarify`. Si la incidencia es sobre un
+> pedido sin foco, identifica primero el pedido (`resolve_order`).
 
-Saludos, preguntas fuera de dominio, etc. El agente responde cortésmente, explica qué sabe hacer y no inventa capacidades. Es el camino por defecto del router.
+### 5. Consulta de tickets (`TICKETS`)
+
+El usuario pregunta por sus incidencias abiertas ("¿cómo va mi reclamación?", "mis tickets").
+El nodo `tickets` lista los tickets del usuario (filtrados por `userId`) y los muestra como
+tarjetas-enlace al detalle (`/tickets/{id}`).
+
+### 6. Preguntas generales (`FAQ`)
+
+Dudas no ligadas a un pedido concreto (plazos de envío, política de devoluciones, pagos,
+garantía…). `FaqNode` usa una **base de conocimiento estática** (`faq.md` vía
+`FaqKnowledgeBase`), sin tools de dominio ni llamada extra al LLM; `respond` cita solo lo
+relevante. No es RAG: es un documento curado cargado en memoria.
+
+### 7. Charla informal (`CHATTY`)
+
+Smalltalk ("¿cómo te llamas?", bromas, cortesías). Se responde breve y neutro y, deliberadamente,
+**no toca ningún canal de negocio**. Puede aparecer como digresión en mitad de una gestión
+(se suspende la tarea y se retoma después, ver `suspendedIntent` en la guía 04).
+
+### Intención residual (`OTHER`)
+
+Lo que el router no clasifica con confianza. Si hay una gestión en curso entra en **modo
+aclaración** (`fallback` pide concretar sobre el pedido en foco); si no, presenta las
+capacidades del asistente. Es el camino por defecto del router. (`NONE` es el estado inicial
+sin intención todavía detectada.)
 
 ## Escenario de referencia (el que debe funcionar de punta a punta)
 
@@ -69,7 +95,7 @@ Este escenario ejercita: enrutamiento, detección de información faltante, ejec
 | Requisito | Decisión |
 |---|---|
 | Seguridad del dato | El `userId` viaja del frontend al backend (token simulado) y se inyecta en las tools desde código; el LLM nunca decide de qué usuario se consultan datos |
-| Coste / cuota | Gemini `gemini-2.5-flash-lite` (capa gratuita de AI Studio); el router y los nodos usan prompts cortos |
+| Coste / cuota | Gemini `gemini-3.1-flash-lite` (capa gratuita de AI Studio); el router y los nodos usan prompts cortos |
 | Persistencia | H2 en `dev` para arrancar sin nada instalado; PostgreSQL en despliegue Kubernetes |
 | Memoria conversacional | `MemorySaver` (en memoria) en el prototipo; el diseño deja el `BaseCheckpointSaver` como punto de extensión para persistirlo |
 | Observabilidad | Logs estructurados por nodo del grafo (`---ROUTER---`, `---TRACKING---`…), Actuator health |
