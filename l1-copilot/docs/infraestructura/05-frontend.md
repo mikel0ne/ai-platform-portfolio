@@ -1,7 +1,7 @@
 # 05 — Frontend (Angular + nginx)
 
 **Prerrequisitos:** guía 04 (backend desplegado), frontend implementado en
-`frontend/` (Fase 5 del plan de arquitectura).
+`l1-copilot/frontend/` (Fase 5 del plan de arquitectura).
 **Resultado:** SPA servida por nginx en el clúster como `l1-copilot-frontend:80`,
 desplegada con el chart `generic-app`.
 
@@ -27,17 +27,28 @@ El `frontend-nginx.conf` hace dos cosas y solo dos:
 Build y push:
 
 ```bash
-docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile ./frontend
+docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile l1-copilot/frontend
 docker push registry.local/l1-copilot-frontend:1.0.0
 ```
 
-## 2. Desplegar con el chart `generic-app`
+> El contexto de build es `l1-copilot/frontend` (declarado como `CONTEXT_FRONTEND` en
+> `infra/projects/l1-copilot.env`). En la práctica lo hace `deploy.sh`, que además copia
+> `docker/frontend-nginx.conf` al contexto antes de construir.
+
+## 2. Desplegar
+
+Forma real (recomendada):
+
+```bash
+infra/scripts/deploy.sh --project l1-copilot --component frontend --tag <tag-único>
+kubectl rollout status deploy/l1-copilot-frontend -n l1-copilot
+```
+
+Lo que hace por dentro con el chart `generic-app`:
 
 ```bash
 helm upgrade --install l1-copilot-frontend infra/charts/generic-app \
-  -f infra/values-l1-copilot-frontend.yaml
-
-kubectl rollout status deploy/l1-copilot-frontend -n l1-copilot
+  -f infra/values-l1-copilot-frontend.yaml --set image.tag=<tag-único>
 ```
 
 Puntos clave del values
@@ -48,8 +59,8 @@ Puntos clave del values
 - Probes HTTP a `/` (nginx responde el index).
 - Recursos mínimos: requests 16Mi/10m, limits 64Mi/100m.
 - Service ClusterIP `l1-copilot-frontend:80`.
-- **`ingress.enabled: false`** — el Ingress lo aplica el script
-  `infra/scripts/06-setup-app-ingress.sh` directamente con `kubectl`. Ver guía 06.
+- **`ingress.enabled: false`** — el Ingress lo aplica el script genérico
+  `infra/scripts/setup-app-ingress.sh --project l1-copilot` con `kubectl`. Ver guía 06.
 - `runAsNonRoot: false` porque la imagen `nginx:alpine` corre como root; si quieres
   estricto, construir sobre `nginxinc/nginx-unprivileged` (puerto 8080) y ajustar
   `container.port`.

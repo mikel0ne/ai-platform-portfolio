@@ -2,7 +2,7 @@
 
 Plan troceado en **fases independientes y demostrables**, pensado para ejecutarse en sesiones/conversaciones separadas. Cada fase indica: entradas (docs a releer), tareas, y criterio de aceptación (DoD) verificable.
 
-> **Estado:** Fases 0-5 ✅ completadas (backend funcional con 28 tests en verde; frontend Angular 17 en `frontend/` con 9 tests en verde). Pendientes: Fase 6 (demo y cierre) y Fase 7 (despliegue K8s). Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`.
+> **Estado:** Fases 0-7 ✅ completadas. Backend funcional, frontend Angular en `l1-copilot/frontend/` y despliegue en K8s verificado (`l1-copilot.local`). El proyecto vive en el monorepo (`l1-copilot/`), no en repos separados. Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`. Además, sobre el alcance original se añadieron las skills `RETURN`, `TICKETS`, `FAQ` y `CHATTY`, los nodos `verify`/`clarify`, navegación jerárquica (BACK_*), digresión con retorno, tratamiento tú/usted, caché de respuestas y `turn_log`. El trabajo de mejora continúa por el [backlog](../mejoras/00-resumen.md).
 
 ```mermaid
 gantt
@@ -28,11 +28,11 @@ gantt
 **Releer:** [07 — Organización del código](07-organizacion-codigo.md) (nota de compatibilidad).
 
 1. Consultar la matriz de versiones de [langgraph4j](https://github.com/langgraph4j/langgraph4j) y fijar el par `langgraph4j` / `langchain4j` (previsiblemente ambos 1.x).
-2. Subir `langchain4j` en el `pom.xml`; añadir `langchain4j` (AiServices), `langgraph4j-core`, `langgraph4j-langchain4j`, `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`, `h2`, `postgresql`.
-3. Adaptar el código existente a la API 1.x: `Config.java` (`ChatLanguageModel`→`ChatModel` si aplica), `LlmService.generate()`→`chat()`.
-4. Smoke test: `mvn test` + arrancar y probar `/api/llm` por Swagger con `GEMINI_API_KEY`.
+2. Subir `langchain4j` en el `pom.xml`; añadir `langchain4j` (AiServices), `langgraph4j-core`, `langchain4j-google-ai-gemini`, `langchain4j-open-ai`, `spring-boot-starter-data-jpa`, `spring-boot-starter-validation`, `h2`, `postgresql`. (Nota: **no** hizo falta `langgraph4j-langchain4j`; el estado usa tipos serializables simples, basta el serializer por defecto.)
+3. Adaptar el código existente a la API 1.x: `Config.java` (`ChatLanguageModel`→`ChatModel`, `generate()`→`chat()`).
+4. Smoke test: `mvn test` + arrancar y probar por Swagger con `GEMINI_API_KEY`.
 
-**DoD:** la app arranca, el endpoint LLM existente responde, `mvn dependency:tree` sin conflictos de langchain4j duplicado.
+**DoD:** la app arranca, `mvn dependency:tree` sin conflictos de langchain4j duplicado. (El andamiaje `LlmController`/`LlmService` que existía aquí se retiró después, ver mejora #2.)
 
 ## Fase 1 — Dominio y datos
 
@@ -59,7 +59,7 @@ gantt
 
 **Releer:** [04 — Grafo LangGraph4j](04-grafo-langgraph.md) **y** los ejemplos de `llms-lgraph.txt` (adaptive-rag y memory-agent).
 
-1. `SupportState` + `SCHEMA` + enums `Intent`/`Awaiting`; elegir `StateSerializer` compatible con `ChatMessage` (módulo `langgraph4j-langchain4j`).
+1. `SupportState` + `SCHEMA` (solo canal `history` como appender) + enums `Intent`/`Awaiting`/`Verdict`/`Navigation`/`Treatment`; estado con tipos serializables simples (sin serializer a medida).
 2. AiServices: `IntentClassifier` (salida estructurada `RouterDecision`) y `Responder`; probarlos sueltos con un `main`/test `@Tag("llm")`.
 3. Nodos en orden de dificultad: `FallbackNode` → `RespondNode` → `RouterNode` → `TrackingNode` → `ResolveOrderNode` → `CancelCheckNode`/`CancelExecNode` → `SupportNode`.
 4. `SupportAgentGraph.build()` con las aristas condicionales (funciones puras) + `AgentConfig` (compile con `MemorySaver`).
@@ -87,7 +87,7 @@ gantt
 3. Chat: store con signals, burbujas, typing indicator, badge de intención, nueva conversación.
 4. Tests de `ChatStore` e interceptor.
 
-**DoD:** demo end-to-end en local (dos terminales: `cd backend && mvn spring-boot:run` + `cd frontend && ng serve`) con los 3 escenarios.
+**DoD:** demo end-to-end en local (dos terminales: `cd l1-copilot/backend && mvn spring-boot:run` + `cd l1-copilot/frontend && ng serve`) con los 3 escenarios.
 
 ## Fase 6 — Demo y documentación de cierre
 
@@ -99,7 +99,7 @@ gantt
 
 ## Fase 7 — Despliegue en Kubernetes
 
-**Seguir [`docs/infraestructura/`](../infraestructura/README.md)** (guías 01-08): imágenes Docker de backend y frontend (Dockerfiles en `docker/`), PostgreSQL y Registry instalados por los scripts de `infra/scripts/`, BD del proyecto creada con `scripts/setup-l1-copilot-db.sh`, Secrets (`GEMINI_API_KEY`, credenciales BD) y app desplegada con el chart `infra/charts/generic-app` parametrizado por `infra/values-l1-copilot-{backend,frontend}.yaml`.
+**Seguir [`docs/infraestructura/`](../infraestructura/README.md)** (guías 01-08): imágenes Docker de backend y frontend (Dockerfiles en `docker/`), PostgreSQL y Registry instalados por los scripts de `infra/scripts/`, BD del proyecto creada con `l1-copilot/scripts/setup-l1-copilot-db.sh`, y app desplegada con `infra/scripts/deploy.sh --project l1-copilot --component <c>` (build + push + Secrets + chart `generic-app` parametrizado por `infra/values-l1-copilot-{backend,frontend}.yaml`), con el Ingress aplicado por `infra/scripts/setup-app-ingress.sh --project l1-copilot`.
 
 **DoD:** los 3 escenarios funcionan accediendo por el Ingress del clúster local.
 

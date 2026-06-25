@@ -7,9 +7,9 @@ smoke test extremo a extremo superado.
 
 ## 1. Reglas de enrutado
 
-El Ingress **no lo genera el chart de Helm** — se aplica directamente con el script
-[`infra/scripts/06-setup-app-ingress.sh`](../../infra/scripts/06-setup-app-ingress.sh).
-En los values del backend e del frontend `ingress.enabled: false`.
+El Ingress **no lo genera el chart de Helm** — se aplica directamente con el script genérico
+[`infra/scripts/setup-app-ingress.sh`](../../infra/scripts/setup-app-ingress.sh) pasándole
+`--project l1-copilot`. En los values del backend y del frontend `ingress.enabled: false`.
 
 Dos paths, sin puertos adicionales, puerto 80 estándar de Traefik:
 
@@ -43,7 +43,7 @@ Add-Content C:\Windows\System32\drivers\etc\hosts "`n127.0.0.1 l1-copilot.local"
 ## 2. Aplicar el Ingress
 
 ```bash
-bash infra/scripts/06-setup-app-ingress.sh
+bash infra/scripts/setup-app-ingress.sh --project l1-copilot
 ```
 
 ```bash
@@ -88,7 +88,7 @@ que el estado conversacional sobrevivió entre peticiones (mismo `conversationId
 |---|---|---|
 | 404 en todas las rutas | Ingress sin `ingressClassName: traefik` o Traefik deshabilitado en Rancher Desktop | Preferences → Kubernetes → Traefik habilitado; `kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik` |
 | 502/504 en `/api` | backend not ready o Service/puerto mal | `kubectl get endpoints l1-copilot-backend-generic-app -n l1-copilot` |
-| SPA carga pero `/api` da 404 | Ingress no aplicado | `bash infra/scripts/06-setup-app-ingress.sh` |
+| SPA carga pero `/api` da 404 | Ingress no aplicado | `bash infra/scripts/setup-app-ingress.sh --project l1-copilot` |
 | `l1-copilot.local` no resuelve | falta entrada en el fichero hosts | ejecutar `infra/scripts/add-copilot-host.ps1` como Administrador |
 | Nada responde en el puerto 80 | otro proceso ocupa el 80 en Windows (IIS, etc.) | liberar el puerto; Traefik publica en localhost:80 |
 | El turno 2 "olvida" el turno 1 | pod del backend reciclado entre turnos (o >1 réplica) | `kubectl get pods`: ¿RESTARTS? mantener `replicaCount: 1`; estado en memoria (D-8) |

@@ -30,7 +30,8 @@ public class OrderTools {
     public List<OrderSummary> getRecentOrders(@P("ID del usuario logueado") String userId) {
         return orderRepository.findTop3ByUserIdOrderByOrderDateDesc(userId).stream()
                 .map(o -> new OrderSummary(o.getId(), o.getDescription(),
-                                           o.getStatus().name(), o.getOrderDate()))
+                                           o.getStatus().name(), o.getOrderDate(),
+                                           o.getImageUrl()))
                 .toList();
     }
 
@@ -42,13 +43,14 @@ public class OrderTools {
     }
 
     @Tool("Comprueba si un pedido puede cancelarse según las reglas de negocio, sin cancelarlo")
-    public CancellationResult checkCancellable(Long orderId, String userId) {
+    public CancellationCheck checkCancellable(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
-        if (o.getStatus().isCancellable())
-            return new CancellationResult(orderId, false, "CANCELABLE"); // aún no ejecutado
-        return new CancellationResult(orderId, false,
-                "NO_CANCELABLE: el pedido está en estado " + o.getStatus()
-                + " y ya no puede cancelarse");
+        boolean cancellable = o.getStatus().isCancellable();
+        // DTO de SOLO comprobación (gate), distinto de CancellationResult (ejecución)
+        return new CancellationCheck(orderId, cancellable,
+                cancellable ? "CANCELABLE"
+                            : "NO_CANCELABLE: el pedido está en estado " + o.getStatus()
+                              + " y ya no puede cancelarse");
     }
 
     @Tool("Cancela un pedido del usuario si las reglas de negocio lo permiten")

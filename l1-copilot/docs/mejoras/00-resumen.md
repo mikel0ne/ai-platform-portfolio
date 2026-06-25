@@ -19,12 +19,12 @@ decisión.
 - **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
 - **✅ #12**: Qualifiers tipados (`@Deterministic`/`@ResponseModel`/`@TicketModel`/`@ChattyModel`)
-- **✅ #13**: CI + cobertura (`.github/workflows/ci.yml` + JaCoCo en `pom.xml`)
 - **✅ #15**: Validación declarativa (`@NotNull`/`@NotBlank`/`@Email`/`@Positive`) en las entidades JPA
 - **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
 - **✅ #17**: Seed separado por dialecto (`*-h2.sql` con `platform=h2` / `*-postgresql.sql`); fin del `DATEADD` en Postgres
+- **🟦 #13 (parcial)**: JaCoCo configurado en `backend/pom.xml` (medición de cobertura, sin umbral bloqueante); falta el workflow de CI (`.github/workflows/ci.yml` aún no existe)
 
-Pendientes: #4, #5, #7–#11, #14 (8 de 17)
+Pendientes: #4, #5, #7–#11, #14 (8 de 17). Parcial: #13.
 
 ---
 
@@ -37,7 +37,7 @@ regresiones funcionales**. Son los más seguros para empezar:
 |---|-------|-------------|:---:|
 | 5 | Sincronizar documentación (modelos, diagramas) | Solo ficheros `.md` (`README.md`, `docs/`) | Nulo |
 | 6 | Aislamiento de tests | Solo ficheros de test (`SupportAgentFlowTest.java`); cero código de producción | ~Nulo (tests) |
-| 13 | Añadir CI + cobertura (JaCoCo) | Añade `.github/workflows/` y plugin en `pom.xml`; no toca runtime | ~Nulo (build/infra) |
+| 13 | Añadir CI + cobertura (JaCoCo) | Añade `.github/workflows/` y plugin en `pom.xml`; no toca runtime | ~Nulo (build/infra) — *JaCoCo hecho; falta el workflow CI* |
 | 1 | Password local a variable de entorno | Solo `application-local.yml` (perfil local); con default explícito el arranque es idéntico | ~Nulo (config) |
 
 > **#5** es 100 % documentación (cero código). **#6** solo toca los propios tests, nunca
@@ -73,7 +73,7 @@ Cada punto lleva dos etiquetas:
 | 10 | Unificar nodos Cancel/Return duplicados | 🟡 | ⭐⭐ | Medio | ⏳ |
 | 11 | Revisar prompts (indicaciones, no frases literales) | 🟠 | ⭐⭐ | Medio | ⏳ |
 | 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio | ✅ |
-| 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | ✅ |
+| 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | 🟦 Parcial |
 | 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
 | 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ✅ |
 | 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ✅ |
@@ -93,7 +93,8 @@ en `application-local.yml`.
 - **Por qué no estaba bien:** quedaba para siempre en el historial de git; rotarla obligaba a un
   commit; cualquiera que clone la veía. Era mala práctica aunque fuera solo "local".
 - **Cómo se solucionó:** se lee de variable de entorno con un default explícito
-  (`${DB_PASSWORD:change-me}`), igual que ya se hace en el perfil prod.
+  (`${SPRING_DATASOURCE_PASSWORD:change-me}` en `application-local.yml`; el perfil base
+  `application.yml` usa `${SPRING_DATASOURCE_PASSWORD}` sin default).
 
 ### 2. Eliminar o sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅
 
@@ -128,13 +129,15 @@ borrado.
   y que el routing pregunte ahí. Una sola fuente de verdad.
 
 ### 5. Sincronizar la documentación 🟡 ⭐⭐⭐
-- **Qué es:** el README cita modelos `gemini-2.5-*` cuando el código usa
-  `gemini-3.1-flash-lite`; los diagramas del grafo difieren entre README, `docs/grafo.md`
-  y el código.
+- **Qué es:** varios docs citan el modelo `gemini-2.5-*` cuando el código usa
+  `gemini-3.1-flash-lite` (en `docs/arquitectura/01`, `02`, `07`, `09` y en
+  `docs/infraestructura/04-backend.md`; el `README.md` raíz no menciona l1-copilot). Los
+  diagramas y el `SCHEMA` del grafo en `docs/arquitectura/04-grafo-langgraph.md` quedaron
+  desfasados respecto al código (15 nodos reales vs los documentados, estado real distinto).
 - **Por qué no está bien:** la documentación es la fuente de verdad de las decisiones de
   diseño en este proyecto; si miente, deja de servir y confunde.
-- **Cómo se soluciona:** actualizar nombres de modelo y dejar un único diagrama canónico
-  del grafo referenciado desde el resto.
+- **Cómo se soluciona:** actualizar nombres de modelo y regenerar el diagrama/estado
+  canónico del grafo en `04-grafo-langgraph.md`, referenciado desde el resto.
 
 ### 6. Aislamiento de tests 🔴 ⭐⭐ ✅
 
@@ -209,18 +212,19 @@ Ya no queda ningún `@Qualifier("string")` en el proyecto.
 - **Cómo se soluciona:** anotaciones `@Qualifier` propias y tipadas (p. ej.
   `@Deterministic`, `@ResponseModel`, `@ChatModel`).
 
-### 13. Añadir CI + cobertura 🟠 ⭐⭐ ✅
+### 13. Añadir CI + cobertura 🟠 ⭐⭐ 🟦 Parcial
 
-**Estado:** COMPLETO. Workflow en `.github/workflows/ci.yml` y JaCoCo configurado en
-`backend/pom.xml` con umbral mínimo de cobertura.
+**Estado:** PARCIAL. JaCoCo está configurado en `backend/pom.xml` (`jacoco-maven-plugin`
+con `prepare-agent` + `report`), pero **sin umbral que bloquee el build** y **sin workflow
+de CI**: a día de hoy no existe ningún `.github/workflows/` en el repo.
 
-- **Qué era:** no había pipeline (`.github/workflows/`) ni medición de cobertura (JaCoCo).
-- **Por qué no estaba bien:** los tests no se ejecutaban solos en cada cambio; nada impedía
+- **Qué es:** no hay pipeline (`.github/workflows/`); la cobertura sí se mide (JaCoCo) pero
+  no se ejecuta automáticamente en cada cambio.
+- **Por qué no está bien:** los tests no se ejecutan solos en cada cambio; nada impide
   introducir una regresión sin enterarse.
-- **Cómo se solucionó:** workflow mínimo de build+test en cada push/PR a todas las ramas;
-  plugin de cobertura (JaCoCo) con reporte y umbral configurable (no bloqueante de momento,
-  para permite evolución gradual). El workflow ejecuta `mvn -B test` desde el directorio
-  `backend/` con JDK 17.
+- **Qué falta:** crear el workflow de build+test (`mvn -B test` desde `l1-copilot/backend/`
+  con JDK 17) en cada push/PR. El reporte de cobertura ya existe; el umbral sigue siendo
+  no bloqueante (opcional volverlo bloqueante más adelante).
 
 ### 14. Adelgazar `RouterNode` 🟡 ⭐
 - **Qué es:** concentra clasificación + extracción de foco + navegación + digresión en una

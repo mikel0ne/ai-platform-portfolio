@@ -8,8 +8,9 @@ ficha N. Cada ficha es autocontenida.
 
 ## Contexto mínimo del proyecto (leer una vez)
 
-- **Backend**: Spring Boot 3.5 + Java 17, en `backend/`. Paquete raíz
-  `io.github.mikel0ne.l1copilot`. Maven; correr SIEMPRE desde `backend/`: `cd backend && mvn test`.
+- **Backend**: Spring Boot 3.5 + Java 17, en `l1-copilot/backend/` (módulo Maven
+  `l1-copilot-backend`). Paquete raíz `io.github.mikel0ne.l1copilot`. Correr SIEMPRE desde el
+  backend: `cd l1-copilot/backend && mvn test`.
 - **Agente**: LangGraph4j. Grafo en `agent/SupportAgentGraph.java`, routing determinista en
   `agent/SupportRouting.java`, estado en `agent/SupportState.java`, nodos en `agent/node/`,
   servicios LLM (AiServices) en `agent/llm/`.
@@ -25,7 +26,8 @@ ficha N. Cada ficha es autocontenida.
 
 ## Convenciones de las fichas
 
-- **Ficheros**: rutas relativas a la raíz del repo.
+- **Ficheros**: rutas relativas a la raíz del **proyecto** (`l1-copilot/`); p. ej.
+  `backend/...` es `l1-copilot/backend/...` y `docs/...` es `l1-copilot/docs/...`.
 - **Verificación**: por defecto `cd backend && mvn test`. Para un test concreto:
   `cd backend && mvn -Dtest=NombreTest test`.
 - **Regla de oro**: tras el cambio, los ~28 tests deben seguir verdes. Si tocas
@@ -36,14 +38,16 @@ ficha N. Cada ficha es autocontenida.
 
 ## #1 — Password local fuera del YAML 🟠 ⭐⭐⭐ · riesgo ~0 (config) ✅ DONE
 
-**Estado:** COMPLETADO. La contraseña se lee de `${DB_PASSWORD:change-me}` en
-`application-local.yml`.
+**Estado:** COMPLETADO. La contraseña se lee de `${SPRING_DATASOURCE_PASSWORD:change-me}`
+en `application-local.yml`.
 
-- **Qué se hizo**: se sustituyó el literal `password: change-me` por `${DB_PASSWORD:change-me}`
-  en `backend/src/main/resources/application-local.yml`, igual que el patrón en prod.
+- **Qué se hizo**: se sustituyó el literal `password: change-me` por
+  `${SPRING_DATASOURCE_PASSWORD:change-me}` en
+  `backend/src/main/resources/application-local.yml` (el perfil base `application.yml` usa
+  `${SPRING_DATASOURCE_PASSWORD}` sin default).
 - **Verificación**: `cd backend && mvn test` (no afecta a los tests: perfil `local` se usa solo
   en desarrollo manual). Si se arranca con perfil `local` contra Postgres, se lee de
-  `DB_PASSWORD` si existe, o usa el default si no.
+  `SPRING_DATASOURCE_PASSWORD` si existe, o usa el default si no.
 
 ## #2 — Eliminar/sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅ DONE
 
@@ -104,16 +108,23 @@ default a lista vacía (los 2 tests verdes).
 
 ## #5 — Sincronizar documentación 🟡 ⭐⭐⭐ · riesgo 0 (solo docs)
 
-- **Problema**: README cita `gemini-2.5-*` pero el código usa `gemini-3.1-flash-lite`;
-  diagramas del grafo divergentes.
+- **Problema**: varios docs citan `gemini-2.5-*` pero el código usa `gemini-3.1-flash-lite`;
+  el diagrama y el `SCHEMA`/estado del grafo en `docs/arquitectura/04-grafo-langgraph.md`
+  divergen del código (15 nodos reales). Nota: el `README.md` raíz **no** menciona
+  l1-copilot (es solo de AutoOps), así que el desfase de modelo está en los docs del
+  proyecto, no en el README raíz.
 - **Ficheros (solo `.md`)**:
-  - `README.md` (raíz) — nombres de modelo y diagrama mermaid.
-  - `docs/grafo.md` y `docs/arquitectura/04-grafo-langgraph.md` — diagramas del grafo.
+  - Desfase de modelo `gemini-2.5-*`: `docs/arquitectura/01-vision-y-alcance.md`,
+    `02-arquitectura-sistema.md`, `07-organizacion-codigo.md`, `09-plan-implementacion.md`
+    y `docs/infraestructura/04-backend.md`.
+  - Diagrama/estado del grafo: `docs/arquitectura/04-grafo-langgraph.md` (no existe
+    `docs/grafo.md`).
   - Fuente de verdad del modelo: `backend/src/main/resources/application.yml`
-    (`langchain4j.gemini.model-name`).
-  - Fuente de verdad del grafo: `agent/SupportAgentGraph.java` (método `build()`).
-- **Enfoque**: alinear nombres de modelo con `application*.yml`; elegir UN diagrama canónico
-  (el de `docs/grafo.md`) y que el README lo referencie en vez de duplicar uno desfasado.
+    (`langchain4j.gemini.model-name: gemini-3.1-flash-lite`).
+  - Fuente de verdad del grafo: `agent/SupportAgentGraph.java` (método `build()`) y
+    `agent/SupportState.java` (estado real).
+- **Enfoque**: alinear nombres de modelo con `application*.yml`; regenerar el diagrama y la
+  descripción del estado en `04-grafo-langgraph.md` a partir del código.
 - **Verificación**: revisión visual. No hay tests.
 
 ## #6 — Aislamiento de tests 🔴 ⭐⭐ ✅ DONE
@@ -248,20 +259,23 @@ contexto.
 - **Tests**: el arranque del contexto en `@SpringBootTest` ya valida el cableado.
 - **Verificación**: `cd backend && mvn test`.
 
-## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) ✅ DONE
+## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) 🟦 PARCIAL
 
-**Estado:** COMPLETADO. Workflow en `.github/workflows/ci.yml` y JaCoCo en `backend/pom.xml`.
+**Estado:** PARCIAL. JaCoCo está configurado en `backend/pom.xml`; **falta el workflow de
+CI**: a día de hoy no existe ningún `.github/workflows/` en el repo (solo
+`.github/copilot-instructions.md`).
 
-- **Qué se hizo**:
-  - Nuevo archivo: `.github/workflows/ci.yml` (build + `mvn test` en push/PR a cualquier rama).
-  - Configurado `jacoco-maven-plugin` en `backend/pom.xml` con reporte y umbral mínimo.
-  - Workflow ejecuta `mvn -B test` desde el directorio `backend/` con JDK 17.
-  - Jacoco genera reporte en `target/site/jacoco/` sin bloquear el build si no alcanza el
-    umbral (permite evolución gradual de cobertura).
-- **Verificación**: 
-  - Localmente: `cd backend && mvn test`
-  - En remoto: el workflow se ejecuta automáticamente en cada push/PR. Revisar en
-    `.github/workflows/` y en la pestaña "Actions" del repositorio.
+- **Hecho**:
+  - `jacoco-maven-plugin` en `backend/pom.xml` con `prepare-agent` + `report` (genera
+    reporte en `target/site/jacoco/`). **Sin umbral que bloquee el build** (medición, no
+    gate).
+- **Pendiente**:
+  - Crear `.github/workflows/ci.yml`: build + `mvn -B test` desde `l1-copilot/backend/` con
+    JDK 17, en push/PR a cualquier rama.
+  - (Opcional) Convertir el umbral de cobertura en bloqueante cuando interese.
+- **Verificación**:
+  - Localmente: `cd l1-copilot/backend && mvn test` (ya genera el reporte JaCoCo).
+  - En remoto: una vez creado el workflow, se ejecutará en cada push/PR (pestaña "Actions").
 
 ## #14 — Adelgazar `RouterNode` 🟡 ⭐ (esfuerzo alto, dejar para el final)
 

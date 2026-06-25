@@ -23,24 +23,31 @@ graph TB
             PG[(postgres:16-alpine<br/>BDs: appdb, l1_copilot, ...)]
         end
         subgraph app ["namespace: l1-copilot (una app = un namespace)"]
-            ING[Ingress Traefik<br/>copilot.localtest.me] --> FE[frontend<br/>nginx + Angular]
+            ING[Ingress Traefik<br/>l1-copilot.local] --> FE[frontend<br/>nginx + Angular]
             ING -->|/api| BE[backend<br/>Spring Boot + LangGraph4j]
         end
         BE --> PG
         SEC[Secrets: gemini-api-key,<br/>postgres-credentials] -.-> BE
     end
     BE -->|HTTPS| GEM[Gemini — Google AI Studio]
-    DEV[docker build / push] --> REG
+    DEV[infra/scripts/deploy.sh<br/>build + push + helm] --> REG
 ```
+
+> **Flujo de despliegue real:** las apps se despliegan con el script genérico
+> [`infra/scripts/deploy.sh`](../../infra/scripts/deploy.sh) `--project l1-copilot
+> --component <backend|frontend> --tag <tag>`, parametrizado por el descriptor
+> [`infra/projects/l1-copilot.env`](../../infra/projects/l1-copilot.env). El script hace
+> namespace + Secrets + build + push + `helm upgrade --install` en un solo paso. La fuente
+> de verdad cross-project de infraestructura es [`infra/INFRA.md`](../../infra/INFRA.md).
 
 | Pieza | Cómo se instala | Notas |
 |---|---|---|
 | Clúster | Rancher Desktop (k3s) | Traefik incluido de serie; `kubectl`, `helm`, `docker` vienen con la instalación |
 | Registry | [`infra/scripts/02-setup-registry.sh`](../../infra/scripts/02-setup-registry.sh) | namespace `registry`, NodePort `30500`. Opcional: `05-setup-registry-ingress.sh` añade Traefik TCP en `15000` |
 | PostgreSQL 16 | [`infra/scripts/03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh) | namespace `infra`, NodePort `15432`. Opcional: `04-setup-postgres-ingress.sh` lo expone en `localhost:5432` |
-| BD del proyecto | [`scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | crea `l1_copilot` dentro del Postgres compartido y aplica `schema-postgresql.sql` + `data-postgresql.sql` |
-| Backend / Frontend | chart [`infra/charts/generic-app`](../../infra/charts/generic-app) + values del proyecto en [`infra/values-l1-copilot-*.yaml`](../../infra) | un único chart parametrizable; cada release es una app |
-| Secretos | `kubectl create secret` o [`infra/scripts/create-secrets.ps1`](../../infra/scripts/create-secrets.ps1) | nunca en valores versionados |
+| BD del proyecto | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | crea `l1_copilot` dentro del Postgres compartido y aplica `schema-postgresql.sql` + `data-postgresql.sql` |
+| Backend / Frontend | [`infra/scripts/deploy.sh --project l1-copilot --component <c>`](../../infra/scripts/deploy.sh) (chart [`infra/charts/generic-app`](../../infra/charts/generic-app) + values en [`infra/values-l1-copilot-*.yaml`](../../infra)) | un único script + chart parametrizable; cada release es una app |
+| Secretos | `infra/.env.l1-copilot` + `.env.local` (los sincroniza `deploy.sh`); ver guía 07 | nunca en valores versionados |
 
 > **Réplicas del backend:** 1 réplica y `strategy: Recreate` mientras el checkpointer
 > del grafo sea `MemorySaver` (estado conversacional en memoria del pod). Documentado
@@ -68,25 +75,19 @@ bash infra/scripts/02-setup-registry.sh
 bash infra/scripts/03-setup-postgres.sh
 
 # 2. BD del proyecto dentro del Postgres compartido (desde la raíz del repo)
-bash scripts/setup-l1-copilot-db.sh
+bash l1-copilot/scripts/setup-l1-copilot-db.sh
 
-# 3. Namespace y Secrets de la app
-kubectl apply -f infra/namespace-l1-copilot.yaml
-kubectl create secret generic gemini-api-key -n l1-copilot --from-literal=GEMINI_API_KEY=<key>
-kubectl create secret generic postgres-credentials -n l1-copilot \
-  --from-literal=POSTGRES_USER=appuser \
-  --from-literal=POSTGRES_PASSWORD=change-me
+# 3. Secrets reales (una vez, sirve para todos los proyectos): rellena infra/.env.local
+#    (git-ignored) a partir de infra/.env.local.example  → los sincroniza deploy.sh
 
-# 4. Build + push de las imágenes al registry
-docker build -t localhost:30500/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile .
-docker push localhost:30500/l1-copilot-backend:1.0.0
-docker build -t localhost:30500/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile .
-docker push localhost:30500/l1-copilot-frontend:1.0.0
+# 4. Despliegue de cada componente con el script genérico (namespace + secrets +
+#    build + push + helm, todo en uno). Pasar SIEMPRE un --tag único.
+bash infra/scripts/deploy.sh --project l1-copilot --component backend  --tag "$(date +%s)"
+bash infra/scripts/deploy.sh --project l1-copilot --component frontend --tag "$(date +%s)"
 
-# 5. Despliegue de las apps con el chart genérico
-helm upgrade --install l1-copilot-backend  infra/charts/generic-app -f infra/values-l1-copilot-backend.yaml
-helm upgrade --install l1-copilot-frontend infra/charts/generic-app -f infra/values-l1-copilot-frontend.yaml
+# 5. Ingress de la app (frontend en "/", backend en "/api")
+bash infra/scripts/setup-app-ingress.sh --project l1-copilot
 
-# 6. Acceso
-start http://copilot.localtest.me
+# 6. Acceso (añade el host con infra/scripts/add-copilot-host.ps1 la primera vez)
+start http://l1-copilot.local
 ```

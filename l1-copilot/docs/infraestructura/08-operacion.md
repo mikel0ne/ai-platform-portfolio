@@ -22,18 +22,18 @@ kubectl get events -n l1-copilot --sort-by=.lastTimestamp
 kubectl get events -n infra --sort-by=.lastTimestamp
 ```
 
-Salud HTTP desde fuera: `http://copilot.localtest.me/actuator/health` (vía Traefik,
-guía 06).
+Salud HTTP desde fuera: `http://l1-copilot.local/api/actuator/health` (vía Traefik,
+guía 06; recuerda el `/api` del context-path).
 
 ## Actualizar componentes
 
 | Qué cambió | Pasos |
 |---|---|
-| Código backend | `docker build` con **tag nuevo** → push al registry → `helm upgrade --install l1-copilot-backend infra/charts/generic-app -f infra/values-l1-copilot-backend.yaml --set image.tag=<nuevo>` (Recreate: ~30-60 s de corte; las conversaciones en memoria se pierden) |
-| Código frontend | igual con `l1-copilot-frontend` y su values (rolling, sin corte) |
-| Values del chart (recursos, probes, env…) | editar `infra/values-l1-copilot-*.yaml` → `helm upgrade --install <release> infra/charts/generic-app -f <values>` |
-| Esquema de la BD del proyecto | editar `backend/src/main/resources/schema-postgresql.sql` → `bash scripts/setup-l1-copilot-db.sh` (CREATE TABLE IF NOT EXISTS; para cambios destructivos: `DROP TABLE` o `DROP DATABASE l1_copilot` y re-ejecutar) |
-| Seed de la BD del proyecto | editar `backend/src/main/resources/data-postgresql.sql` → `bash scripts/setup-l1-copilot-db.sh --reseed` |
+| Código backend | `infra/scripts/deploy.sh --project l1-copilot --component backend --tag <nuevo>` (build + push + helm; Recreate: ~30-60 s de corte, las conversaciones en memoria se pierden) |
+| Código frontend | `infra/scripts/deploy.sh --project l1-copilot --component frontend --tag <nuevo>` (rolling, sin corte) |
+| Values del chart (recursos, probes, env…) | editar `infra/values-l1-copilot-*.yaml` → volver a ejecutar `deploy.sh` para ese componente |
+| Esquema de la BD del proyecto | editar `l1-copilot/backend/src/main/resources/schema-postgresql.sql` → `bash l1-copilot/scripts/setup-l1-copilot-db.sh` (CREATE TABLE IF NOT EXISTS; para cambios destructivos: `DROP TABLE` o `DROP DATABASE l1_copilot` y re-ejecutar) |
+| Seed de la BD del proyecto | editar `l1-copilot/backend/src/main/resources/data-postgresql.sql` → `bash l1-copilot/scripts/seed-l1-copilot-db.sh` |
 | Versión del chart Postgres / Registry | re-ejecutar `infra/scripts/03-setup-postgres.sh` o `02-setup-registry.sh` con la imagen nueva (editar la variable `PG_VERSION` o el tag) |
 | Secretos | guía 07 §4 (apply del secret + rollout restart) |
 

@@ -2,62 +2,72 @@
 
 ## Punto de partida
 
-El repo actual (rama `google-ai-studio`) ya aporta:
+El proyecto vive en `l1-copilot/backend/` dentro del **monorepo** (rama `main`; tras la
+reestructuración "un dir por proyecto", `autoops/` y `l1-copilot/` son proyectos separados con
+`infra/`, `docker/` y `scripts/` compartidos en la raíz). El módulo Maven es `l1-copilot-backend`.
+El backend aporta:
 
-- Spring Boot 3.2.x + Java 17 (`pom.xml`).
-- Integración Gemini/Google AI Studio: bean `ChatLanguageModel` en `config/Config.java`, propiedades `langchain4j.gemini.*`.
-- Caché de respuestas en fichero (`cache/FileCacheManager`), Swagger, Actuator.
+- Spring Boot **3.5.15** + Java 17 (`pom.xml`).
+- Integración Gemini/Google AI Studio (`langchain4j-google-ai-gemini`) y un cliente
+  OpenAI-compatible (`langchain4j-open-ai`) para Gemma; beans `ChatModel` en `config/Config.java`,
+  propiedades `langchain4j.gemini.*`.
+- Caché de respuestas en fichero (`cache/FileCacheManager` + `CachingChatModel`), Swagger, Actuator.
 
-El L1 Copilot **se construye encima**, en paquetes nuevos, sin romper los endpoints existentes.
-
-## Árbol de paquetes objetivo
+## Árbol de paquetes (estado real)
 
 ```
-backend/src/main/java/io/github/mikel0ne/l1copilot/
+l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 ├── Application.java
 ├── config/
-│   ├── Config.java                  # beans ChatModel Gemini (1 por temperatura)
-│   ├── LangChain4jProperties.java
-│   ├── qualifier/                   # @Qualifier tipados: @Deterministic, @TicketModel,
-│   │                                #   @ResponseModel, @ChattyModel (ver #12)
-│   └── AgentConfig.java             # CompiledGraph + checkpointer + AiServices
+│   ├── Config.java                  # beans ChatModel Gemini (1 por temperatura/rol)
+│   ├── AgentConfig.java             # CompiledGraph + MemorySaver + AiServices
+│   ├── CacheInitializer.java / CacheProperties.java
+│   ├── ConversationHistoryProperties.java / LangChain4jProperties.java
+│   ├── TreatmentPolicy.java         # umbral tú/usted por edad
+│   └── qualifier/                   # @Deterministic, @TicketModel, @ResponseModel,
+│                                    #   @ChattyModel, @ChattyResponder (ver #12)
 ├── controller/
+│   ├── ChatController.java          # /api/copilot/** (chat + users)
+│   ├── TicketController.java        # /api/copilot/tickets/{id}
+│   ├── ReturnController.java        # /api/copilot/returns/{id}
 │   ├── CacheController.java         # /api/cache/** (clear() oculto: @Hidden)
-│   └── ChatController.java          # /api/copilot/**
+│   └── ApiExceptionHandler.java
 ├── service/
-│   └── ConversationService.java     # invoca el grafo por threadId
-├── agent/                           # NUEVO: todo el agente LangGraph4j
-│   ├── SupportAgentGraph.java       # builder del StateGraph + aristas condicionales
-│   ├── SupportState.java            # AgentState + SCHEMA
-│   ├── Intent.java
-│   ├── Awaiting.java
-│   ├── node/
-│   │   ├── RouterNode.java
-│   │   ├── ResolveOrderNode.java
-│   │   ├── TrackingNode.java
-│   │   ├── CancelCheckNode.java
-│   │   ├── CancelExecNode.java
-│   │   ├── SupportNode.java
-│   │   ├── FallbackNode.java
+│   ├── ConversationService.java     # puente REST→grafo (invoca por threadId)
+│   └── TurnLogger.java              # registro de turnos (turn_log) para evaluación
+├── agent/                           # todo el agente LangGraph4j
+│   ├── SupportAgentGraph.java       # builder del StateGraph (15 nodos)
+│   ├── SupportRouting.java          # aristas condicionales (funciones estáticas + TO_*)
+│   ├── SupportState.java            # AgentState + SCHEMA (solo canal 'history')
+│   ├── Intent.java / Awaiting.java / Verdict.java / Navigation.java / Treatment.java
+│   ├── UiAction.java                # parser de acciones de la UI (clics/botones)
+│   ├── node/                        # 15 nodos:
+│   │   ├── RouterNode.java / VerifyNode.java / ClarifyNode.java
+│   │   ├── ResolveOrderNode.java / TrackingNode.java
+│   │   ├── CancelCheckNode.java / CancelExecNode.java
+│   │   ├── ReturnCheckNode.java / ReturnExecNode.java
+│   │   ├── SupportNode.java / TicketsNode.java
+│   │   ├── FaqNode.java / ChattyNode.java / FallbackNode.java
 │   │   └── RespondNode.java
-│   └── llm/
-│       ├── IntentClassifier.java    # AiService: clasificación estructurada
-│       └── Responder.java           # AiService: redacción de la respuesta
-├── tools/                           # NUEVO
-│   ├── OrderTools.java
-│   └── TicketTools.java
-├── domain/                          # NUEVO
+│   └── llm/                         # AiServices (interfaces con @SystemMessage):
+│       ├── IntentClassifier.java / Responder.java / Verifier.java
+│       ├── TicketWriter.java / FaqKnowledgeBase.java
+├── tools/
+│   ├── OrderTools.java / TicketTools.java
+│   └── OrderNotFoundException.java
+├── domain/
 │   ├── Order.java / OrderStatus.java
 │   ├── Ticket.java / TicketStatus.java
 │   ├── User.java
-│   └── repository/
-│       ├── OrderRepository.java
-│       ├── TicketRepository.java
-│       └── UserRepository.java
-├── dto/                             # NUEVO
+│   └── repository/ (OrderRepository, TicketRepository, UserRepository)
+├── dto/
 │   ├── ChatRequest.java / ChatResponse.java / UserDto.java
-│   └── tools/ (OrderSummary, ShipmentStatus, CancellationResult, TicketCreated)
-└── cache/                           # (existente)
+│   ├── ConfirmActionDto.java
+│   ├── OrderCardDto.java / TicketCardDto.java / TicketDetailDto.java
+│   ├── ReturnCardDto.java / ReturnLabelDto.java
+│   └── tools/ (OrderSummary, ShipmentStatus, CancellationCheck, CancellationResult,
+│              ReturnCheck, ReturnResult, TicketSummary, TicketCreated)
+└── cache/ (CacheEntry, CachingChatModel, FileCacheManager)
 ```
 
 Criterios:
@@ -84,11 +94,20 @@ Criterios:
         <version>${langgraph4j.version}</version>
     </dependency>
 
-    <!-- AiServices de LangChain4j (IntentClassifier, Responder) -->
+    <!-- AiServices de LangChain4j (IntentClassifier, Responder, Verifier, TicketWriter) -->
     <dependency>
         <groupId>dev.langchain4j</groupId>
         <artifactId>langchain4j</artifactId>
-        <version>${langchain4j.version}</version>
+    </dependency>
+    <!-- Cliente nativo Gemini (Google AI Studio) -->
+    <dependency>
+        <groupId>dev.langchain4j</groupId>
+        <artifactId>langchain4j-google-ai-gemini</artifactId>
+    </dependency>
+    <!-- Cliente OpenAI-compatible (modelos Gemma vía endpoint compatible) -->
+    <dependency>
+        <groupId>dev.langchain4j</groupId>
+        <artifactId>langchain4j-open-ai</artifactId>
     </dependency>
 
     <!-- Persistencia -->
@@ -122,10 +141,13 @@ Criterios:
 `application.yml` (común) — se añade:
 
 ```yaml
-copilot:
-  model-name: gemini-2.5-flash-lite   # modelo para router y responder
-  max-recent-orders: 3
+langchain4j:
+  gemini:
+    model-name: gemini-3.1-flash-lite   # modelo para router, verify y responder
 ```
+
+> El `pom.xml` real añade además `jacoco-maven-plugin` (cobertura, sin umbral bloqueante) y
+> un perfil Maven `security` que excluye los tests `@Tag("security")` por defecto.
 
 `application-dev.yml` — se añade:
 
@@ -174,12 +196,17 @@ Secretos: `GEMINI_API_KEY` ya se lee de entorno (patrón existente `${GEMINI_API
 - **Logs de nodos:** prefijo `---NOMBRE---` en DEBUG (patrón de los ejemplos LangGraph4j), con `conversationId` en el MDC para correlar turnos.
 - **Tests:** JUnit 5; unitarios para aristas y tools, `@SpringBootTest` con LLM fakes para el flujo; los tests que llaman a Gemini real van con `@Tag("llm")` y excluidos del build por defecto.
 
-## Ramas de trabajo propuestas
+## Ramas de trabajo (histórico del plan)
 
-| Rama | Contenido |
+> **Nota:** este reparto en feature-branches fue el plan inicial; **no** se siguió tal cual.
+> El proyecto avanzó por fases sobre el monorepo y hoy todo vive en `main` bajo `l1-copilot/`
+> (backend y frontend en el mismo proyecto, no en repos separados). Se conserva como
+> referencia histórica de las fases.
+
+| Fase | Contenido |
 |---|---|
-| `feature/upgrade-lc4j-1x` | Fase 0: subida LangChain4j 1.x + langgraph4j en el pom, adaptación de `Config`/`LlmService` |
-| `feature/domain-jpa` | Fase 1: entidades, repos, seed, perfiles |
-| `feature/agent-graph` | Fases 2-3: estado, nodos, grafo, tools |
-| `feature/copilot-api` | Fase 4: controller, DTOs, errores |
-| `feature/frontend-angular` | Fase 5: SPA (puede ser repo aparte `l1-copilot-frontend`; decisión en el plan) |
+| Fase 0 | Subida LangChain4j 1.x + langgraph4j en el pom, adaptación de `Config` (y retirada del andamiaje `LlmService`, ver mejora #2) |
+| Fase 1 | Entidades, repos, seed, perfiles |
+| Fases 2-3 | Estado, nodos, grafo, tools |
+| Fase 4 | Controller, DTOs, errores |
+| Fase 5 | SPA Angular (en `l1-copilot/frontend/`, mismo proyecto) |
