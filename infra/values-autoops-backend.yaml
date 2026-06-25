@@ -64,9 +64,11 @@ secretEnv:
     secretKey: GEMINI_API_KEY
 
 # ServiceAccount de SOLO LECTURA para las tools K8s (lo crea infra/rbac-autoops.yaml,
-# aplicado por deploy.sh). El chart solo lo referencia en el pod.
+# aplicado por deploy.sh junto al ClusterRole/ClusterRoleBinding). create:false porque
+# el chart NO debe crearlo (su ciclo de vida es cluster-scoped, fuera del release de
+# Helm); el chart solo lo referencia por nombre en el pod.
 serviceAccount:
-  create: true
+  create: false
   name: autoops-mcp
 
 # Actuator en la raíz (AutoOps no usa context-path).

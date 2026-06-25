@@ -33,7 +33,9 @@
 - **Kubernetes**: k3s
 - **Runtime de contenedores**: dockerd (compatibilidad Docker CLI)
 - **Ingress**: Traefik (incluido)
-- **Script**: `scripts/01-install-rancher-desktop.sh`
+- **Script**: `scripts/01-install-rancher-desktop.ps1` (PowerShell nativo, vía winget — preferido,
+  evita depender de WSL2) o `scripts/01-install-rancher-desktop.sh` (mismo winget, pero invocado
+  desde WSL2; solo para este paso puntual, antes de que exista Git Bash con docker/kubectl en el PATH)
 - **Estado**: ✅ Instalado (k3s v1.35.5, CE: moby)
 
 ### 3. PostgreSQL 16 (Alpine)
@@ -279,7 +281,8 @@ infra/
 │   ├── loki-stack-values.yaml              # Values del chart grafana/loki-stack
 │   └── grafana-ingress.yaml                # Ingress Traefik grafana.local
 └── scripts/
-    ├── 01-install-rancher-desktop.sh       # Rancher Desktop (desde WSL2)
+    ├── 01-install-rancher-desktop.ps1      # Rancher Desktop vía winget (preferido, sin WSL2)
+    ├── 01-install-rancher-desktop.sh       # Idem, invocado desde WSL2
     ├── 02-setup-registry.sh                # Registry local en k3s (Deploy + Svc + PVC)
     ├── 03-setup-postgres.sh                # PostgreSQL 16 Alpine en namespace infra
     ├── 04-setup-postgres-ingress.sh        # Traefik TCP -> postgres.local:5432 (+ NodePort 15432)

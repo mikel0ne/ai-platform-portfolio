@@ -50,6 +50,6 @@ if (Test-Path $daemonJson) {
     }
 } else {
     Write-Host "[!] daemon.json no encontrado en $daemonJson." -ForegroundColor Yellow
-    Write-Host "    Ejecuta primero 02-setup-registry.ps1 o añade manualmente:" -ForegroundColor Yellow
+    Write-Host "    Ejecuta primero infra/scripts/02-setup-registry.sh o añade manualmente:" -ForegroundColor Yellow
     Write-Host '    { "insecure-registries": ["registry.local:'"${registryPort}"'"] }' -ForegroundColor Yellow
 }
