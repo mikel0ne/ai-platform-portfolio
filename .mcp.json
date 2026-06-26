@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "autoops": {
+      "type": "sse",
+      "url": "http://autoops.local/sse"
+    }
+  }
+}
