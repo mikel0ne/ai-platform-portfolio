@@ -10,6 +10,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Primary;
 
 /**
  * Implementación por defecto del proveedor: Google AI Studio (Gemini, capa gratuita).
@@ -26,17 +27,36 @@ import org.springframework.context.annotation.Lazy;
 public class GeminiModelConfig {
 
     /**
-     * Embeddings del corpus y de las consultas (indexar y buscar en Weaviate).
+     * Embeddings para <b>indexar</b> el corpus ({@code taskType=RETRIEVAL_DOCUMENT}). Es el bean primario:
+     * cualquier inyección de {@code EmbeddingModel} sin cualificar recibe este.
      * {@code @Lazy}: el cliente del proveedor se construye en el primer uso (RAG, F1), no al arrancar,
      * para que el contexto (servidor MCP + health) levante aunque aún no haya consumidores ni API key.
      */
     @Bean
     @Lazy
+    @Primary
     public EmbeddingModel embeddingModel(LlmProperties props,
                                          @Value("${GEMINI_API_KEY:}") String apiKey) {
         return GoogleAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.embeddingModelName())
+                .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_DOCUMENT)
+                .build();
+    }
+
+    /**
+     * Embeddings para <b>consultar</b> ({@code taskType=RETRIEVAL_QUERY}). Google asimetriza documento vs
+     * consulta: usar el taskType correcto en cada lado mejora la recuperación sin coste. Lo usa
+     * {@code WeaviateGateway.retrieve}; el de indexado, {@code WeaviateGateway.ingest}.
+     */
+    @Bean("queryEmbeddingModel")
+    @Lazy
+    public EmbeddingModel queryEmbeddingModel(LlmProperties props,
+                                              @Value("${GEMINI_API_KEY:}") String apiKey) {
+        return GoogleAiEmbeddingModel.builder()
+                .apiKey(apiKey)
+                .modelName(props.embeddingModelName())
+                .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_QUERY)
                 .build();
     }
 

@@ -102,6 +102,14 @@
             <version>${fabric8.version}</version>
         </dependency>
 
+        <!-- JGit (Java puro): clona repos de documentación para la fuente de ingesta Git, sin depender
+             del binario 'git'. 5.12 no tiene shallow clone (setDepth llegó en 6.3); clona una sola rama. -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>5.12.0.202106070339-r</version>
+        </dependency>
+
         <!-- DevTools -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

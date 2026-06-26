@@ -39,6 +39,11 @@ public class AnswerComposer {
     }
 
     private static String formatChunk(DocChunk c) {
-        return "[" + c.fuente() + " · " + c.seccion() + "]\n" + c.texto();
+        String titulo = c.titulo() == null || c.titulo().isBlank() ? c.fuente() : c.titulo();
+        String cabecera = "[" + titulo + " · " + c.seccion() + "]";
+        if (c.url() != null && !c.url().isBlank()) {
+            cabecera += " (" + c.url() + ")";
+        }
+        return cabecera + "\n" + c.texto();
     }
 }

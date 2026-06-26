@@ -34,7 +34,7 @@ final class TestSupport {
             kRecibidos.add(k);
             double score = scoresPerCall[Math.min(calls, scoresPerCall.length - 1)];
             calls++;
-            return List.of(new DocChunk("texto para: " + consulta, "fuente.md", "seccion", score));
+            return List.of(new DocChunk("texto para: " + consulta, "Título", "fuente.md", "seccion", "", "test", score));
         }
     }
 
