@@ -20,8 +20,12 @@ flowchart LR
         EV[eventos]
         LP[logs_pod]
     end
+    subgraph Observabilidad
+        CL[consultar_logs<br/>histórico cross-pod]
+    end
     BD --> WV[(Weaviate)]
     DP & EP & LW & DE & EV & LP --> K[API Kubernetes]
+    CL --> LK[(Loki)]
 ```
 
 ### 1.1 Documentación
@@ -44,7 +48,20 @@ flowchart LR
 > **`diagnosticar_pod` es la tool estrella**: encapsula el "dossier" que antes era un nodo del grafo. El cliente
 > suele empezar por ella y, si necesita más, pide piezas sueltas (`logs_pod`, `eventos`).
 
-### 1.3 Diferida (no MVP)
+### 1.3 Observabilidad (Loki)
+
+| Tool | Parámetros | Devuelve |
+|---|---|---|
+| `consultar_logs` | `namespace`, `pod?`, `contenedor?`, `texto?`, `desde?`, `hasta?`, `ventanaMinutos=15`, `lineas=200` | Lista de líneas de log (Loki), aplanadas y ordenadas cronológicamente, de **varios pods/namespaces a la vez** en una ventana de tiempo. |
+
+`logs_pod` solo ve el pod actual (equivalente a `kubectl logs`); `consultar_logs` complementa eso con histórico
+agregado y correlación entre pods. Sin `desde`/`hasta`, consulta los últimos `ventanaMinutos` hasta ahora. Para
+acotar a un instante muy concreto (p. ej. correlacionar con un timestamp ya visto en otro log al encadenar
+llamadas entre servicios), `desde`/`hasta` aceptan ISO-8601 con milisegundos
+(`2026-06-26T14:32:07.123Z`) — no hace falta una unidad distinta para precisión fina, basta con pasar el rango
+exacto.
+
+### 1.4 Diferida (no MVP)
 
 `validar_manifiesto(yaml)` — validación sin estado (sintaxis + esquema + políticas). Útil pero **no** es
 depuración de runtime; se pospone.
@@ -229,6 +246,7 @@ el LLM interno (instrucción anti-alucinación: "si los documentos no contienen 
 | Nivel | Qué se prueba | Cómo |
 |---|---|---|
 | Unitario (tools K8s) | Cada `@Tool` de Kubernetes | Cliente fabric8 *mock* (`KubernetesServer` de fabric8) con objetos de fixture. |
+| Unitario (`consultar_logs`) | Construcción de LogQL, resolución de la ventana de tiempo, aplanado de la respuesta de Loki | Métodos `static` puros de `LokiGateway` con fixtures (sin Loki real). |
 | Unitario (nodos CRAG) | `retrieve`/`rerank`/`grade`/`rewrite` aislados | Store y `ChatModel` falsos; aserciones sobre el delta de estado. |
 | Unitario (edge CRAG) | La decisión del bucle | `CragState` con `mejorScore`/`iteraciones` → `ok`/`retry`. |
 | Integración (CRAG) | El bucle converge y termina | Store programado para devolver resultados flojos N veces y luego buenos; aserciones: iteró N veces, terminó. |
