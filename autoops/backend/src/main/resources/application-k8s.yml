@@ -1,6 +1,7 @@
 # Perfil de despliegue en Kubernetes (SPRING_PROFILES_ACTIVE=k8s).
 # Diferencias con el perfil por defecto: Weaviate COMPARTIDO en el namespace
-# `infra` (criterio Postgres: una instancia, una clase por proyecto) y logs INFO.
+# `infra` (criterio Postgres: una instancia, una clase por proyecto), Loki COMPARTIDO
+# en el namespace `observability` y logs INFO.
 # Estos valores los puede sobreescribir el ConfigMap del chart (values-autoops-backend).
 autoops:
   weaviate:
@@ -8,6 +9,9 @@ autoops:
     port: 8080
     grpc-port: 50051
     class-name: AutoopsDocChunk
+  loki:
+    host: loki.observability.svc.cluster.local
+    port: 3100
 
 logging:
   level:

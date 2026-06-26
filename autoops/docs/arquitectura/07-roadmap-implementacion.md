@@ -72,10 +72,13 @@ hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull
 **Objetivo:** logs de aplicaciones en ejecución.
 
 - [ ] `logs_pod` (cola de logs, `previous`, selección de contenedor) sobre `pods/log`.
-- [ ] (Opcional, documentado) backend **Loki** como fuente de logs agregados, vía una tool `consultar_logs`
-      con LogQL — alternativa avanzada al `kubectl logs` directo.
+- [x] Backend **Loki** como fuente de logs agregados, vía la tool `consultar_logs` con LogQL — complementa
+      `logs_pod` con histórico correlacionable entre varios pods/namespaces en una ventana de tiempo
+      (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `ObservabilityTools`).
 
 **Verificación:** `logs_pod` devuelve la cola real de un pod; con `previous=true`, los del arranque anterior.
+`consultar_logs` correlaciona logs de varios pods en una ventana de tiempo (o un instante muy concreto con
+`desde`/`hasta` en milisegundos).
 
 ## F4 — Despliegue en Kubernetes + integración con el cliente
 
@@ -95,7 +98,7 @@ diagnostica un pod roto del clúster.
 
 1. **Reranking afinado / evaluación del RAG**: métricas de calidad de recuperación (hit-rate, MRR) sobre un set
    de preguntas de prueba.
-2. **Tool `consultar_logs` con Loki** (si no se hizo en F3).
+2. ~~Tool `consultar_logs` con Loki~~ — hecho en F3 (ver arriba).
 3. **Tool secundaria `validar_manifiesto`** (sin estado): la única reminiscencia útil del diseño anterior.
 4. **CI con GitHub Actions**: build + tests + imagen.
 5. **Observabilidad**: histograma de iteraciones del bucle CRAG, latencia por tool (Micrometer).

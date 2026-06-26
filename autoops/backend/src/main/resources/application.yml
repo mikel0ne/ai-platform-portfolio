@@ -38,6 +38,11 @@ autoops:
     port: 8088
     grpc-port: 50051
     class-name: DocChunk
+  # Loki: en local, vía port-forward (kubectl port-forward svc/loki 3100:3100 -n observability).
+  loki:
+    scheme: http
+    host: localhost
+    port: 3100
   # Bucle correctivo del RAG (CRAG). El tope de iteraciones garantiza la terminación (doc 03 §3).
   # 'grade' evalúa con el LLM si los chunks responden a la pregunta (sin atajo por score: no es fiable).
   crag:

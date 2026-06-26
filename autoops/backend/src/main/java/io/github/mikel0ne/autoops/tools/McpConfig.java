@@ -19,9 +19,10 @@ public class McpConfig {
     @Bean
     public ToolCallbackProvider autoopsTools(DiagnosticsTools diagnostics,
                                              DocsTools docs,
-                                             KubernetesTools kubernetes) {
+                                             KubernetesTools kubernetes,
+                                             ObservabilityTools observability) {
         return MethodToolCallbackProvider.builder()
-                .toolObjects(diagnostics, docs, kubernetes)
+                .toolObjects(diagnostics, docs, kubernetes, observability)
                 .build();
     }
 }

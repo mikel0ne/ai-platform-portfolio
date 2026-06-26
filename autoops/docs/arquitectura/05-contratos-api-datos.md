@@ -52,6 +52,22 @@ parámetros). Forma canónica de cada una:
 | `eventos` | `{ namespace, objeto? }` | `[{ tipo, motivo, mensaje, hace }]` |
 | `logs_pod` | `{ namespace, nombre, contenedor?, lineas=200, previous=false }` | `String` (cola de logs) |
 
+### `consultar_logs`
+
+```jsonc
+// entrada — sin desde/hasta: últimos ventanaMinutos hasta ahora
+{ "namespace": "autoops", "pod": "autoops-backend-7d9f", "texto": "ERROR", "ventanaMinutos": 15 }
+// entrada — instante concreto (p. ej. correlacionar con un timestamp ya visto en otro log)
+{ "namespace": "autoops", "desde": "2026-06-26T14:32:07.100Z", "hasta": "2026-06-26T14:32:07.900Z" }
+// salida (List<LogEntry>)
+[
+  { "timestamp": "2026-06-26T14:32:07.123Z", "namespace": "autoops", "pod": "autoops-backend-7d9f",
+    "contenedor": "app", "linea": "ERROR no se pudo conectar a weaviate.infra.svc.cluster.local:8080" }
+]
+```
+
+`desde`/`hasta` son ISO-8601 y admiten milisegundos; si se omiten, la ventana es `[ahora - ventanaMinutos, ahora]`.
+
 **Invariante de seguridad:** ninguna tool acepta operaciones de escritura ni expone Secrets. El RBAC del
 ServiceAccount lo garantiza a nivel de clúster (guía de infraestructura `02`).
 
@@ -96,6 +112,8 @@ public record PodDiagnosis(
     public record Contenedor(String nombre, String imagen, int reinicios, String estado, String motivoEstado) {}
     public record Evento(String tipo, String motivo, String mensaje, String hace) {}
 }
+
+public record LogEntry(Instant timestamp, String namespace, String pod, String contenedor, String linea) {}
 ```
 
 ## 4. Esquema de datos (Weaviate)
