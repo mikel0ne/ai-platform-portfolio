@@ -374,6 +374,7 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
     .intent-cancel   { background: #fee2e2; color: #b91c1c; }
     .intent-return   { background: #ccfbf1; color: #0f766e; }
     .intent-support  { background: #ede9fe; color: #6d28d9; }
+    .intent-tickets  { background: #f3e8ff; color: #7c3aed; }
     .intent-faq      { background: #cffafe; color: #0e7490; }
     .intent-chatty   { background: #fce7f3; color: #be185d; }
     .intent-other    { background: #e5e7eb; color: #374151; }
