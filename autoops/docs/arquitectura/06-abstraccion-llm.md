@@ -22,13 +22,17 @@ concreto.**
 
 | Interfaz (la que ven RAG y chat) | Implementación Gemini (solo en `llm/provider`) |
 |---|---|
-| `dev.langchain4j.model.embedding.EmbeddingModel` | `GoogleAiEmbeddingModel` (`text-embedding-004`, 768 dims) |
+| `dev.langchain4j.model.embedding.EmbeddingModel` | `GoogleAiEmbeddingModel` (`gemini-embedding-001`) |
 | `dev.langchain4j.model.chat.ChatModel` | `GoogleAiGeminiChatModel` (`gemini-2.5-flash-lite`) |
+
+> El modelo de embeddings real es **`gemini-embedding-001`**, no `text-embedding-004`: este último **no está
+> disponible en el free tier** de Google AI Studio (lección de despliegue real, ver guía de infraestructura
+> `03-weaviate.md`). La dimensión del vector la fija el modelo configurado, no un valor fijo en el código.
 
 ## 2. Configuración tipada
 
 ```java
-package io.github.mikel0ne.autoops.llm;
+package io.github.mikel0ne.autoops.config;
 
 @Validated
 @ConfigurationProperties("autoops.llm")
@@ -48,7 +52,7 @@ autoops:
   llm:
     provider: gemini
     chat-model-name: gemini-2.5-flash-lite     # mayor cuota gratuita; uso interno
-    embedding-model-name: text-embedding-004   # 768 dims (acoplado a la clase DocChunk de Weaviate)
+    embedding-model-name: gemini-embedding-001 # free tier real (text-embedding-004 no está disponible)
     timeout: 30s
     temperature: 0.2                            # bajo: reformular/redactar, no creatividad
 ```
@@ -95,9 +99,10 @@ Ejemplo: Azure OpenAI. Total: 1 dependencia + 1 clase + configuración. Cero cam
    "azure-openai")`, definiendo `EmbeddingModel` y `ChatModel`.
 3. **Configuración** (despliegue): `AUTOOPS_LLM_PROVIDER=azure-openai`, claves en el Secret y model names en el
    YAML.
-4. **Atención a los embeddings**: si el modelo de embeddings cambia de dimensión (768 de Gemini vs 1536 de
-   `text-embedding-3-small`), hay que **recrear la clase `DocChunk` de Weaviate** con la nueva dimensión y
-   **re-ingestar** el corpus. El LLM interno, en cambio, es intercambiable sin migración.
+4. **Atención a los embeddings**: si el modelo de embeddings cambia de dimensión (la de `gemini-embedding-001`
+   no es la misma que la de `text-embedding-3-small`, p. ej.), hay que **recrear la clase `DocChunk` de
+   Weaviate** con la nueva dimensión y **re-ingestar** el corpus. El LLM interno, en cambio, es intercambiable
+   sin migración.
 
 ## 5. El proveedor falso para tests
 

@@ -17,7 +17,7 @@ es autocontenido y referencia a los demás cuando hace falta.
 |---|---|---|
 | Tipo de producto | **Servidor MCP**, no copiloto | El razonamiento y la UI los pone el cliente (Claude Code/Copilot); AutoOps es reutilizable y componible. |
 | Protocolo MCP | **Spring AI MCP Server** (sobre el MCP Java SDK oficial) | Publica beans `@Tool` como tools MCP con transporte HTTP/SSE o stdio. |
-| Motor RAG | **LangChain4j 1.x + Weaviate** | RAG avanzado: búsqueda híbrida + reranking nativos de Weaviate; `WeaviateEmbeddingStore` de LangChain4j. |
+| Motor RAG | **LangChain4j 1.x + Weaviate** | RAG avanzado: búsqueda híbrida + reranking nativos de Weaviate, vía cliente raw `io.weaviate:client` (`WeaviateEmbeddingStore` de LangChain4j no expone hybrid+rerank, ver ADR-005). |
 | Bucle correctivo RAG | **LangGraph4j** (subgrafo CRAG) | El RAG valida sus resultados y reintenta (reformular/expandir): es un flujo cíclico → LangGraph4j. |
 | Acceso a Kubernetes | **Cliente fabric8, RBAC read-only** | Diagnóstico de runtime sin poder romper nada (sin escritura, sin Secrets). |
 | Proveedor LLM/embeddings | **Abstraído; por defecto Gemini** (AI Studio, capa gratuita) | Coste cero en desarrollo; cambiar de proveedor = 1 bean + configuración. |
@@ -34,22 +34,26 @@ flowchart TB
     end
     subgraph App["autoops-mcp · Spring Boot (en K8s)"]
         MCP[Capa MCP<br/>Spring AI · tools]
-        CHAT[Chat REST + UI mínima]
+        CHAT[Chat REST + SPA Angular]
         RAG[Núcleo RAG<br/>LangChain4j · CRAG/LangGraph4j]
         K8S[Servicio K8s read-only<br/>fabric8]
+        OBS[Observabilidad<br/>LokiGateway]
     end
     WV[(Weaviate<br/>embeddings + híbrido)]
     KAPI[API Kubernetes]
     LLM[Proveedor LLM/embeddings<br/>default Gemini]
+    LK[(Loki<br/>logs agregados)]
 
     CC -->|MCP HTTP/SSE| MCP
     BR -->|HTTP| CHAT
     MCP --> RAG
     MCP --> K8S
+    MCP --> OBS
     CHAT --> RAG
     RAG --> WV
     RAG -->|embeddings · calificar/reformular| LLM
     K8S -->|RBAC read-only| KAPI
+    OBS --> LK
 ```
 
 El MCP y el chat son **dos fronts sobre el mismo núcleo RAG**. Las tools de Kubernetes/logs son **solo MCP**

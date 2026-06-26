@@ -32,6 +32,7 @@ redacta** para el usuario final (eso es del cliente MCP) y **nunca escribe** en 
 | CU-2 | Consulta de documentación interna | `buscar_docs` | "¿Cuál es nuestro estándar de probes para un microservicio Java?" |
 | CU-3 | Diagnóstico fundamentado en el estándar | `diagnosticar_pod` + `buscar_docs` | "Este pod falla las probes; ¿cumple nuestra guía de readiness?" |
 | CU-4 | Búsqueda de docs sin cliente MCP | chat de búsqueda (front secundario) | Preguntar a la documentación desde el navegador. |
+| CU-5 | Correlación de logs entre varios servicios | `consultar_logs` | "¿Qué pasó en `payments-api` y `orders-api` entre las 14:32:07.100 y las 14:32:07.900?" |
 
 ### Flujo de usuario (CU-1, el caso central)
 
