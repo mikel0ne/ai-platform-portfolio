@@ -41,6 +41,11 @@ public class CragState extends AgentState {
         return this.<Double>value("mejorScore").orElse(0.0);
     }
 
+    /** Veredicto de {@code grade}: ¿los candidatos actuales bastan para responder? De inicio, {@code false}. */
+    public boolean suficiente() {
+        return this.<Boolean>value("suficiente").orElse(false);
+    }
+
     /** Reformulaciones consumidas (lo incrementa {@code rewrite}). */
     public int iteraciones() {
         return this.<Integer>value("iteraciones").orElse(0);

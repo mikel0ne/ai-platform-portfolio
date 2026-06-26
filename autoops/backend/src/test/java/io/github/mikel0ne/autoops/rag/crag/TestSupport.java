@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.rag.crag;
 
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -9,6 +10,7 @@ import io.github.mikel0ne.autoops.rag.DocRetriever;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 
@@ -17,10 +19,11 @@ final class TestSupport {
 
     private TestSupport() {}
 
-    /** Recuperador con score programado por llamada; repite el último si se agotan. Cuenta invocaciones. */
+    /** Recuperador con score programado por llamada; repite el último si se agotan. Registra k recibido. */
     static final class FakeRetriever implements DocRetriever {
         private final double[] scoresPerCall;
         int calls = 0;
+        final List<Integer> kRecibidos = new ArrayList<>();
 
         FakeRetriever(double... scoresPerCall) {
             this.scoresPerCall = scoresPerCall;
@@ -28,23 +31,40 @@ final class TestSupport {
 
         @Override
         public List<DocChunk> retrieve(String consulta, int k) {
+            kRecibidos.add(k);
             double score = scoresPerCall[Math.min(calls, scoresPerCall.length - 1)];
             calls++;
             return List.of(new DocChunk("texto para: " + consulta, "fuente.md", "seccion", score));
         }
     }
 
-    /** ChatModel con respuestas fijas (doc 06 §5): el reformulador del CRAG no toca la red. */
+    /**
+     * ChatModel con respuestas fijas, sin red (doc 06 §5). Lo consultan DOS nodos del grafo en el mismo
+     * bean ({@code grade} y {@code rewrite}), así que distingue la petición por su contenido: el prompt de
+     * {@code grade} (plantilla {@code crag_grade.txt}) termina en "Veredicto:"; el de {@code rewrite}
+     * (plantilla {@code crag_rewrite.txt}) termina en "reformulada:". Cada cola tiene su propio valor por
+     * defecto si se agota (prudente para grade: ambiguo = insuficiente).
+     */
     static final class ScriptedChatModel implements ChatModel {
-        private final Deque<String> responses;
+        private final Deque<String> gradeRespuestas;
+        private final Deque<String> rewriteRespuestas;
 
-        ScriptedChatModel(String... responses) {
-            this.responses = new ArrayDeque<>(List.of(responses));
+        ScriptedChatModel(List<String> gradeRespuestas, List<String> rewriteRespuestas) {
+            this.gradeRespuestas = new ArrayDeque<>(gradeRespuestas);
+            this.rewriteRespuestas = new ArrayDeque<>(rewriteRespuestas);
         }
 
         @Override
         public ChatResponse chat(ChatRequest request) {
-            String next = responses.isEmpty() ? "consulta reformulada" : responses.poll();
+            String prompt = UserMessage.findLast(request.messages())
+                    .map(UserMessage::singleText)
+                    .orElse("");
+            String next;
+            if (prompt.contains("Veredicto:")) {
+                next = gradeRespuestas.isEmpty() ? "INSUFICIENTE" : gradeRespuestas.poll();
+            } else {
+                next = rewriteRespuestas.isEmpty() ? "consulta reformulada" : rewriteRespuestas.poll();
+            }
             return ChatResponse.builder().aiMessage(AiMessage.from(next)).build();
         }
     }

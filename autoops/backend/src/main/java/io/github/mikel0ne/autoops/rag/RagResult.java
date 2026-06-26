@@ -8,8 +8,9 @@ import java.util.List;
  *
  * @param chunks      fragmentos relevantes, ya ordenados por relevancia
  * @param iteraciones vueltas del bucle correctivo consumidas (0 = recuperación buena a la primera)
- * @param confianza   {@code alta} si se superó el umbral de score; {@code baja} si se devuelve lo mejor
- *                    obtenido sin alcanzarlo (el cliente debe matizar)
+ * @param confianza   {@code alta} si el LLM evaluador del CRAG considera los chunks suficientes para
+ *                    responder; {@code baja} si se devuelve lo mejor obtenido sin que lo sean (el cliente
+ *                    debe matizar)
  */
 public record RagResult(List<DocChunk> chunks, int iteraciones, String confianza) {
 

@@ -45,11 +45,11 @@ public class RagService {
 
         List<DocChunk> chunks = estado.candidatos();
         int iteraciones = estado.iteraciones();
-        boolean suficiente = !chunks.isEmpty() && estado.mejorScore() >= cragGraph.props().umbral();
+        boolean suficiente = !chunks.isEmpty() && estado.suficiente();
         String confianza = suficiente ? RagResult.ALTA : RagResult.BAJA;
 
-        log.debug("buscar_docs: consulta='{}' k={} iteraciones={} mejorScore={} confianza={}",
-                consulta, kEfectivo, iteraciones, estado.mejorScore(), confianza);
+        log.debug("buscar_docs: consulta='{}' k={} iteraciones={} mejorScore={} suficiente={} confianza={}",
+                consulta, kEfectivo, iteraciones, estado.mejorScore(), suficiente, confianza);
         return new RagResult(chunks, iteraciones, confianza);
     }
 }
