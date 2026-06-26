@@ -15,6 +15,7 @@ import io.weaviate.client.v1.schema.model.WeaviateClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -36,22 +37,22 @@ public class WeaviateGateway implements DocRetriever {
     private static final Logger log = LoggerFactory.getLogger(WeaviateGateway.class);
 
     private final WeaviateClient client;
-    private final ObjectProvider<EmbeddingModel> embeddingModel;
+    private final ObjectProvider<EmbeddingModel> docEmbeddingModel;    // taskType RETRIEVAL_DOCUMENT (indexar)
+    private final ObjectProvider<EmbeddingModel> queryEmbeddingModel;  // taskType RETRIEVAL_QUERY (buscar)
     private final WeaviateProperties props;
     private final CragProperties crag;
 
     public WeaviateGateway(WeaviateClient client,
-                           ObjectProvider<EmbeddingModel> embeddingModel,
+                           ObjectProvider<EmbeddingModel> docEmbeddingModel,
+                           @Qualifier("queryEmbeddingModel") ObjectProvider<EmbeddingModel> queryEmbeddingModel,
                            WeaviateProperties props,
                            CragProperties crag) {
         this.client = client;
-        this.embeddingModel = embeddingModel;
+        this.docEmbeddingModel = docEmbeddingModel;
+        this.queryEmbeddingModel = queryEmbeddingModel;
         this.props = props;
         this.crag = crag;
     }
-
-    /** Documento a ingestar (un chunk con su procedencia). */
-    public record Doc(String texto, String fuente, String seccion, int orden) {}
 
     // ---------------------------------------------------------------- esquema
 
@@ -72,8 +73,13 @@ public class WeaviateGateway implements DocRetriever {
                 .moduleConfig(Map.of("reranker-transformers", Map.of()))
                 .properties(List.of(
                         Property.builder().name("texto").dataType(List.of("text")).build(),
+                        Property.builder().name("titulo").dataType(List.of("text")).build(),
                         Property.builder().name("fuente").dataType(List.of("text")).tokenization("field").build(),
                         Property.builder().name("seccion").dataType(List.of("text")).build(),
+                        Property.builder().name("url").dataType(List.of("text")).tokenization("field").build(),
+                        Property.builder().name("origen").dataType(List.of("text")).tokenization("field").build(),
+                        Property.builder().name("docId").dataType(List.of("text")).tokenization("field").build(),
+                        Property.builder().name("hash").dataType(List.of("text")).tokenization("field").build(),
                         Property.builder().name("orden").dataType(List.of("int")).build()))
                 .build();
         Result<Boolean> created = client.schema().classCreator().withClass(clazz).run();
@@ -88,22 +94,32 @@ public class WeaviateGateway implements DocRetriever {
 
     // ---------------------------------------------------------------- ingesta
 
-    /** Calcula embeddings de los chunks y los inserta por lotes. Devuelve el nº de objetos insertados. */
-    public int ingest(List<Doc> docs) {
-        if (docs.isEmpty()) {
+    /**
+     * Calcula embeddings de los chunks y los inserta por lotes. Devuelve el nº de objetos insertados.
+     * Se embebe el {@code nucleo} (texto pequeño y limpio → match preciso) pero se almacena {@code texto}
+     * (la ventana con los vecinos → contexto para el redactor): patrón sentence-window, gratis aquí porque
+     * el vector lo calcula AutoOps y no Weaviate.
+     */
+    public int ingest(List<Chunk> chunks) {
+        if (chunks.isEmpty()) {
             return 0;
         }
-        List<TextSegment> segments = docs.stream().map(d -> TextSegment.from(d.texto())).toList();
-        List<Embedding> embeddings = embeddingModel.getObject().embedAll(segments).content();
+        List<TextSegment> segments = chunks.stream().map(c -> TextSegment.from(c.nucleo())).toList();
+        List<Embedding> embeddings = docEmbeddingModel.getObject().embedAll(segments).content();
 
-        List<WeaviateObject> objects = new ArrayList<>(docs.size());
-        for (int i = 0; i < docs.size(); i++) {
-            Doc d = docs.get(i);
+        List<WeaviateObject> objects = new ArrayList<>(chunks.size());
+        for (int i = 0; i < chunks.size(); i++) {
+            Chunk c = chunks.get(i);
             Map<String, Object> properties = new LinkedHashMap<>();
-            properties.put("texto", d.texto());
-            properties.put("fuente", d.fuente());
-            properties.put("seccion", d.seccion());
-            properties.put("orden", d.orden());
+            properties.put("texto", c.texto());
+            properties.put("titulo", c.titulo());
+            properties.put("fuente", c.fuente());
+            properties.put("seccion", c.seccion());
+            properties.put("url", c.url());
+            properties.put("origen", c.origen());
+            properties.put("docId", c.docId());
+            properties.put("hash", c.hash());
+            properties.put("orden", c.orden());
             objects.add(WeaviateObject.builder()
                     .className(props.className())
                     .properties(properties)
@@ -122,7 +138,7 @@ public class WeaviateGateway implements DocRetriever {
 
     @Override
     public List<DocChunk> retrieve(String consulta, int k) {
-        Embedding queryVector = embeddingModel.getObject().embed(consulta).content();
+        Embedding queryVector = queryEmbeddingModel.getObject().embed(consulta).content();
 
         HybridArgument hybrid = HybridArgument.builder()
                 .query(consulta)
@@ -142,8 +158,11 @@ public class WeaviateGateway implements DocRetriever {
                 .withLimit(k)
                 .withFields(
                         Field.builder().name("texto").build(),
+                        Field.builder().name("titulo").build(),
                         Field.builder().name("fuente").build(),
                         Field.builder().name("seccion").build(),
+                        Field.builder().name("url").build(),
+                        Field.builder().name("origen").build(),
                         additional)
                 .run();
         failOnError("buscando en Weaviate", result);
@@ -173,10 +192,13 @@ public class WeaviateGateway implements DocRetriever {
                 continue;
             }
             String texto = str(obj.get("texto"));
+            String titulo = str(obj.get("titulo"));
             String fuente = str(obj.get("fuente"));
             String seccion = str(obj.get("seccion"));
+            String url = str(obj.get("url"));
+            String origen = str(obj.get("origen"));
             double score = scoreOf((Map<String, Object>) obj.get("_additional"));
-            chunks.add(new DocChunk(texto, fuente, seccion, score));
+            chunks.add(new DocChunk(texto, titulo, fuente, seccion, url, origen, score));
         }
         return chunks;
     }
