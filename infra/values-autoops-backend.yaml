@@ -57,7 +57,8 @@ configmap:
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
 # Único Secret: la API key de Gemini (chat + embeddings, uso interno).
-# El chart NO crea el Secret; lo sincroniza deploy.sh desde .env.autoops.local.
+# El chart NO crea el Secret; lo sincroniza deploy.sh desde infra/.env.local
+# (compartida por todos los proyectos del portfolio).
 secretEnv:
   - name: GEMINI_API_KEY
     secretName: autoops-llm-secret

@@ -272,7 +272,8 @@ infra/
 ├── values-autoops-backend.yaml
 ├── values-autoops-frontend.yaml
 ├── .env.l1-copilot / .env.autoops          # Defaults compartidos (versionado)
-├── .env.<p>.local                          # Overrides locales (no versionado, p.ej. GEMINI_API_KEY)
+├── .env.local                              # GEMINI_API_KEY real, compartida por TODOS los proyectos (no versionado)
+├── .env.<p>.local                          # Override puntual de UN proyecto, opcional (no versionado)
 ├── charts/
 │   └── generic-app/                        # Chart Helm reusable Deployment+Service+Ingress
 ├── components/
@@ -373,24 +374,25 @@ Todas pasan por el wrapper `infra/scripts/run-sh-gitbash.cmd`, que invoca el `.s
 
 ### Fuente de verdad única para Secrets (local + K8s)
 
-Dos ficheros en `infra/`:
+Tres ficheros en `infra/`, cada uno con un rol distinto:
 
 | Fichero | Commiteado | Contenido |
 |---------|------------|-----------|
-| `.env.l1-copilot` | ✅ Sí (excepción explícita en `.gitignore`) | `POSTGRES_USER`, `POSTGRES_PASSWORD` (ya públicos en INFRA.md), `GEMINI_API_KEY=` vacío |
-| `.env.l1-copilot.local` | ❌ No (gitignored por patrón `.env.*`) | Override con tu `GEMINI_API_KEY` real |
+| `.env.l1-copilot` / `.env.autoops` | ✅ Sí (excepción explícita en `.gitignore`) | claves del proyecto con placeholders (`.env.l1-copilot` también trae `POSTGRES_USER`/`POSTGRES_PASSWORD`, ya públicos en INFRA.md) |
+| `.env.local` | ❌ No (gitignored por patrón `.env.*`) | tu `GEMINI_API_KEY` real — **una sola vez, compartida por TODOS los proyectos** del portfolio |
+| `.env.<p>.local` | ❌ No (gitignored por patrón `.env.*`) | override puntual de UN proyecto (p.ej. rotar Postgres solo en local para l1-copilot); normalmente no hace falta |
 
-**Bootstrap inicial**:
+**Bootstrap inicial** (una vez, sirve para todos los proyectos):
 
 ```bash
-cp infra/.env.l1-copilot.local.example infra/.env.l1-copilot.local
+cp infra/.env.local.example infra/.env.local
 # editar el fichero y poner tu key de https://aistudio.google.com/app/apikey
 ```
 
 ### Flujo Secret → variable de entorno
 
 ```
-.env.l1-copilot  +  .env.l1-copilot.local           (fuente de verdad)
+.env.<p>  +  .env.local  (+ .env.<p>.local si hace falta override)   (fuente de verdad)
         │
         ▼  deploy.sh → sync_secrets()
 kubectl create secret generic <secret> --dry-run=client -o yaml | kubectl apply
@@ -414,15 +416,18 @@ declare -gA SECRETS_BACKEND=(
 declare -gA SECRETS_BACKEND=( [autoops-llm-secret]="GEMINI_API_KEY" )
 ```
 
-Añadir un Secret nuevo = añadir una entrada al map del descriptor + declarar las claves en `.env.<p>` (o su `.local`). El chart ya consume el Secret vía `secretEnv` en el values file correspondiente.
+Añadir un Secret nuevo = añadir una entrada al map del descriptor + declarar la clave
+correspondiente en `.env.<p>` (placeholder), `.env.local` (si es compartida entre
+proyectos) o `.env.<p>.local` (si es específica de uno solo). El chart ya consume el
+Secret vía `secretEnv` en el values file correspondiente.
 
 ### Backend local (Spring Boot) usando las mismas variables
 
 El perfil `dev` solo necesita `GEMINI_API_KEY` (Postgres queda en H2). Tres formas de inyectarla en IntelliJ — usa la que prefieras:
 
-1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/Backend.run.xml` añade `infra/.env.l1-copilot` y `infra/.env.l1-copilot.local` como ficheros de entorno. Mismo source de verdad que el deploy.
+1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/Backend.run.xml` añade `infra/.env.l1-copilot`, `infra/.env.local` y `infra/.env.l1-copilot.local` (en ese orden) como ficheros de entorno. Mismo source de verdad que el deploy.
 2. **Variables en la run config**: edita `.run/Backend.run.xml` y añade `<env name="GEMINI_API_KEY" value="..." />` (queda commiteada — solo si te da igual).
-3. **Shell**: exporta antes de arrancar IntelliJ — `source infra/.env.l1-copilot && source infra/.env.l1-copilot.local`.
+3. **Shell**: exporta antes de arrancar IntelliJ — `source infra/.env.l1-copilot && source infra/.env.local && source infra/.env.l1-copilot.local`.
 
 ### Estrategia de Secrets: evolución futura
 
