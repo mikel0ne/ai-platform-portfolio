@@ -18,8 +18,9 @@ logging:
     root: INFO
     io.github.mikel0ne.autoops: DEBUG
     dev.langchain4j: INFO
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  # El formato del appender se define en logback-spring.xml:
+  #   - perfil !k8s → texto plano (local/dev)
+  #   - perfil k8s  → JSON estructurado para Loki/Grafana
 
 # Proveedor LLM/embeddings abstraído (doc 06). API key por entorno: GEMINI_API_KEY.
 # El LLM es de uso interno (calificar/reformular en CRAG + redactar el chat); el cliente MCP razona.

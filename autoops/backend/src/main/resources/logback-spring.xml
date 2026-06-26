@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  logback-spring.xml — Configuración de logging con soporte de perfiles Spring.
+
+  Perfil local/dev (sin k8s)  → consola en TEXTO PLANO legible por humanos.
+  Perfil k8s                  → consola en JSON estructurado (logstash-logback-encoder)
+                                 para que Promtail lo ingeste en Loki/Grafana.
+
+  Los niveles de log se gestionan en application.yml / application-k8s.yml:
+  aquí solo se define el formato del appender para no duplicar configuración.
+-->
+<configuration>
+
+    <!-- ===================================================================
+         PERFIL: local / dev  →  texto plano en consola
+         =================================================================== -->
+    <springProfile name="!k8s">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- ===================================================================
+         PERFIL: k8s  →  JSON estructurado para Loki/Grafana
+         Campos: @timestamp, level, logger, thread, message, service,
+                 namespace + stack_trace completo en excepciones.
+         Promtail parsea el JSON y extrae las etiquetas level y service.
+         =================================================================== -->
+    <springProfile name="k8s">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <!-- Metadatos fijos que permiten filtrar en Grafana por servicio/namespace -->
+                <customFields>{"service":"autoops-mcp","namespace":"autoops"}</customFields>
+                <!-- Eliminar el campo numérico levelValue (redundante con level) -->
+                <fieldNames>
+                    <levelValue>[ignore]</levelValue>
+                </fieldNames>
+                <!-- Stack traces compactos: causa raíz primero, max 30 frames por causa -->
+                <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                    <maxDepthPerCause>30</maxDepthPerCause>
+                    <shortenedClassNameLength>20</shortenedClassNameLength>
+                    <rootCauseFirst>true</rootCauseFirst>
+                </throwableConverter>
+            </encoder>
+        </appender>
+    </springProfile>
+
+    <!-- Root logger: los niveles reales vienen de application.yml (logging.level.*) -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>
+
