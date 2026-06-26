@@ -123,6 +123,15 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Logback JSON encoder: logs estructurados para Loki/Grafana en K8s.
+             El perfil k8s activa el appender JSON (logback-spring.xml). En local/dev
+             sigue usando texto plano. Requiere Logback 1.5+ (Spring Boot 3.3+). -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>8.1</version>
+        </dependency>
+
         <!-- Swagger UI / OpenAPI (chat de búsqueda + health) -->
         <dependency>
             <groupId>org.springdoc</groupId>

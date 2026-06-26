@@ -34,6 +34,37 @@ promtail:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { memory: 256Mi }
 
+  # Pipeline adicional para los namespaces de las aplicaciones.
+  # Se ejecuta DESPUÉS de la etapa CRI (que extrae el log crudo del pod).
+  # Solo los pods de autoops y l1-copilot emiten JSON; el resto del clúster
+  # sigue con texto plano sin que esta config les afecte (el match actúa de guarda).
+  config:
+    snippets:
+      pipelineStages:
+        # 1. Parsear el formato de log de contenedor (CRI/Docker) → campo 'log'
+        - cri: {}
+
+        # 2. Solo para nuestros namespaces: parsear el JSON que emiten los pods
+        #    de backend (logstash-logback-encoder) y frontend (nginx json_access).
+        - match:
+            selector: '{namespace=~"autoops|l1-copilot"}'
+            stages:
+              # Extraer campos del JSON al mapa de datos del pipeline
+              - json:
+                  expressions:
+                    level:   level
+                    service: service
+                    message: message
+              # Promover level y service a etiquetas Loki para poder filtrar
+              # en Grafana con: {namespace="autoops", level="ERROR"}
+              - labels:
+                  level:
+                  service:
+              # Usar el campo 'message' como contenido del log si existe
+              # (evita que Grafana muestre el JSON crudo completo en el listado)
+              - output:
+                  source: message
+
 grafana:
   enabled: true
   # Credenciales locales (cámbialas si te expones fuera de localhost).
