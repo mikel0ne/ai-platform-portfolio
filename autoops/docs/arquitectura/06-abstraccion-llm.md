@@ -10,9 +10,14 @@ El servidor solo usa modelos en dos puntos **internos**:
 
 | Uso | Interfaz LangChain4j | Por qué |
 |---|---|---|
-| **Embeddings** del corpus y de las consultas | `EmbeddingModel` | Indexar y buscar en Weaviate. |
+| **Embeddings al indexar** (ingesta) | `EmbeddingModel` (`@Primary`) | Calcular el vector del núcleo de cada chunk antes de insertarlo en Weaviate. |
+| **Embeddings al consultar** (retrieve) | `EmbeddingModel` (`@Qualifier("queryEmbeddingModel")`) | Calcular el vector de la consulta del usuario. |
 | **LLM interno** del bucle CRAG (`rewrite`) | `ChatModel` | Reformular/expandir la consulta cuando la recuperación es floja. |
 | **LLM interno** de la redacción del chat | `ChatModel` | Redactar la respuesta del front de búsqueda (no la tool MCP). |
+
+Indexar y consultar usan **dos beans distintos del mismo modelo**, no uno solo: Google AI Studio asimetriza el
+embedding según el `taskType` (`RETRIEVAL_DOCUMENT` vs `RETRIEVAL_QUERY`), y usar el correcto en cada lado
+mejora la recuperación sin coste (mismo modelo, mismo precio, misma dimensión — ver §3).
 
 La tool MCP `buscar_docs` **no redacta**: devuelve chunks. Por eso el LLM del servidor es pequeño y de uso
 acotado; no es el cerebro del producto.
@@ -69,11 +74,23 @@ package io.github.mikel0ne.autoops.llm.provider;
 public class GeminiModelConfig {
 
     @Bean
+    @Primary   // inyección sin cualificar (p. ej. en tests) recibe este
     public EmbeddingModel embeddingModel(LlmProperties props,
                                          @Value("${GEMINI_API_KEY}") String apiKey) {
         return GoogleAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.embeddingModelName())
+                .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_DOCUMENT)
+                .build();
+    }
+
+    @Bean("queryEmbeddingModel")
+    public EmbeddingModel queryEmbeddingModel(LlmProperties props,
+                                              @Value("${GEMINI_API_KEY}") String apiKey) {
+        return GoogleAiEmbeddingModel.builder()
+                .apiKey(apiKey)
+                .modelName(props.embeddingModelName())
+                .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_QUERY)
                 .build();
     }
 
@@ -96,7 +113,9 @@ Ejemplo: Azure OpenAI. Total: 1 dependencia + 1 clase + configuración. Cero cam
 
 1. **Dependencia** en `pom.xml`: `langchain4j-azure-open-ai`.
 2. **Clase** `AzureOpenAiModelConfig` junto a la de Gemini, con `@ConditionalOnProperty(... havingValue =
-   "azure-openai")`, definiendo `EmbeddingModel` y `ChatModel`.
+   "azure-openai")`, definiendo los dos beans `EmbeddingModel` (indexar/`@Primary` y `queryEmbeddingModel`) y
+   `ChatModel`. Si el proveedor no distingue `taskType` (no todos lo hacen), los dos beans son simplemente
+   idénticos — la abstracción no obliga a la asimetría, solo la deja disponible cuando el proveedor la soporta.
 3. **Configuración** (despliegue): `AUTOOPS_LLM_PROVIDER=azure-openai`, claves en el Secret y model names en el
    YAML.
 4. **Atención a los embeddings**: si el modelo de embeddings cambia de dimensión (la de `gemini-embedding-001`
