@@ -125,7 +125,9 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s} → {Weaviate, LLM, API K8s}`. N
   reformular/expandir → reintentar, acotado a N vueltas. Es un flujo **cíclico**, así que se implementa con
   **LangGraph4j** (la regla del repo aplica aquí, a diferencia del desaparecido ciclo de YAML).
 - **Razones:** el usuario quiere un RAG que **valide si los resultados son buenos** y reaccione. La calificación
-  por score es determinista; la reformulación usa el LLM interno.
+  la hace el LLM interno (juzga si los chunks responden a la pregunta; el score crudo del reranker/híbrido no
+  es un proxy fiable, así que no decide por sí solo); la reformulación también usa el LLM interno, y cada
+  reintento además **amplía `k`** (recupera más candidatos, no solo cambia las palabras de la consulta).
 - **Consecuencias:** el servidor incorpora un LLM pequeño de uso **interno** (calificar/reformular), distinto
   del razonamiento del cliente.
 
