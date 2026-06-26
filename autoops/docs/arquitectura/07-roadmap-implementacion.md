@@ -20,10 +20,10 @@ flowchart LR
 
 **Objetivo:** un servidor MCP mínimo que un cliente real ya descubre.
 
-- [ ] Proyecto Spring Boot `io.github.mikel0ne:autoops-mcp` con `spring-ai-starter-mcp-server-webmvc`.
-- [ ] Reubicar la semilla de Gemini bajo `io.github.mikel0ne.autoops.llm` (abstracción del doc 06).
-- [ ] Una tool trivial de prueba (`ping`) anotada con `@Tool` y registrada en `McpConfig`.
-- [ ] Perfil `local` con transporte **stdio**; perfil `k8s` con **HTTP/SSE**.
+- [x] Proyecto Spring Boot `io.github.mikel0ne:autoops-mcp` con `spring-ai-starter-mcp-server-webmvc`.
+- [x] Reubicar la semilla de Gemini bajo `io.github.mikel0ne.autoops.llm`/`config` (abstracción del doc 06).
+- [x] Una tool trivial de prueba (`ping`) anotada con `@Tool` y registrada en `McpConfig`.
+- [x] Perfil `local` con transporte **stdio**; perfil `k8s` con **HTTP/SSE**.
 
 **Verificación:** registrar el servidor en Claude Code (`.mcp.json`, stdio) y comprobar que **lista la tool**
 `ping` y la invoca.
@@ -32,15 +32,17 @@ flowchart LR
 
 **Objetivo:** la tool `buscar_docs` completa (doc 03 §3).
 
-- [ ] Weaviate local (docker compose o el manifiesto de la guía de infra + port-forward).
-- [ ] `WeaviateConfig` (`WeaviateEmbeddingStore`, clase `DocChunk`, reranker) + `IngestionService`
-      (markdown → chunks ~500 tokens con solape → embeddings) + comando/endpoint de ingesta.
-- [ ] Redactar 4-6 documentos de `corpus/` (estándares ficticios pero realistas: convención de microservicios,
+- [x] Weaviate local (docker compose o el manifiesto de la guía de infra + port-forward).
+- [x] `WeaviateGateway` (cliente raw `io.weaviate:client`, no `WeaviateEmbeddingStore` — ver ADR-005; clase
+      `DocChunk`, reranker) + `IngestionService` (markdown → chunks ~500 tokens con solape → embeddings) +
+      comando/endpoint de ingesta.
+- [x] Redactar 4-6 documentos de `corpus/` (estándares ficticios pero realistas: convención de microservicios,
       política de recursos, guía de probes…).
-- [ ] `CragGraph` (LangGraph4j): nodos `retrieve`/`rerank`/`grade`/`rewrite`, edge con `MAX_ITERACIONES` y
-      umbral de score. Prompt `crag_rewrite.txt`.
-- [ ] `RagService.buscar(consulta, k)` + tool `buscar_docs`.
-- [ ] Tests del bucle con store y `ChatModel` falsos (converge, reformula, termina).
+- [x] `CragGraph` (LangGraph4j): nodos `retrieve`/`rerank`/`grade`/`rewrite`. El edge ya no usa umbral de score
+      (eliminado, ver doc 02 ADR-007): `grade` llama siempre al LLM (`crag_grade.txt`); `rewrite` además
+      reformula con `crag_rewrite.txt` y amplía `k` (`kStep`/`kMax`).
+- [x] `RagService.buscar(consulta, k)` + tool `buscar_docs`.
+- [x] Tests del bucle con store y `ChatModel` falsos (converge, reformula, termina).
 
 **Verificación:** desde Claude Code, `buscar_docs("estándar de probes")` devuelve chunks del corpus; con una
 consulta mal formulada se observa que **el bucle reformula y mejora** (`iteraciones >= 1`).
@@ -49,9 +51,10 @@ consulta mal formulada se observa que **el bucle reformula y mejora** (`iteracio
 
 **Objetivo:** consultar la documentación sin cliente MCP.
 
-- [ ] `SearchController` (`POST /search`) + `AnswerComposer` (redacción con LLM interno, anti-alucinación) sobre
+- [x] `SearchController` (`POST /search`) + `AnswerComposer` (redacción con LLM interno, anti-alucinación) sobre
       el **mismo** `RagService`.
-- [ ] UI mínima en `resources/static/` (HTML + JS): caja de búsqueda, respuesta y citas.
+- [x] UI de búsqueda: caja de búsqueda, respuesta y citas. Se sirve como **SPA Angular** (`frontend/src/app/search`,
+      reutilizada y podada del scaffolding) en vez del HTML+JS estático planteado originalmente.
 
 **Verificación:** abrir `/` en el navegador, preguntar por un estándar y recibir respuesta redactada con citas.
 
@@ -59,10 +62,10 @@ consulta mal formulada se observa que **el bucle reformula y mejora** (`iteracio
 
 **Objetivo:** el diagnóstico de runtime.
 
-- [ ] `K8sClientConfig` (fabric8: kubeconfig en local, ServiceAccount in-cluster).
-- [ ] `K8sInspectionService` (dossiers) + tools `estado_pods`, `listar_workloads`, `describir_pod`, `eventos` y
+- [x] `K8sClientConfig` (fabric8: kubeconfig en local, ServiceAccount in-cluster).
+- [x] `K8sInspectionService` (dossiers) + tools `estado_pods`, `listar_workloads`, `describir_pod`, `eventos` y
       la compuesta `diagnosticar_pod`.
-- [ ] Tests con `KubernetesServer` mock de fabric8 (fixtures de pod sano / `ErrImagePull` / `CrashLoopBackOff`).
+- [x] Tests con `KubernetesServer` mock de fabric8 (fixtures de pod sano / `ErrImagePull` / `CrashLoopBackOff`).
 
 **Verificación:** con un pod roto a propósito (imagen inexistente), desde Claude Code "¿por qué falla el pod X?"
 hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull` real.
@@ -71,7 +74,7 @@ hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull
 
 **Objetivo:** logs de aplicaciones en ejecución.
 
-- [ ] `logs_pod` (cola de logs, `previous`, selección de contenedor) sobre `pods/log`.
+- [x] `logs_pod` (cola de logs, `previous`, selección de contenedor) sobre `pods/log`.
 - [x] Backend **Loki** como fuente de logs agregados, vía la tool `consultar_logs` con LogQL — complementa
       `logs_pod` con histórico correlacionable entre varios pods/namespaces en una ventana de tiempo
       (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `ObservabilityTools`).
@@ -85,10 +88,13 @@ hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull
 **Objetivo:** AutoOps corriendo en el clúster y enchufado por HTTP/SSE. **Guías ya escritas**: seguir
 `docs/infraestructura/` 01→07.
 
-- [ ] Extraer manifiestos a `k8s/` (`01-secrets.yaml` a `.gitignore`).
-- [ ] Dockerfile (guía infra 04) + perfil `k8s` (transporte SSE).
-- [ ] Desplegar Weaviate + `autoops-mcp` + Ingress; ejecutar la ingesta del corpus.
-- [ ] Registrar el endpoint SSE en Claude Code (`.mcp.json` apuntando a `http://autoops.local/sse`).
+- [x] Manifiestos en `infra/` (descriptor `infra/projects/autoops.env` + `values-autoops-{backend,frontend}.yaml`
+      + `rbac-autoops.yaml`), no en una carpeta `k8s/` separada como se planteó originalmente. El secreto (API
+      key de Gemini) vive en `infra/.env.autoops.local`, gitignored — mismo efecto que el `01-secrets.yaml`
+      previsto, mecanismo distinto.
+- [x] Dockerfile (guía infra 04) + perfil `k8s` (transporte SSE).
+- [x] Desplegar Weaviate + `autoops-mcp` + Ingress; ejecutar la ingesta del corpus.
+- [x] Registrar el endpoint SSE en Claude Code (`.mcp.json` apuntando a `http://autoops.local/sse`).
 - [ ] Probar el diagnóstico **contra el propio clúster**: AutoOps diagnosticándose a sí mismo (buen momento de demo).
 
 **Verificación:** checklist de la guía infra `07` completa; Claude Code lista las tools vía la URL del Ingress y

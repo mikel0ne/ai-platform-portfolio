@@ -88,8 +88,8 @@ Sin autenticación en el MVP (solo lectura de documentación pública interna). 
 }
 ```
 
-La UI mínima (`/`, HTML+JS estático servido por la app) consume este endpoint. Es el **único** componente con
-LLM de redacción server-side; la tool MCP equivalente (`buscar_docs`) no redacta.
+La SPA Angular (`frontend/`, sección `search/`) consume este endpoint. Es el **único** componente con LLM de
+redacción server-side; la tool MCP equivalente (`buscar_docs`) no redacta.
 
 ### GET `/actuator/health`
 
@@ -125,7 +125,7 @@ relacional (sin gateway, no hay historial que persistir).
 erDiagram
     DOC_CHUNK {
         uuid   id PK
-        vector embedding "dim = modelo de embeddings (text-embedding-004 → 768)"
+        vector embedding "dim = la del modelo de embeddings configurado (gemini-embedding-001)"
         text   texto
         string fuente "fichero de origen del corpus"
         string seccion "encabezado/sección dentro del fichero"
@@ -150,8 +150,9 @@ infraestructura `03-weaviate.md`):
 }
 ```
 
-- La **dimensión del vector** la fija el modelo de embeddings (Gemini `text-embedding-004` → 768). Si se cambia
-  de modelo de embeddings, hay que recrear la clase con la nueva dimensión y **re-ingestar** el corpus (ver doc 06).
+- La **dimensión del vector** la fija el modelo de embeddings configurado (`gemini-embedding-001`, el free
+  tier real — `text-embedding-004` no está disponible). Si se cambia de modelo de embeddings, hay que recrear
+  la clase con la nueva dimensión y **re-ingestar** el corpus (ver doc 06).
 - La **búsqueda híbrida** (vector + BM25 sobre `texto`) y el **reranking** se piden en la query, no cambian el
   esquema.
 

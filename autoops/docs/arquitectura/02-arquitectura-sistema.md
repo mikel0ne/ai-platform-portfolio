@@ -33,6 +33,17 @@ Inspección del clúster para las tools de diagnóstico:
 - Compone **dossiers deterministas** (estado + eventos + logs + reinicios). El LLM **no** decide qué llamadas
   hacer: la tool reúne datos fijos y es el **cliente MCP** quien razona.
 
+### Servicio de observabilidad (Loki)
+
+Logs agregados, complemento de `logs_pod` (que solo ve el pod actual):
+
+- `LokiGateway` (`io.github.mikel0ne.autoops.observability`) habla por HTTP plano (`RestClient` de Spring, sin SDK
+  dedicado) con la API `query_range` de **Loki**, compartido en el namespace `observability` (guía de
+  infraestructura `07-setup-observability.sh`).
+- Construye la query LogQL a partir de filtros estructurados (namespace/pod/contenedor/texto) y resuelve la
+  ventana temporal (`ventanaMinutos` o `desde`/`hasta` ISO-8601 con milisegundos, para correlacionar instantes
+  concretos entre servicios). Aplana y ordena cronológicamente la respuesta a `LogEntry`.
+
 ### Chat de búsqueda (front secundario)
 
 Una **UI mínima estática** + un endpoint REST `POST /search` que reutiliza el **mismo núcleo RAG** y añade un
@@ -56,20 +67,23 @@ flowchart TB
 
     subgraph POD["autoops-mcp · Spring Boot :8080"]
         MCP[Capa MCP<br/>Spring AI · @Tool]
-        CHAT[Chat REST + UI mínima]
+        CHAT[Chat REST<br/>+ SPA Angular]
         RAG[Núcleo RAG<br/>LangChain4j + CRAG]
         K8S[K8sInspectionService<br/>fabric8]
+        OBS[LokiGateway<br/>observabilidad]
         MCP --> RAG
         MCP --> K8S
+        MCP --> OBS
         CHAT --> RAG
     end
 
-    RAG -->|gRPC/HTTP| WV[(Weaviate)]
+    RAG -->|HTTP/gRPC, cliente raw io.weaviate:client| WV[(Weaviate)]
     RAG -->|EmbeddingModel · ChatModel interno| LLM[Proveedor LLM<br/>default Gemini]
     K8S -->|ServiceAccount read-only| KAPI[Kubernetes API Server]
+    OBS -->|HTTP query_range| LK[(Loki)]
 ```
 
-Reglas de dependencia: `MCP/Chat → {RAG, K8s} → {Weaviate, LLM, API K8s}`. Nunca al revés.
+Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, LLM, API K8s, Loki}`. Nunca al revés.
 
 ## 3. Decisiones de arquitectura (ADRs)
 
@@ -102,16 +116,21 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s} → {Weaviate, LLM, API K8s}`. N
 - **Contexto:** ni LangChain4j (Java) ni LangChain (Python) construyen *servidores* MCP: su módulo MCP es de
   cliente. El servidor se hace con un SDK de MCP dedicado.
 - **Decisión:** **Spring AI MCP Server** (que envuelve el MCP Java SDK oficial) publica los `@Tool`; LangChain4j
-  se usa **dentro** de las tools como motor de RAG (embeddings, `WeaviateEmbeddingStore`, retrieval).
+  se usa **dentro** de las tools como motor de RAG (`EmbeddingModel`, `ChatModel`, retrieval).
 - **Consecuencias:** dos librerías con roles claros y sin solape; ambas conviven en el mismo proyecto Spring.
 
-### ADR-005 — Weaviate como vector store (no pgvector)
+### ADR-005 — Weaviate como vector store (no pgvector), con cliente raw en vez de `WeaviateEmbeddingStore`
 
-- **Decisión:** los embeddings y la búsqueda viven en **Weaviate**, no en PostgreSQL/pgvector.
+- **Decisión:** los embeddings y la búsqueda viven en **Weaviate**, no en PostgreSQL/pgvector. El acceso
+  (`WeaviateGateway`) usa el **cliente Java oficial `io.weaviate:client`** (traído transitivamente por la
+  dependencia `langchain4j-weaviate`), no el `WeaviateEmbeddingStore` de LangChain4j.
 - **Razones:** Weaviate ofrece **búsqueda híbrida (BM25 + vector)** y **reranking** de fábrica, justo lo que
-  exige el "RAG avanzado"; LangChain4j trae `WeaviateEmbeddingStore`. Al no haber gateway, tampoco hay
-  historial relacional que justifique PostgreSQL.
-- **Consecuencias:** una pieza de infraestructura nueva (Weaviate) en lugar de PostgreSQL.
+  exige el "RAG avanzado" — pero `WeaviateEmbeddingStore` **no expone** ni híbrido ni reranking nativo, solo
+  búsqueda vectorial simple. Para pedir `hybrid` + `rerank(...)` en la misma query GraphQL hace falta el
+  cliente raw. Al no haber gateway, tampoco hay historial relacional que justifique PostgreSQL.
+- **Consecuencias:** una pieza de infraestructura nueva (Weaviate) en lugar de PostgreSQL; el código de acceso
+  (`WeaviateGateway`) es más manual (construye la query GraphQL a mano) a cambio de usar las capacidades
+  avanzadas reales de Weaviate.
 
 ### ADR-006 — Acceso de solo lectura al clúster
 
@@ -137,6 +156,20 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s} → {Weaviate, LLM, API K8s}`. N
   ServiceAccount de lectura). En local, el desarrollador puede usar **stdio**.
 - **Consecuencias:** el Ingress enruta el endpoint SSE; el cliente MCP se configura con la URL (ver
   [07-roadmap-implementacion.md](07-roadmap-implementacion.md) §F4).
+
+### ADR-009 — Logs agregados vía Loki (`consultar_logs`), complemento de `logs_pod`
+
+- **Contexto:** `logs_pod` (fabric8) solo ve el log en vivo del pod actual, equivalente a `kubectl logs`; no
+  hay forma de correlacionar eventos entre varios pods/namespaces en una ventana de tiempo. Loki ya recibía los
+  logs de todo el clúster (Promtail, ver guía de infraestructura `07-setup-observability.sh`), pero solo era
+  útil para un humano mirando Grafana — el cliente MCP no podía consultarlo.
+- **Decisión:** nueva tool `consultar_logs` (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `LokiProperties` +
+  `ObservabilityTools`) que llama a `/loki/api/v1/query_range` con una query LogQL construida a partir de
+  filtros estructurados. La ventana temporal admite `ventanaMinutos` (relativa) o `desde`/`hasta` en ISO-8601
+  con milisegundos, para acotar a un instante muy concreto al correlacionar llamadas entre servicios.
+- **Consecuencias:** primer cliente HTTP plano del proyecto (`RestClient` de Spring, sin SDK dedicado de Loki);
+  el resto de integraciones (Weaviate, fabric8) usan su propio SDK. RBAC sin cambios: Loki no expone más que
+  logs ya agregados por Promtail, ningún acceso nuevo al clúster.
 
 ## 4. Atributos de calidad y cómo se abordan
 
