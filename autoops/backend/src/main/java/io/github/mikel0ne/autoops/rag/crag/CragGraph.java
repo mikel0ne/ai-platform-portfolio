@@ -21,8 +21,8 @@ import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
 /**
  * Construye el grafo del RAG correctivo (CRAG) con LangGraph4j: {@code retrieve → rerank → grade} y, si la
- * recuperación es floja, {@code grade → rewrite → retrieve} hasta superar el umbral o agotar iteraciones
- * (doc 03 §3.3).
+ * recuperación es floja, {@code grade → rewrite → retrieve} hasta que el LLM evalúe los resultados como
+ * suficientes o se agoten las iteraciones (doc 03 §3.3).
  *
  * <p>Puntos finos del diseño: el tope de iteraciones vive en el <b>edge</b> (garantiza terminación) y la
  * decisión es <b>pura</b> (solo lee estado), trivial de testear. El grafo se compila una vez de forma
@@ -67,12 +67,15 @@ public class CragGraph {
     }
 
     private CompiledGraph<CragState> build() {
-        RewriteNode rewrite = new RewriteNode(chatModel.getObject(), prompts.load("crag_rewrite.txt"));
+        ChatModel llm = chatModel.getObject();
+        GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"));
+        RewriteNode rewrite = new RewriteNode(
+                llm, prompts.load("crag_rewrite.txt"), props.kStep(), props.kMax());
         try {
             return new StateGraph<>(CragState::new)
                     .addNode("retrieve", node_async(new RetrieveNode(retriever)))
                     .addNode("rerank", node_async(new RerankNode()))
-                    .addNode("grade", node_async(new GradeNode()))
+                    .addNode("grade", node_async(grade))
                     .addNode("rewrite", node_async(rewrite))
 
                     .addEdge(START, "retrieve")
@@ -81,9 +84,9 @@ public class CragGraph {
 
                     .addConditionalEdges("grade",
                             edge_async(s -> {
-                                if (s.mejorScore() >= props.umbral()) return "ok";
-                                if (s.iteraciones() >= props.maxIteraciones()) return "ok";
-                                return "retry";
+                                if (s.suficiente()) return "ok";                       // recuperación buena
+                                if (s.iteraciones() >= props.maxIteraciones()) return "ok"; // tope: lo mejor obtenido
+                                return "retry";                                        // amplía y reintenta
                             }),
                             EdgeMappings.builder()
                                     .toEND("ok")

@@ -39,11 +39,13 @@ autoops:
     grpc-port: 50051
     class-name: DocChunk
   # Bucle correctivo del RAG (CRAG). El tope de iteraciones garantiza la terminación (doc 03 §3).
+  # 'grade' evalúa con el LLM si los chunks responden a la pregunta (sin atajo por score: no es fiable).
   crag:
-    k: 5
-    umbral: 0.7            # score mínimo (reranker/híbrido) para confianza "alta"
+    k: 5                   # nº de recuperaciones en la primera vuelta
     max-iteraciones: 2     # reformulaciones antes de devolver lo mejor obtenido
     alpha: 0.5             # peso vector vs BM25 en la búsqueda híbrida (1=vector, 0=BM25)
+    k-step: 3              # cuánto crece k en cada iteración correctiva (amplía las recuperaciones)
+    k-max: 12              # tope de k por mucho que itere el bucle
   # Ingesta del corpus (corpus/*.md → chunks → embeddings → Weaviate).
   ingestion:
     corpus-path: ../corpus
