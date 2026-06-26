@@ -19,7 +19,8 @@ El front principal. Publica las **tools** que consume el cliente MCP (Claude Cod
 
 El cerebro de recuperación, compartido por la tool `buscar_docs` y por el chat:
 
-- **Ingesta**: documentación interna (markdown de `corpus/`) → chunks → embeddings → Weaviate.
+- **Ingesta multi-fuente**: cada `FuenteDocumental` (markdown local, repo Git, Confluence) aporta documentos →
+  el `Chunker` los trocea (heading + recursivo, con ventana de vecinos) → embeddings → Weaviate (ver ADR-010).
 - **Recuperación avanzada**: búsqueda **híbrida** (vector + keyword) + **reranking** + **bucle correctivo
   CRAG** (califica la relevancia; si es floja, reformula/expande la consulta y reintenta). El ciclo se modela
   con **LangGraph4j** (ver [03-tools-mcp.md](03-tools-mcp.md) §3).
@@ -170,6 +171,46 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 - **Consecuencias:** primer cliente HTTP plano del proyecto (`RestClient` de Spring, sin SDK dedicado de Loki);
   el resto de integraciones (Weaviate, fabric8) usan su propio SDK. RBAC sin cambios: Loki no expone más que
   logs ya agregados por Promtail, ningún acceso nuevo al clúster.
+
+### ADR-010 — Ingesta multi-fuente, chunking híbrido y ventana de vecinos (sentence-window)
+
+- **Contexto:** la ingesta solo leía `corpus/*.md` local, con cuatro metadatos (`texto`, `fuente`, `seccion`,
+  `orden`) y un único texto que a la vez se embebía y se almacenaba. No había forma de traer documentación
+  desde un repositorio Git, ni de citar con título/URL, ni de dar al LLM redactor más contexto que el propio
+  fragmento recuperado.
+- **Decisión:**
+  1. **Abstracción de origen** (`io.github.mikel0ne.autoops.rag.source.FuenteDocumental`): Spring inyecta `List<FuenteDocumental>`;
+     cada una emite `Documento`. `LocalMarkdownSource` (carpeta local) y `GitMarkdownSource` (JGit, clona una
+     rama y construye el permalink al **commit SHA**, no a la rama — para que la cita no se rompa cuando la
+     rama avanza) están implementadas. `ConfluenceSource` es un **stub** deliberado (registrado, `leer()`
+     vacío): no hay instancia de Confluence todavía, pero la abstracción ya está lista para enchufarla.
+  2. **Chunking híbrido** (`Chunker`, estático y puro): parte por encabezado (mantiene el breadcrumb completo,
+     p. ej. `Operación > Probes > Readiness`, como metadato `seccion`) y, dentro de cada sección, empaqueta
+     párrafos hasta un tamaño objetivo; si un párrafo solo ya excede ese tamaño, lo subdivide con el splitter
+     recursivo de LangChain4j en vez de emitir un chunk gigante.
+  3. **Ventana de vecinos (sentence-window):** se separa el texto que se **embebe** (`nucleo`: el fragmento
+     en sí, pequeño y limpio → afina el match) del que se **almacena y se cita** (`texto`: núcleo + el chunk
+     anterior + el siguiente del mismo documento → más contexto para el LLM redactor). Es gratis aquí porque
+     Weaviate tiene `vectorizer: none` (AutoOps calcula el vector a mano, ver ADR-005): basta con `embedAll`
+     sobre `nucleo` e insertar `texto`.
+  4. **Metadatos ampliados:** `titulo`, `url` (con ancla a la sección), `origen` (`markdown-local`|`git`|`confluence`),
+     `docId` (documento padre) y `hash` (SHA-256 del núcleo, para una futura ingesta incremental) — esquema en
+     [05-contratos-api-datos.md](05-contratos-api-datos.md) §4.
+  5. **`taskType` distinto en indexar vs consultar:** `GeminiModelConfig` expone dos beans `EmbeddingModel`
+     (`RETRIEVAL_DOCUMENT` al indexar, `RETRIEVAL_QUERY` al buscar — detalle en
+     [06-abstraccion-llm.md](06-abstraccion-llm.md) §1/§3), porque Google AI Studio asimetriza el embedding
+     según el uso.
+- **Decisión explícita fuera de alcance:** leer el **código fuente** de un servicio (para diagnóstico cuando
+  el error viene de "su" repo) **no** entra en esta ingesta. Prosa y código se trocean distinto, el embedding
+  de prosa rinde peor sobre código, y sobre todo el diagnóstico quiere el código **tal y como está desplegado
+  ahora** (el SHA en producción), no una copia pre-embebida que envejece. Si se necesita, será una tool MCP
+  bajo demanda (mismo patrón que `K8sInspectionService`/`LokiGateway`: leer en vivo, no indexar), no parte del
+  RAG de documentación.
+- **Consecuencias:** cambio de esquema en Weaviate → cualquier despliegue de esto exige **reindexar desde
+  cero** (`POST /admin/ingest?reset=true`) con un `--tag` de imagen único. JGit 5.12 (la versión ya disponible
+  en el proyecto) no soporta *shallow clone* (`setDepth` llegó en JGit 6.3): `GitMarkdownSource` clona una sola
+  rama a profundidad completa, aceptable para un repo de documentación; si algún día se ingesta un repo grande,
+  subir la versión de JGit.
 
 ## 4. Atributos de calidad y cómo se abordan
 

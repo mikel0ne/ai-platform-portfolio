@@ -102,8 +102,14 @@ io.github.mikel0ne.autoops
 │   └── McpConfig.java               # ToolCallbackProvider (registra las 4 anteriores)
 ├── rag/                       # núcleo RAG compartido (tool + chat)
 │   ├── RagService.java              # API interna: buscar(consulta, k)
-│   ├── DocChunk.java  RagResult.java
-│   ├── IngestionService.java  IngestionController.java  IngestionProperties.java   # corpus/*.md → chunks → embeddings → Weaviate
+│   ├── DocChunk.java  Chunk.java  RagResult.java
+│   ├── Chunker.java                 # static/puro: heading+recursivo, ventana de vecinos (ver ADR-010)
+│   ├── IngestionService.java  IngestionController.java  IngestionProperties.java   # fuentes → chunks → embeddings → Weaviate
+│   ├── source/                      # orígenes de documentación (ver ADR-010)
+│   │   ├── FuenteDocumental.java  Documento.java
+│   │   ├── LocalMarkdownSource.java # corpus/*.md local
+│   │   ├── GitMarkdownSource.java   # clona un repo (JGit) y permalinkea al SHA
+│   │   └── ConfluenceSource.java    # stub: registrado, leer() vacío hasta tener instancia
 │   ├── WeaviateConfig.java          # bean WeaviateClient (cliente raw, ver ADR-005)
 │   ├── WeaviateGateway.java         # esquema + ingesta + retrieve (híbrido+rerank, query GraphQL a mano)
 │   ├── WeaviateProperties.java

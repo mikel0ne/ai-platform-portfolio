@@ -16,8 +16,9 @@ parámetros). Forma canónica de cada una:
 // salida
 {
   "chunks": [
-    { "texto": "Las probes readiness deben…", "fuente": "estandar-microservicios.md",
-      "seccion": "Probes", "score": 0.83 }
+    { "texto": "Las probes readiness deben…", "titulo": "Estándar de microservicios",
+      "fuente": "estandar-microservicios.md", "seccion": "Estándar de microservicios > Probes",
+      "url": "", "origen": "markdown-local", "score": 0.83 }
   ],
   "iteraciones": 1,          // vueltas del bucle CRAG consumidas
   "confianza": "alta"        // alta | baja (baja = el LLM evaluador no consideró los chunks suficientes)
@@ -83,7 +84,8 @@ Sin autenticación en el MVP (solo lectura de documentación pública interna). 
 // response 200
 {
   "respuesta": "Según la guía interna, todo contenedor declara requests y límite de memoria…",  // redactado
-  "citas": [ { "fuente": "politica-recursos.md", "seccion": "Límites", "score": 0.81 } ],
+  "citas": [ { "fuente": "politica-recursos.md", "titulo": "Política de recursos",
+               "seccion": "Política de recursos > Límites", "url": "", "origen": "markdown-local", "score": 0.81 } ],
   "confianza": "alta"
 }
 ```
@@ -99,7 +101,8 @@ El endpoint MCP (SSE) está disponible cuando readiness pasa.
 ## 3. DTOs (forma canónica en Java)
 
 ```java
-public record DocChunk(String texto, String fuente, String seccion, double score) {}
+public record DocChunk(String texto, String titulo, String fuente, String seccion, String url, String origen,
+                       double score) {}
 
 public record SearchRequest(String consulta) {}
 public record SearchResponse(String respuesta, List<DocChunk> citas, String confianza) {}
@@ -125,10 +128,15 @@ relacional (sin gateway, no hay historial que persistir).
 erDiagram
     DOC_CHUNK {
         uuid   id PK
-        vector embedding "dim = la del modelo de embeddings configurado (gemini-embedding-001)"
-        text   texto
-        string fuente "fichero de origen del corpus"
-        string seccion "encabezado/sección dentro del fichero"
+        vector embedding "embebe el NUCLEO del chunk; dim = la del modelo configurado (gemini-embedding-001)"
+        text   texto "ALMACENADO: ventana = chunk anterior + nucleo + chunk siguiente (ver ADR-010)"
+        string titulo "título del documento de origen"
+        string fuente "fichero/page/path de origen"
+        string seccion "breadcrumb de encabezados (p. ej. 'Operación > Probes > Readiness')"
+        string url "permalink con ancla a la sección; vacío si el origen no es navegable"
+        string origen "markdown-local | git | confluence"
+        string docId "id estable del documento padre"
+        string hash "SHA-256 del núcleo; ingesta incremental/dedupe futura"
         int    orden "posición del chunk en el documento"
     }
 ```
@@ -142,8 +150,13 @@ infraestructura `03-weaviate.md`):
   "vectorizer": "none",                 // los embeddings los calcula AutoOps (LangChain4j), no Weaviate
   "properties": [
     { "name": "texto",   "dataType": ["text"] },
+    { "name": "titulo",  "dataType": ["text"] },
     { "name": "fuente",  "dataType": ["text"], "tokenization": "field" },
     { "name": "seccion", "dataType": ["text"] },
+    { "name": "url",     "dataType": ["text"], "tokenization": "field" },
+    { "name": "origen",  "dataType": ["text"], "tokenization": "field" },
+    { "name": "docId",   "dataType": ["text"], "tokenization": "field" },
+    { "name": "hash",    "dataType": ["text"], "tokenization": "field" },
     { "name": "orden",   "dataType": ["int"] }
   ],
   "moduleConfig": { "reranker-transformers": {} }   // reranking nativo
@@ -155,6 +168,8 @@ infraestructura `03-weaviate.md`):
   la clase con la nueva dimensión y **re-ingestar** el corpus (ver doc 06).
 - La **búsqueda híbrida** (vector + BM25 sobre `texto`) y el **reranking** se piden en la query, no cambian el
   esquema.
+- **El vector embebe `nucleo`, no `texto`** (patrón *sentence-window*, ADR-010 en doc 02): `nucleo` es interno
+  al `Chunker` y no se persiste como propiedad — solo su `hash` se guarda, para una futura ingesta incremental.
 
 ## 5. Versionado del contrato
 
