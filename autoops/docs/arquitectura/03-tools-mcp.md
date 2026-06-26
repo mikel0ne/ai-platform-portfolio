@@ -140,8 +140,8 @@ Estrategias, por orden de retorno:
 
 1. **Búsqueda híbrida** (vector + BM25) — nativa en Weaviate.
 2. **Reranking** — el módulo reranker de Weaviate reordena por relevancia; la mayor ganancia de precisión.
-3. **Calificador + bucle correctivo** — si el mejor score no supera el umbral, **reformula/expande** la consulta
-   (multi-query / HyDE con el LLM interno) y/o **sube el `k`**, y reintenta.
+3. **Calificador + bucle correctivo** — el LLM interno evalúa si los fragmentos responden a la consulta; si no,
+   **reformula/expande** la consulta (multi-query / HyDE) **y sube el `k`** a la vez, y reintenta.
 4. **Filtros por metadatos** (fuente, sección) cuando la consulta los sugiere.
 
 ### 3.1 El estado del subgrafo
@@ -158,20 +158,27 @@ public class CragState extends AgentState {
 
     public String consulta()            { return this.<String>value("consulta").orElseThrow(); }
     public String consultaActual()      { return this.<String>value("consultaActual").orElse(consulta()); }
+    public int k()                      { return this.<Integer>value("k").orElse(5); }
     public List<DocChunk> candidatos()  { return this.<List<DocChunk>>value("candidatos").orElseGet(List::of); }
     public double mejorScore()          { return this.<Double>value("mejorScore").orElse(0.0); }
+    public boolean suficiente()         { return this.<Boolean>value("suficiente").orElse(false); }
     public int iteraciones()            { return this.<Integer>value("iteraciones").orElse(0); }
 }
 ```
 
 ### 3.2 Los nodos (resumen)
 
-- **`retrieve`** — `WeaviateEmbeddingStore` en modo híbrido sobre `consultaActual()`; deja candidatos.
-- **`rerank`** — reordena con el reranker de Weaviate y recorta a `k`.
-- **`grade`** — calificación **determinista** por score del reranker (no usa LLM: un juez-LLM aquí podría
-  alucinar la calidad). Marca `suficiente` si `mejorScore >= UMBRAL`.
+- **`retrieve`** — búsqueda híbrida de Weaviate (vector+BM25+rerank nativo) sobre `consultaActual()` con `k`
+  recuperaciones; deja candidatos.
+- **`rerank`** — reordena por el score que ya trae cada candidato y recorta a `k`.
+- **`grade`** — el **LLM interno evalúa** si los candidatos bastan para responder la consulta (prompt
+  `crag_grade.txt`, veredicto SUFICIENTE/INSUFICIENTE). Deliberadamente sin atajo por `mejorScore`: ese score
+  no es un proxy fiable de relevancia (en producción se vio un fragmento irrelevante con score muy alto y uno
+  relevante con score muy bajo). Marca `suficiente` con el veredicto del LLM; ante ambigüedad, prudente: no
+  basta. `mejorScore` queda en el estado solo para logs.
 - **`rewrite`** — usa el **LLM interno** para reformular/expandir la consulta (incorpora sinónimos del dominio,
-  separa preguntas compuestas); incrementa `iteraciones`.
+  separa preguntas compuestas) **y aumenta `k`** (`kStep` por vuelta, tope `kMax`): cada reintento mira más
+  lejos en el ranking, no solo cambia las palabras.
 
 ### 3.3 Construcción del grafo
 
@@ -189,7 +196,7 @@ public CompiledGraph<CragState> build() throws GraphStateException {
 
             .addConditionalEdges("grade",
                     edge_async(s -> {
-                        if (s.mejorScore() >= UMBRAL)            return "ok";
+                        if (s.suficiente())                      return "ok"; // el LLM ve los chunks suficientes
                         if (s.iteraciones() >= MAX_ITERACIONES)  return "ok"; // se devuelve lo mejor que haya
                         return "retry";
                     }),
@@ -206,9 +213,10 @@ public CompiledGraph<CragState> build() throws GraphStateException {
 Puntos finos:
 
 - **El tope de iteraciones vive en el edge**, no en los nodos: el grafo garantiza la terminación.
-- La decisión es **pura** (solo lee estado) → trivial de testear.
-- Si nunca se supera el umbral, se devuelve **el mejor conjunto** obtenido (nunca se deja al cliente sin nada);
-  la respuesta puede marcar `confianza: baja` para que el cliente lo tenga en cuenta.
+- La decisión del edge es **pura** (solo lee `suficiente`/`iteraciones` del estado) → trivial de testear con
+  un `ChatModel` falso.
+- Si el LLM nunca evalúa los resultados como suficientes, se devuelve **el mejor conjunto** obtenido (nunca se
+  deja al cliente sin nada); la respuesta marca `confianza: baja` para que el cliente lo tenga en cuenta.
 
 ## 4. El chat reutiliza el mismo núcleo
 

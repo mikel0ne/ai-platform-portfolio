@@ -20,7 +20,7 @@ parámetros). Forma canónica de cada una:
       "seccion": "Probes", "score": 0.83 }
   ],
   "iteraciones": 1,          // vueltas del bucle CRAG consumidas
-  "confianza": "alta"        // alta | baja (baja = no se superó el umbral; el cliente debe matizar)
+  "confianza": "alta"        // alta | baja (baja = el LLM evaluador no consideró los chunks suficientes)
 }
 ```
 

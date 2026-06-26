@@ -11,7 +11,7 @@ export interface DocCitation {
   score: number;
 }
 
-/** Nivel de confianza del RAG: `baja` = no se superó el umbral, el usuario debe matizar. */
+/** Nivel de confianza del RAG: `baja` = el LLM evaluador no considera los chunks suficientes, el usuario debe matizar. */
 export type Confianza = 'alta' | 'baja';
 
 /** Petición a `POST /search`. */
