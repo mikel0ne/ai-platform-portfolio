@@ -7,7 +7,7 @@ export interface UserDto {
   formal: boolean;
 }
 
-export type Intent = 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
+export type Intent = 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'TICKETS' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
 
 /** Acción de confirmación (botones) para una operación irreversible, p. ej. cancelar un pedido. */
 export interface ConfirmAction {
