@@ -1,91 +1,79 @@
-# 05 — Despliegue del servidor
+# 05 — Despliegue de los servicios
 
-Despliegue de `autoops-mcp`. Requiere completadas las guías 02 (secret/RBAC), 03 (Weaviate) y 04 (imagen
-construida).
+Despliegue de `autoops-backend` y `autoops-frontend`. Requiere completadas las guías 02 (namespace/secret/RBAC),
+03 (Weaviate) y 04 (imágenes construidas).
 
-## 1. Deployment y Service (`k8s/20-autoops-mcp.yaml`)
+## 1. Helm, no manifiestos sueltos
 
-La app corre con el ServiceAccount `autoops-mcp` (RBAC read-only de la guía 02) para las tools de diagnóstico.
-Es el **único** componente expuesto por Ingress.
+No hay un `k8s/*.yaml` por componente: ambos servicios se despliegan con el **chart genérico**
+`infra/charts/generic-app` (compartido por todo el monorepo), parametrizado por
+`infra/values-autoops-backend.yaml` y `infra/values-autoops-frontend.yaml`. `infra/scripts/deploy.sh` resuelve
+los nombres por convención (`--project autoops`) y hace `helm upgrade --install` por componente; el namespace
+(`infra/namespace-autoops.yaml`) y el RBAC (`infra/rbac-autoops.yaml`, guía 02) se aplican antes, también de
+forma automática.
+
+El backend corre con el ServiceAccount `autoops-mcp` (RBAC read-only de la guía 02; `serviceAccount.create:
+false` en el values — su ciclo de vida es cluster-scoped, fuera del release de Helm) para las tools de
+diagnóstico. Backend y frontend son **dos Deployments separados** (dos imágenes), ambos detrás del mismo
+Ingress (guía 06): no hay un único "componente expuesto".
+
+Equivalente conceptual de lo que el chart renderiza para el **backend** (valores reales y comentados en
+`infra/values-autoops-backend.yaml`; release `autoops-backend` → recursos `autoops-backend-generic-app`):
 
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: autoops-mcp
+  name: autoops-backend-generic-app
   namespace: autoops
-  labels:
-    app: autoops-mcp
-    app.kubernetes.io/part-of: autoops
 spec:
   replicas: 1
-  selector:
-    matchLabels:
-      app: autoops-mcp
+  strategy:                                # RollingUpdate, maxUnavailable: 0 (servidor stateless)
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
   template:
-    metadata:
-      labels:
-        app: autoops-mcp
-        app.kubernetes.io/part-of: autoops
     spec:
-      serviceAccountName: autoops-mcp          # RBAC read-only (guía 02)
+      serviceAccountName: autoops-mcp        # RBAC read-only (guía 02)
       containers:
-        - name: mcp
-          image: autoops/mcp:0.1.0
+        - name: app
+          image: registry.local/autoops-backend:<tag>
           imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8080
+          ports: [{ containerPort: 8080 }]
+          envFrom: [{ configMapRef: { name: autoops-backend-generic-app } }]   # SPRING_PROFILES_ACTIVE=k8s, etc.
           env:
-            - { name: SPRING_PROFILES_ACTIVE, value: k8s }   # transporte MCP por HTTP/SSE
-            # Proveedor LLM/embeddings abstraído
-            - { name: AUTOOPS_LLM_PROVIDER, value: gemini }
             - name: GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef: { name: autoops-llm-secret, key: GEMINI_API_KEY }
-            # Weaviate
-            - { name: AUTOOPS_WEAVIATE_HOST, value: weaviate.autoops.svc.cluster.local }
-            - { name: AUTOOPS_WEAVIATE_PORT, value: "8080" }
-            - { name: AUTOOPS_WEAVIATE_GRPC_PORT, value: "50051" }
+              valueFrom: { secretKeyRef: { name: autoops-llm-secret, key: GEMINI_API_KEY } }
           resources:
             requests: { cpu: 250m, memory: 512Mi }
-            limits:   { memory: 1Gi }
-          readinessProbe:
-            httpGet: { path: /actuator/health/readiness, port: 8080 }
-            initialDelaySeconds: 20
-            periodSeconds: 10
-          livenessProbe:
-            httpGet: { path: /actuator/health/liveness, port: 8080 }
-            initialDelaySeconds: 40
-            periodSeconds: 20
+            limits:   { cpu: "2", memory: 1Gi }
+          readinessProbe: { httpGet: { path: /actuator/health/readiness, port: 8080 } }
+          livenessProbe:  { httpGet: { path: /actuator/health/liveness,  port: 8080 } }
 ---
 apiVersion: v1
 kind: Service
-metadata:
-  name: autoops-mcp
-  namespace: autoops
+metadata: { name: autoops-backend-generic-app, namespace: autoops }
 spec:
-  selector:
-    app: autoops-mcp
-  ports:
-    - port: 8080
-      targetPort: 8080
+  selector: { app.kubernetes.io/instance: autoops-backend }   # ver nota de labels en §3
+  ports: [{ port: 8080, targetPort: 8080 }]
 ```
+
+El **frontend** (`autoops-frontend-generic-app`) sigue el mismo patrón con `infra/values-autoops-frontend.yaml`:
+imagen `registry.local/autoops-frontend`, puerto `80` (nginx), sin ConfigMap ni Secret (config embebida en el
+build Angular).
 
 ## 2. Despliegue y verificación
 
-```powershell
-kubectl apply -f k8s/20-autoops-mcp.yaml
-kubectl rollout status deployment/autoops-mcp -n autoops
-kubectl get pods -n autoops          # autoops-mcp y weaviate Running, READY 1/1
+```bash
+./infra/scripts/deploy.sh --project autoops --component all --tag 0.4.0
+kubectl get pods -n autoops          # autoops-backend-generic-app-... y autoops-frontend-generic-app-... Running
 ```
 
 Prueba de humo sin Ingress (port-forward directo):
 
-```powershell
-kubectl port-forward svc/autoops-mcp 8080:8080 -n autoops
-# En otra terminal:
-Invoke-WebRequest http://localhost:8080/actuator/health      # UP
-# El endpoint MCP por SSE responde en /sse (lo consume el cliente MCP, no el navegador)
+```bash
+kubectl port-forward svc/autoops-backend-generic-app 8080:8080 -n autoops
+curl http://localhost:8080/actuator/health      # UP
+# El endpoint MCP (Streamable HTTP) responde en /mcp (lo consume el cliente MCP, no el navegador)
 ```
 
 ## 3. Decisiones de diseño
@@ -93,12 +81,16 @@ Invoke-WebRequest http://localhost:8080/actuator/health      # UP
 - **Probes de Actuator separadas**: readiness cae si Weaviate o el proveedor LLM no responden (deja de recibir
   tráfico sin reiniciarse); liveness solo reinicia ante cuelgues reales de la JVM. Requiere
   `management.endpoint.health.probes.enabled=true` (por defecto en Kubernetes).
-- **Sin límite de CPU** (solo `requests`): evita throttling de la JVM en local; el límite de memoria sí protege
-  el nodo único.
-- **Una réplica**: el servidor es prácticamente stateless (el estado vive en Weaviate). El transporte **SSE es
-  con conexión persistente**, así que si en el futuro se escalara a N réplicas habría que fijar afinidad de
-  sesión en el Ingress; en local, una réplica es suficiente.
-- **ServiceAccount de solo lectura**: el contenedor monta automáticamente el token del SA; el cliente fabric8 lo
-  usa *in-cluster* sin configuración extra.
+- **CPU solo limitada arriba** (`limits`, holgado a 2 cores; `requests` modesto): evita throttling de la JVM en
+  el nodo local; el límite de memoria sí protege el nodo único.
+- **Una réplica por componente**: el backend es prácticamente stateless (el estado vive en Weaviate). El
+  transporte MCP (**Streamable HTTP, con conexión persistente**) reconecta solo; si en el futuro se escalara a
+  N réplicas habría que fijar afinidad de sesión en el Ingress — en local, una réplica es suficiente.
+- **ServiceAccount de solo lectura**: el contenedor del backend monta automáticamente el token del SA; el
+  cliente fabric8 lo usa *in-cluster* sin configuración extra. El frontend no necesita SA propio.
+- **Labels de Helm, no `app=`**: el chart genérico fija `app.kubernetes.io/name` al nombre del *chart*
+  (`generic-app`) para **todos** los servicios que lo usan — no distingue backend de frontend. Lo que sí
+  distingue cada release es `app.kubernetes.io/instance` (`autoops-backend` / `autoops-frontend`); los
+  selectores de las tools K8s (`estado_pods`) deben usar ese label, no `app=` ni `app.kubernetes.io/name=`.
 
 Continuar con [06-ingress-acceso.md](06-ingress-acceso.md).

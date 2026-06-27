@@ -33,12 +33,23 @@ mano. Forma lógica:
   "moduleConfig": { "reranker-transformers": {} },
   "properties": [
     { "name": "texto",   "dataType": ["text"] },
+    { "name": "titulo",  "dataType": ["text"] },
     { "name": "fuente",  "dataType": ["text"], "tokenization": "field" },
     { "name": "seccion", "dataType": ["text"] },
+    { "name": "url",     "dataType": ["text"], "tokenization": "field" },
+    { "name": "origen",  "dataType": ["text"], "tokenization": "field" },
+    { "name": "docId",   "dataType": ["text"], "tokenization": "field" },
+    { "name": "hash",    "dataType": ["text"], "tokenization": "field" },
     { "name": "orden",   "dataType": ["int"] }
   ]
 }
 ```
+
+> **Esquema completo en doc de arquitectura `05-contratos-api-datos.md` §4** (contrato canónico). Importante:
+> `ensureSchema()` es **idempotente** — si la clase ya existe en el clúster con un esquema más viejo (p. ej. sin
+> `titulo`/`url`/`origen`/`docId`/`hash`), NO la migra sola. Tras cualquier cambio de esquema hace falta
+> `bash infra/scripts/ingest-autoops.sh --reset` (borra y recrea la clase + reingesta) para que coincida con el
+> código real.
 
 La **dimensión del vector** la fija el primer embedding insertado (no está prefijada porque `vectorizer: none`).
 El modelo es **Gemini `gemini-embedding-001`** (el free tier real; `text-embedding-004` **no** está disponible

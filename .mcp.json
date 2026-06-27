@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "autoops": {
-      "type": "sse",
-      "url": "http://autoops.local/sse"
+      "type": "http",
+      "url": "http://autoops.local/mcp"
     }
   }
 }

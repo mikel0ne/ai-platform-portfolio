@@ -5,88 +5,100 @@
 > **compartidos** por todo el monorepo: `docker/backend.Dockerfile` y `docker/frontend.Dockerfile`. El corpus
 > del RAG se hornea en la imagen del backend (`deploy.sh` lo copia al contexto desde `CORPUS_DIR`).
 
-`autoops-backend` se empaqueta con un **build multi-stage** para producir una imagen pequeña sin requerir Java
-instalado en quien construye (solo Docker/nerdctl).
+Ninguna de las dos imágenes se construye a mano con `docker build`: las orquesta el script genérico
+`infra/scripts/deploy.sh --project autoops --component backend|frontend|all` (ver `infra/projects/autoops.env`
+para los paths exactos: `DOCKERFILE_BACKEND`/`CONTEXT_BACKEND`, `DOCKERFILE_FRONTEND`/`CONTEXT_FRONTEND`,
+`CORPUS_DIR`).
 
-Convención de etiquetado: `registry.local/autoops-<componente>:<versión>` (SemVer manual). Push al registry
-local; `imagePullPolicy: IfNotPresent`. **Pasa siempre un `--tag` único por build** (mismo tag = el pod no se
-actualiza). Lo orquesta `infra/scripts/deploy.sh --project autoops --component backend|frontend|all`.
+Convención de etiquetado: `registry.local/autoops-<componente>:<tag>` (SemVer manual). Push al registry local
+vía `--tag`; `imagePullPolicy: IfNotPresent`. **`--tag` único por build** (mismo tag = el pod no se actualiza,
+ver §3).
 
-## 1. Dockerfile
+## 1. Dockerfile del backend
 
-`Dockerfile` (en la raíz del proyecto):
+`docker/backend.Dockerfile` (contexto de build: `autoops/backend/`):
 
 ```dockerfile
-# ---------- Etapa 1: build ----------
+# ---- Stage 1: build ----
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /workspace
 
-# Cachear dependencias: primero solo el pom
+# Primero solo el pom: la capa de dependencias se cachea entre builds
 COPY pom.xml .
 RUN mvn -B dependency:go-offline
 
 COPY src ./src
-RUN mvn -B clean package -DskipTests
+RUN mvn -B package -DskipTests
 
-# Extraer capas de Spring Boot para mejor caché de imagen
-RUN java -Djarmode=layertools -jar target/*.jar extract --destination extracted
-
-# ---------- Etapa 2: runtime ----------
+# ---- Stage 2: runtime ----
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
-# Usuario no root
-RUN addgroup -S autoops && adduser -S autoops -G autoops
-USER autoops
+RUN addgroup -S -g 1000 app && adduser -S -u 1000 -G app app
+USER 1000
 
-COPY --from=build /workspace/extracted/dependencies/ ./
-COPY --from=build /workspace/extracted/spring-boot-loader/ ./
-COPY --from=build /workspace/extracted/snapshot-dependencies/ ./
-COPY --from=build /workspace/extracted/application/ ./
+COPY --from=build /workspace/target/*.jar app.jar
+COPY corpus /app/corpus    # horneado por deploy.sh antes del build (ver §1 más abajo)
 
 EXPOSE 8080
-ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 ```
 
 Notas:
 
-- La UI estática del chat vive en `src/main/resources/static/` y queda **dentro del jar**: no hay imagen de
-  frontend separada ni Nginx.
-- El **corpus** (`corpus/*.md`) puede empaquetarse en la imagen (montado como classpath o copiado a `/app/corpus`)
-  o montarse como volumen/ConfigMap; la ingesta se lanza tras el despliegue (guía 07 §3).
-- `dependency:go-offline` no resuelve el 100 % de los plugins, pero acelera los rebuilds.
+- Multi-stage simple (jar único, sin `layertools`): imagen final ligera (`eclipse-temurin:17-jre-alpine`, sin
+  JDK ni Maven) y usuario no-root (`uid 1000`).
+- No hay UI dentro del jar: la SPA Angular es la **otra** imagen (frontend).
+- **Corpus horneado**: `deploy.sh` copia `CORPUS_DIR` (`autoops/corpus`) a `autoops/backend/corpus` *antes* del
+  build, así que `COPY corpus /app/corpus` siempre encuentra contenido; la app lo lee vía
+  `AUTOOPS_INGESTION_CORPUS_PATH=/app/corpus` (ConfigMap del chart, guía 05).
 
-## 2. Construcción de la imagen
+## 2. Dockerfile del frontend
 
-Desde la raíz del proyecto:
+`docker/frontend.Dockerfile` (contexto: `autoops/frontend/`; genérico para cualquier proyecto Angular del
+monorepo, no solo AutoOps):
 
-```powershell
-docker build -t autoops/mcp:0.1.0 .
-docker images "autoops/*"
+```dockerfile
+# ---- Stage 1: build ----
+FROM node:20-alpine AS build
+WORKDIR /workspace
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+# ---- Stage 2: runtime ----
+FROM nginx:1.27-alpine
+
+# Angular 17+ deja la app en dist/<nombre>/browser
+COPY --from=build /workspace/dist/frontend/browser /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
 ```
 
-## 3. Hacer visible la imagen al clúster
+`deploy.sh` copia `docker/frontend-nginx.conf` a `autoops/frontend/nginx.conf` antes del build (logging JSON
+estructurado para Loki/Grafana, ver guía 07).
 
-### Docker Desktop
+## 3. Construcción y push (automatizado)
 
-Nada que hacer: el clúster comparte daemon con `docker build`. Con `IfNotPresent`, Kubernetes usa la imagen local.
-
-### Minikube
-
-```powershell
-minikube image load autoops/mcp:0.1.0
-# o construir dentro del daemon de minikube:
-# minikube docker-env | Invoke-Expression ; docker build -t autoops/mcp:0.1.0 .
+```bash
+./infra/scripts/deploy.sh --project autoops --component all --tag 0.4.0
 ```
+
+- El script hace `docker build` + `docker push registry.local/autoops-<componente>:<tag>` por cada componente,
+  y luego `helm upgrade --install` (chart `infra/charts/generic-app`, guía 05) con `--set image.tag=<tag>`.
+- `--skip-build` salta el build/push y solo aplica Helm (útil si solo cambió un `values-autoops-*.yaml`).
+- `--dry-run` renderiza el chart con `helm template` sin aplicar nada al clúster.
+- El registry `registry.local` resuelve dentro del clúster gracias al `containerd-snapshotter` compartido con
+  dockerd (k3s/Rancher Desktop): no hace falta `minikube image load` ni equivalentes.
 
 ## 4. Ciclo de actualización
 
-```powershell
-docker build -t autoops/mcp:0.1.1 .                  # nueva etiqueta por build
-# (minikube image load si aplica)
-kubectl set image deployment/autoops-mcp mcp=autoops/mcp:0.1.1 -n autoops
-kubectl rollout status deployment/autoops-mcp -n autoops
-```
+`kubectl set image` no se usa a mano: el ciclo completo es `deploy.sh --tag <nuevo>` (rebuild + push + `helm
+upgrade`, que ya gestiona el `RollingUpdate`).
 
 > **Evitar `:latest`** y reutilizar etiquetas: con `IfNotPresent`, Kubernetes no re-descarga una etiqueta que ya
 > conoce y se desplegaría código viejo. Etiqueta nueva por build = despliegues deterministas.

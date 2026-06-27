@@ -129,7 +129,7 @@ spring:
       server:
         name: autoops-mcp
         version: 0.1.0
-        # SSE para la versión desplegada; stdio para uso local del desarrollador
+        # Streamable HTTP (con keep-alive) para la versión desplegada; stdio para uso local del desarrollador
         type: SYNC
 ```
 
@@ -245,11 +245,13 @@ el LLM interno (instrucción anti-alucinación: "si los documentos no contienen 
 
 | Nivel | Qué se prueba | Cómo |
 |---|---|---|
-| Unitario (tools K8s) | Cada `@Tool` de Kubernetes | Cliente fabric8 *mock* (`KubernetesServer` de fabric8) con objetos de fixture. |
-| Unitario (`consultar_logs`) | Construcción de LogQL, resolución de la ventana de tiempo, aplanado de la respuesta de Loki | Métodos `static` puros de `LokiGateway` con fixtures (sin Loki real). |
-| Unitario (nodos CRAG) | `retrieve`/`rerank`/`grade`/`rewrite` aislados | Store y `ChatModel` falsos; aserciones sobre el delta de estado. |
-| Unitario (edge CRAG) | La decisión del bucle | `CragState` con `mejorScore`/`iteraciones` → `ok`/`retry`. |
-| Integración (CRAG) | El bucle converge y termina | Store programado para devolver resultados flojos N veces y luego buenos; aserciones: iteró N veces, terminó. |
-| Integración (MCP) | Descubrimiento y llamada de tools | Cliente MCP de prueba que lista tools e invoca `diagnosticar_pod` contra un `KubernetesServer` mock. |
+| Unitario (mapeo K8s) | `K8sInspectionService.toDiagnosis`/`toPodStatus`/`toDescription`/`hace` (estáticos, puros) | Objetos `Pod` de fixture construidos a mano con el builder de fabric8 (`PodBuilder`); sin cliente ni clúster real (`K8sInspectionMappingTest`). |
+| Unitario (`consultar_logs`) | Construcción de LogQL, resolución de la ventana de tiempo, aplanado de la respuesta de Loki, escapado/variables de la URI | Métodos `static` puros de `LokiGateway` + `MockRestServiceServer` para el caso de regresión de la URI (sin Loki real, `LokiGatewayTest`). |
+| Unitario (nodos CRAG) | `retrieve`/`rerank`/`grade`/`rewrite` aislados | `DocRetriever` y `ChatModel` falsos (`TestSupport.ScriptedChatModel`/`FakeRetriever`); aserciones sobre el delta de estado. |
+| Integración (CRAG) | El bucle converge, escala `k` y termina | `FakeRetriever` programado para devolver resultados flojos N veces y luego buenos; aserciones: iteró N veces, escaló `k`, terminó (`CragLoopTest`, incluye el test de regresión "score alto pero irrelevante no evita la evaluación del LLM"). |
+| Unitario (ingesta) | `Chunker` (heading+recursivo, ventana de vecinos), `GitMarkdownSource` (permalink/webBase sin red) | Fixtures de markdown en memoria; sin Git real ni Weaviate (`IngestionChunkingTest`, `GitMarkdownSourceTest`). |
 
-Ningún test necesita un LLM real ni un clúster real, gracias a la abstracción (doc 06) y a los mocks de fabric8.
+Ningún test necesita un LLM real, un clúster real ni Weaviate/Loki reales. No hay tests de integración con
+contexto Spring (`@SpringBootTest`): en este entorno el loopback bloquea la creación de los `ChatModel`/
+`EmbeddingModel` reales al arrancar el contexto, así que toda la cobertura es unitaria sobre POJOs/métodos
+estáticos con dobles de prueba.

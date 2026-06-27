@@ -11,8 +11,8 @@ datos relacional de historial: todo eso era del diseño anterior y se elimina.
 El front principal. Publica las **tools** que consume el cliente MCP (Claude Code, Copilot):
 
 - Expone como tools MCP los beans Java anotados con `@Tool` (catálogo completo en [03-tools-mcp.md](03-tools-mcp.md)).
-- **Transporte**: HTTP/SSE (o *streamable HTTP*) para la versión desplegada en el clúster; **stdio** para uso
-  local del desarrollador.
+- **Transporte**: **Streamable HTTP** (Spring AI 2.0.0, con keep-alive) para la versión desplegada en el
+  clúster; **stdio** para uso local del desarrollador.
 - No contiene lógica de negocio: cada tool delega en el núcleo RAG o en el servicio K8s.
 
 ### Núcleo RAG (LangChain4j + Weaviate + CRAG)
@@ -63,7 +63,7 @@ guía de infraestructura `03-weaviate.md`.
 flowchart TB
     CC[Claude Code / Copilot<br/>cliente MCP]
     BR((Navegador))
-    CC -->|MCP HTTP/SSE · autoops.local/sse| MCP
+    CC -->|MCP Streamable HTTP · autoops.local/mcp| MCP
     BR -->|HTTPS autoops.local/| CHAT
 
     subgraph POD["autoops-mcp · Spring Boot :8080"]
@@ -151,11 +151,17 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 - **Consecuencias:** el servidor incorpora un LLM pequeño de uso **interno** (calificar/reformular), distinto
   del razonamiento del cliente.
 
-### ADR-008 — Transporte MCP HTTP/SSE in-cluster (+ stdio en local)
+### ADR-008 — Transporte MCP Streamable HTTP in-cluster (+ stdio en local)
 
-- **Decisión:** desplegado, AutoOps expone MCP por **HTTP/SSE** (necesita correr en el clúster para usar el
-  ServiceAccount de lectura). En local, el desarrollador puede usar **stdio**.
-- **Consecuencias:** el Ingress enruta el endpoint SSE; el cliente MCP se configura con la URL (ver
+- **Decisión:** desplegado, AutoOps expone MCP por **Streamable HTTP** (Spring AI 2.0.0 / Spring Boot 4.1.0;
+  necesita correr en el clúster para usar el ServiceAccount de lectura). En local, el desarrollador puede usar
+  **stdio**.
+- **Historia:** la primera versión desplegada usaba el transporte **SSE legacy** (Spring AI 1.0.0). Sin
+  keep-alive, los clientes basados en Node/undici (Claude Code, Copilot en VS Code/IntelliJ) cortaban la
+  conexión a los ~5 min de inactividad (`-32001 Request timed out`) y había que reiniciar el cliente a mano.
+  Se migró a Streamable HTTP (`streamable-http.keep-alive-interval: 20s`) como fix de la causa raíz, no como
+  parche.
+- **Consecuencias:** el Ingress enruta el endpoint `/mcp`; el cliente MCP se configura con la URL (ver
   [07-roadmap-implementacion.md](07-roadmap-implementacion.md) §F4).
 
 ### ADR-009 — Logs agregados vía Loki (`consultar_logs`), complemento de `logs_pod`

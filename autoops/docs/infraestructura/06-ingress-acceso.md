@@ -2,12 +2,12 @@
 
 Punto de entrada: **Traefik** (incluido en k3s/Rancher Desktop) enrutando por el host `autoops.local`. El
 frontend y el backend comparten host, repartidos **por path**. Traefik no bufferiza respuestas por defecto, así
-que el **SSE** del MCP (conexión larga, en streaming) fluye sin configuración extra.
+que el streaming del MCP (conexión larga) fluye sin configuración extra.
 
 | Ruta | Sirve |
 |---|---|
 | `autoops.local/` | Frontend Angular (chat de búsqueda) |
-| `autoops.local/sse` | Endpoint **MCP por SSE** (lo consume el cliente MCP) |
+| `autoops.local/mcp` | Endpoint **MCP por Streamable HTTP** (lo consume el cliente MCP) |
 | `autoops.local/search` | API REST del chat (la llama el frontend) |
 | `autoops.local/actuator` | Health |
 | `autoops.local/swagger-ui`, `/v3/api-docs` | OpenAPI |
@@ -45,12 +45,13 @@ infra\scripts\add-host.ps1 -Hostname autoops.local
 
 ## 4. Registrar AutoOps en el cliente MCP
 
-Con el servidor desplegado (transporte **HTTP/SSE**), añadir a la config MCP del cliente:
+Con el servidor desplegado (transporte **Streamable HTTP**, con keep-alive — Spring AI 2.0.0), añadir a la
+config MCP del cliente:
 
 ```jsonc
 {
   "mcpServers": {
-    "autoops": { "type": "sse", "url": "http://autoops.local/sse" }
+    "autoops": { "type": "http", "url": "http://autoops.local/mcp" }
   }
 }
 ```

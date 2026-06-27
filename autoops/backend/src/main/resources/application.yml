@@ -1,13 +1,19 @@
 spring:
   application:
     name: autoops-mcp
-  # Servidor MCP (Spring AI). En local el cliente puede usar stdio; desplegado, SSE (perfil k8s).
+  # Servidor MCP (Spring AI). En local el cliente puede usar stdio; desplegado, Streamable HTTP (perfil k8s).
   ai:
     mcp:
       server:
         name: autoops-mcp
         version: 0.1.0
         type: SYNC
+        protocol: STREAMABLE
+        streamable-http:
+          mcp-endpoint: /mcp
+          # Ping periódico sobre la conexión para que no la mate un proxy/cliente por
+          # inactividad (p.ej. el body-timeout ~300s de Node/undici en Copilot/VS Code).
+          keep-alive-interval: 20s
 
 server:
   port: 8080
@@ -77,7 +83,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,env
+        include: health,info,env,mappings
   endpoint:
     health:
       show-details: always

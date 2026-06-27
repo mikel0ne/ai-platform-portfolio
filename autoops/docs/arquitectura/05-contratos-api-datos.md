@@ -96,7 +96,7 @@ redacción server-side; la tool MCP equivalente (`buscar_docs`) no redacta.
 ### GET `/actuator/health`
 
 Readiness incluye: reachability de Weaviate y del proveedor LLM (check ligero, cacheado, para no quemar cuota).
-El endpoint MCP (SSE) está disponible cuando readiness pasa.
+El endpoint MCP (`/mcp`, Streamable HTTP) está disponible cuando readiness pasa.
 
 ## 3. DTOs (forma canónica en Java)
 
@@ -146,7 +146,7 @@ infraestructura `03-weaviate.md`):
 
 ```jsonc
 {
-  "class": "DocChunk",
+  "class": "AutoopsDocChunk",           // el nombre real es prefijado: Weaviate es compartido (ver doc 03 de infra)
   "vectorizer": "none",                 // los embeddings los calcula AutoOps (LangChain4j), no Weaviate
   "properties": [
     { "name": "texto",   "dataType": ["text"] },

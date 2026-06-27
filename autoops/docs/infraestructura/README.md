@@ -12,7 +12,7 @@ además, el sujeto que AutoOps diagnostica.
 
 | Componente | Tecnología | Namespace | Exposición |
 |---|---|---|---|
-| `autoops-backend` | Spring Boot 3 · Spring AI MCP · LangChain4j · LangGraph4j · fabric8 | `autoops` | Ingress Traefik (`/search`, `/sse`, `/actuator`, `/swagger-ui`) |
+| `autoops-backend` | Spring Boot 4 · Spring AI MCP (Streamable HTTP) · LangChain4j · LangGraph4j · fabric8 | `autoops` | Ingress Traefik (`/search`, `/mcp`, `/actuator`, `/swagger-ui`) |
 | `autoops-frontend` | Angular 17 + nginx (chat de búsqueda) | `autoops` | Ingress Traefik (`/`) |
 | `weaviate` (+ `weaviate-reranker`) | Weaviate 1.27 · reranker-transformers | **`infra`** (compartido) | Solo interno (ClusterIP) |
 | Logs | Loki + Promtail + Grafana | `observability` | `grafana.local` |
@@ -25,10 +25,10 @@ Backend y frontend son **dos imágenes/servicios** (no una UI dentro del jar). W
 
 ```mermaid
 flowchart LR
-    CC[Claude Code / Copilot] -->|MCP HTTP/SSE| T[Ingress Traefik]
+    CC[Claude Code / Copilot] -->|MCP Streamable HTTP| T[Ingress Traefik]
     BR[Navegador] -->|/| T
     T -->|/| F[autoops-frontend<br/>nginx]
-    T -->|/search /sse /actuator| A[autoops-backend<br/>Spring Boot :8080]
+    T -->|/search /mcp /actuator| A[autoops-backend<br/>Spring Boot :8080]
     A -->|gRPC/HTTP| W[(Weaviate · ns infra)]
     W --> R[reranker-transformers]
     A -->|HTTPS| LLM[Gemini · AI Studio]
@@ -59,7 +59,7 @@ bash infra/scripts/ingest-autoops.sh                         # ingesta del corpu
 #   infra/scripts/add-host.ps1 -Hostname grafana.local
 ```
 
-URLs: `http://autoops.local/` (chat) · `http://autoops.local/sse` (MCP) · `http://grafana.local`.
+URLs: `http://autoops.local/` (chat) · `http://autoops.local/mcp` (MCP) · `http://grafana.local`.
 
 ## Índice de guías (diseño conceptual)
 
@@ -68,7 +68,7 @@ URLs: `http://autoops.local/` (chat) · `http://autoops.local/sse` (MCP) · `htt
 3. [03-weaviate.md](03-weaviate.md) — base vectorial compartida (híbrido + reranking).
 4. [04-dockerizacion.md](04-dockerizacion.md) — imágenes backend y frontend.
 5. [05-despliegue-servicios.md](05-despliegue-servicios.md) — Deployment, Service y probes.
-6. [06-ingress-acceso.md](06-ingress-acceso.md) — Traefik (incl. SSE) y registro del MCP.
+6. [06-ingress-acceso.md](06-ingress-acceso.md) — Traefik (sin buffering, streaming) y registro del MCP.
 7. [07-operacion-troubleshooting.md](07-operacion-troubleshooting.md) — logs, fallos típicos, ingesta.
 
 > Las guías 02, 05 y 07 conservan el detalle conceptual (RBAC, probes, troubleshooting); para los

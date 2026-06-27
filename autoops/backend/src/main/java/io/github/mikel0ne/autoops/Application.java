@@ -24,7 +24,7 @@ public class Application {
         log.info("========================================");
         log.info("✓ AutoOps MCP iniciado");
         log.info("----------------------------------------");
-        log.info("MCP (SSE):  /sse                → tools para clientes MCP (Claude Code/Copilot)");
+        log.info("MCP (Streamable HTTP): /mcp     → tools para clientes MCP (Claude Code/Copilot)");
         log.info("Chat:       POST /search        → búsqueda de documentación (RAG)");
         log.info("UI:         /                   → chat de búsqueda (estático)");
         log.info("Health:     /actuator/health    → liveness/readiness");
