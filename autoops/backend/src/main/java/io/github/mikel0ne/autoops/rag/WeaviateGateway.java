@@ -18,6 +18,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,18 +95,39 @@ public class WeaviateGateway implements DocRetriever {
 
     // ---------------------------------------------------------------- ingesta
 
+    /** Máximo de textos por llamada a embedAll: el free tier de Gemini cuenta cada texto del lote contra
+     * la cuota de 100 requests/minuto, así que un lote ya casi la agota por sí solo. */
+    private static final int EMBED_BATCH_SIZE = 90;
+
+    /** Pausa entre lotes para no encadenar dos lotes en la misma ventana de cuota por minuto. */
+    private static final Duration PAUSA_ENTRE_LOTES = Duration.ofSeconds(65);
+
     /**
      * Calcula embeddings de los chunks y los inserta por lotes. Devuelve el nº de objetos insertados.
      * Se embebe el {@code nucleo} (texto pequeño y limpio → match preciso) pero se almacena {@code texto}
      * (la ventana con los vecinos → contexto para el redactor): patrón sentence-window, gratis aquí porque
      * el vector lo calcula AutoOps y no Weaviate.
+     *
+     * <p>Los embeddings se piden en lotes de {@link #EMBED_BATCH_SIZE}, con una pausa entre lotes
+     * ({@link #PAUSA_ENTRE_LOTES}): el free tier de Gemini limita a 100 requests/minuto y cuenta cada
+     * texto del lote como una request, así que dos lotes consecutivos sin pausa agotan la cuota (429).
      */
     public int ingest(List<Chunk> chunks) {
         if (chunks.isEmpty()) {
             return 0;
         }
-        List<TextSegment> segments = chunks.stream().map(c -> TextSegment.from(c.nucleo())).toList();
-        List<Embedding> embeddings = docEmbeddingModel.getObject().embedAll(segments).content();
+        EmbeddingModel embedder = docEmbeddingModel.getObject();
+        List<Embedding> embeddings = new ArrayList<>(chunks.size());
+        for (int from = 0; from < chunks.size(); from += EMBED_BATCH_SIZE) {
+            if (from > 0) {
+                esperarRenovacionDeCuota();
+            }
+            int to = Math.min(from + EMBED_BATCH_SIZE, chunks.size());
+            List<TextSegment> lote = chunks.subList(from, to).stream()
+                    .map(c -> TextSegment.from(c.nucleo()))
+                    .toList();
+            embeddings.addAll(embedder.embedAll(lote).content());
+        }
 
         List<WeaviateObject> objects = new ArrayList<>(chunks.size());
         for (int i = 0; i < chunks.size(); i++) {
@@ -222,6 +244,15 @@ public class WeaviateGateway implements DocRetriever {
     }
 
     // -------------------------------------------------------------- helpers
+
+    private static void esperarRenovacionDeCuota() {
+        try {
+            Thread.sleep(PAUSA_ENTRE_LOTES.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Ingesta interrumpida esperando la cuota de Gemini", e);
+        }
+    }
 
     private static Float[] toFloatArray(Embedding embedding) {
         float[] v = embedding.vector();
