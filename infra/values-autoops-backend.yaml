@@ -56,13 +56,16 @@ configmap:
     AUTOOPS_INGESTION_CORPUS_PATH: "/app/corpus"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
-# Único Secret: la API key de Gemini (chat + embeddings, uso interno).
-# El chart NO crea el Secret; lo sincroniza deploy.sh desde infra/.env.local
-# (compartida por todos los proyectos del portfolio).
+# Secret compartido: API key de Gemini (chat + embeddings) y token de GitHub (lectura del
+# monorepo para la ingesta RAG). El chart NO crea el Secret; lo sincroniza deploy.sh desde
+# infra/.env.local (compartida por todos los proyectos del portfolio).
 secretEnv:
   - name: GEMINI_API_KEY
     secretName: autoops-llm-secret
     secretKey: GEMINI_API_KEY
+  - name: GITHUB_TOKEN
+    secretName: autoops-llm-secret
+    secretKey: GITHUB_TOKEN
 
 # ServiceAccount de SOLO LECTURA para las tools K8s (lo crea infra/rbac-autoops.yaml,
 # aplicado por deploy.sh junto al ClusterRole/ClusterRoleBinding). create:false porque

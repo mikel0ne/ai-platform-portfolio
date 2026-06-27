@@ -35,8 +35,10 @@ spec:
           env:
             - { name: ENABLE_CUDA, value: "0" }
           resources:
-            requests: { cpu: 250m, memory: 512Mi }
-            limits:   { memory: 1Gi }
+            requests: { cpu: 250m, memory: 768Mi }
+            # 1Gi se quedaba corto al reordenar resultados del corpus ampliado (557 chunks,
+            # ventanas de texto más largas): OOMKilled en la primera búsqueda real tras el reindex.
+            limits:   { memory: 2Gi }
           readinessProbe:
             httpGet: { path: /.well-known/ready, port: 8080 }
             initialDelaySeconds: 20
