@@ -74,7 +74,7 @@ spec:
 
           {{- /*
             env: variables planas (env[]) + referencias a Secrets externos (secretEnv[]).
-            Los Secrets NO los crea el chart; créalos con scripts/create-secrets.ps1
+            Los Secrets NO los crea el chart; créalos con infra/scripts/create-secrets.ps1
             o con kubectl antes de hacer helm upgrade/install.
           */}}
           {{- if or .Values.env .Values.secretEnv }}

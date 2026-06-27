@@ -10,8 +10,8 @@
 #
 # Traefik ya expone el entrypoint HTTP "web" en el puerto 80 de localhost (k3s /
 # Rancher Desktop). No requiere tocar daemon.json ni la config de Traefik.
-# Traefik NO bufferiza respuestas por defecto → el SSE del MCP (/sse) fluye sin
-# configuración extra.
+# Traefik NO bufferiza respuestas por defecto → el streaming del MCP (p.ej. /mcp)
+# fluye sin configuración extra.
 #
 # Uso:
 #   ./infra/scripts/setup-app-ingress.sh --project autoops

@@ -15,7 +15,7 @@
 #   - k3s containerd usa /etc/rancher/k3s/registries.yaml para hacer lo mismo.
 #   - /etc/hosts dentro de la WSL rancher-desktop apunta 127.0.0.1 registry.local
 #     (para que containerd resuelva el host).
-#   - El hosts file de Windows se actualiza con scripts/add-registry-host.ps1.
+#   - El hosts file de Windows se actualiza con infra/scripts/add-registry-host.ps1.
 #
 # Requiere:
 #   - 02-setup-registry.sh ejecutado previamente
@@ -136,7 +136,7 @@ fi
 # =========================================================================
 echo ""
 echo "==> Para que el HOST Windows resuelva registry.local (solo una vez como Admin):"
-echo "      scripts\\add-registry-host.ps1"
+echo "      infra\\scripts\\add-registry-host.ps1"
 echo "    O manualmente, en una PowerShell elevada:"
 echo "      Add-Content C:\\Windows\\System32\\drivers\\etc\\hosts '127.0.0.1 registry.local'"
 echo ""

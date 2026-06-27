@@ -22,7 +22,7 @@ HPA:         {{ .Values.hpa.minReplicas }}–{{ .Values.hpa.maxReplicas }} répl
 {{- end }}
 
 O usa el script incluido en infra/scripts/:
-  .\scripts\create-secrets.ps1 -Namespace {{ .Values.namespace }}
+  .\infra\scripts\create-secrets.ps1 -Namespace {{ .Values.namespace }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Comandos útiles:

@@ -3,7 +3,7 @@
 # Chart: infra/charts/generic-app
 # =============================================================================
 # SPA Angular servida por nginx. Llama a POST /search del backend; el routing
-# /search · /sse · /actuator → backend lo hace el Ingress (setup-app-ingress.sh).
+# /search · /mcp · /actuator → backend lo hace el Ingress (setup-app-ingress.sh).
 # Despliegue:
 #   ./infra/scripts/deploy.sh --project autoops --component frontend --tag 0.1.0
 # =============================================================================

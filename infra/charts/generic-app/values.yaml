@@ -76,7 +76,7 @@ env: []
 #   value: "Europe/Madrid"
 
 # -- Vars desde Secrets externos (creados con kubectl o script, NUNCA en el chart).
-# El chart referencia los Secrets pero NO los crea. Ver NOTES.txt y scripts/create-secrets.ps1.
+# El chart referencia los Secrets pero NO los crea. Ver NOTES.txt y infra/scripts/create-secrets.ps1.
 secretEnv: []
 # - name: MY_API_KEY          # nombre de la env var en el contenedor
 #   secretName: my-secret     # nombre del Secret en K8s

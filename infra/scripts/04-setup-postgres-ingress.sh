@@ -29,8 +29,8 @@ fail()  { echo "    [x]  $*"; exit 1; }
 # =========================================================================
 step "Verificando requisitos..."
 kubectl cluster-info &>/dev/null || fail "k3s no responde."
-kubectl get svc postgres -n "" &>/dev/null || \
-  fail "Servicio postgres no encontrado en namespace . Ejecuta primero 03-setup-postgres.sh"
+kubectl get svc postgres -n "$NS" &>/dev/null || \
+  fail "Servicio postgres no encontrado en namespace $NS. Ejecuta primero 03-setup-postgres.sh"
 ok "Prerrequisitos OK"
 
 # =========================================================================
@@ -100,8 +100,8 @@ fi
 # 5. Prueba de conexion con psql dentro del pod
 # =========================================================================
 step "Probando conexion a postgres desde dentro del pod..."
-PG_POD=
-kubectl exec -n "" "" -- \
+PG_POD=$(kubectl get pod -n "$NS" -l app=postgres -o jsonpath="{.items[0].metadata.name}")
+kubectl exec -n "$NS" "$PG_POD" -- \
   psql -U appuser -d appdb -c "SELECT 'IngressRouteTCP OK' AS resultado;"
 ok "Conexion verificada"
 
@@ -111,7 +111,7 @@ ok "Conexion verificada"
 step "Para usar postgres.local en lugar de localhost (solo una vez como Admin):"
 echo ""
 echo "  Ejecuta como Administrador:"
-echo "    scripts\add-postgres-host.ps1"
+echo "    infra\scripts\add-postgres-host.ps1"
 echo ""
 echo "  O manualmente en PowerShell elevada:"
 echo "    Add-Content C:\Windows\System32\drivers\etc\hosts '127.0.0.1 postgres.local'"
