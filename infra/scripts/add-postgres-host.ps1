@@ -1,6 +1,6 @@
 # add-postgres-host.ps1
 # Ejecutar como Administrador: clic derecho -> "Ejecutar con PowerShell"
-# O desde una terminal elevada: .\scripts\add-postgres-host.ps1
+# O desde una terminal elevada: .\infra\scripts\add-postgres-host.ps1
 #
 # Añade "postgres.local -> 127.0.0.1" al fichero hosts de Windows
 

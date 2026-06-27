@@ -6,7 +6,7 @@
 #   ./infra/scripts/deploy.sh --project autoops --component backend --tag 0.1.0
 #
 # El backend es a la vez:
-#   - servidor MCP por SSE  (/sse)         ← lo consume Claude Code / Copilot
+#   - servidor MCP por Streamable HTTP (/mcp) ← lo consume Claude Code / Copilot
 #   - API REST del chat     (/search)      ← lo consume el frontend Angular
 #   - Actuator              (/actuator)    ← health para las probes
 # RAG sobre Weaviate COMPARTIDO en el namespace `infra` (criterio Postgres):
@@ -24,7 +24,7 @@ replicaCount: 1
 
 strategy:
   # El estado vive en Weaviate; el pod es prácticamente stateless. RollingUpdate
-  # con maxUnavailable=0 evita cortes. El SSE del MCP reconecta solo.
+  # con maxUnavailable=0 evita cortes. El MCP (Streamable HTTP) reconecta solo.
   type: RollingUpdate
   rollingUpdate:
     maxSurge: 1
@@ -106,7 +106,7 @@ securityContext:
   runAsNonRoot: true
 
 # El Ingress lo monta infra/scripts/setup-app-ingress.sh --project autoops
-# (host autoops.local, rutas /search /sse /actuator → backend, / → frontend).
+# (host autoops.local, rutas /search /mcp /actuator → backend, / → frontend).
 ingress:
   enabled: false
 

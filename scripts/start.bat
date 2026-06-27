@@ -10,8 +10,8 @@ setlocal
 :: Calcular raíz del proyecto (un nivel arriba de scripts\)
 set "SCRIPTS_DIR=%~dp0"
 for %%I in ("%SCRIPTS_DIR%..") do set "ROOT=%%~fI"
-set "BACKEND=%ROOT%\backend"
-set "FRONTEND=%ROOT%\frontend"
+set "BACKEND=%ROOT%\l1-copilot\backend"
+set "FRONTEND=%ROOT%\l1-copilot\frontend"
 
 echo.
 echo  ============================================================
@@ -82,8 +82,8 @@ start "" "http://localhost:4199"
 
 echo.
 echo  ============================================================
-echo   Back  : http://localhost:8079
-echo   Swagger: http://localhost:8079/swagger-ui/index.html
+echo   Back  : http://localhost:8079/api
+echo   Swagger: http://localhost:8079/api/swagger-ui/index.html
 echo   Front  : http://localhost:4199
 echo  ============================================================
 echo.

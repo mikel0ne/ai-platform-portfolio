@@ -2,14 +2,15 @@
 REM ===========================================================================
 REM  run-sh-gitbash.cmd
 REM  Wrapper para ejecutar un script bash del repo con Git Bash EN WINDOWS.
-REM  Pensado para los scripts que hablan con binarios instalados en Windows
-REM  (psql, etc) -- evita el viaje a WSL. Para scripts que necesitan
-REM  kubectl/helm/docker del cluster, ver run-sh-wsl.cmd.
+REM  Necesario porque IntelliJ Sh plugin lanza el comando en PowerShell por
+REM  defecto (no ejecuta .sh); se usa para TODOS los scripts del repo, tanto
+REM  los que hablan con binarios de Windows (psql) como los que necesitan
+REM  kubectl/helm/docker (deploy.sh, setup-app-ingress.sh...).
 REM
 REM  Busca bash.exe en rutas conocidas (Git for Windows o cmder).
 REM
 REM  Uso desde la raiz del repo:
-REM    .\infra\scripts\run-sh-gitbash.cmd .\scripts\seed-l1-copilot-db.sh
+REM    .\infra\scripts\run-sh-gitbash.cmd .\l1-copilot\scripts\seed-l1-copilot-db.sh
 REM ===========================================================================
 setlocal
 if "%~1"=="" (

@@ -1,7 +1,9 @@
-# Backend Spring Boot + LangGraph4j — build multi-stage.
+# Backend Spring Boot — build multi-stage. Genérico para cualquier proyecto del
+# monorepo (autoops, l1-copilot…): lo invoca infra/scripts/deploy.sh con la
+# imagen y el contexto del proyecto (infra/projects/<p>.env → CONTEXT_BACKEND).
 # Uso (desde la raíz del repo):
-#   docker build -f docker/backend.Dockerfile -t autoops-mcp:0.1.0 ./backend
-# Ver docs/infraestructura/04-dockerizacion.md.
+#   docker build -f docker/backend.Dockerfile -t registry.local/<proyecto>-backend:<tag> ./autoops/backend
+# Ver autoops/docs/infraestructura/04-dockerizacion.md.
 
 # ---- Stage 1: build ----
 FROM maven:3.9-eclipse-temurin-17 AS build

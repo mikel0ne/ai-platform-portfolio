@@ -111,7 +111,7 @@ psql -h postgres.local -p 15432 -U appuser -d appdb
 ```
 
 > Conexión validada: `TcpTestSucceeded: True` a `postgres.local:15432` desde Windows (2026-06-12).  
-> Si hay que rehacerlo: ejecutar `scripts/add-postgres-host.ps1` como Administrador.
+> Si hay que rehacerlo: ejecutar `infra/scripts/add-postgres-host.ps1` como Administrador.
 
 > ⚠️ Tras reiniciar Rancher Desktop, el kubeconfig de Ubuntu WSL se desincroniza.  
 > Refrescarlo con: `cp /mnt/c/Users/<usuario>/.kube/config ~/.kube/config`
@@ -335,7 +335,7 @@ El frontend Angular y el backend Spring Boot comparten host (`l1-copilot.local`)
 | `http://l1-copilot.local/` | Frontend nginx | Ingress `/` (pathType Prefix) → `l1-copilot-frontend-generic-app:80` |
 | `http://l1-copilot.local/api/**` | Backend Spring | Ingress `/api` (pathType Prefix) → `l1-copilot-backend-generic-app:8080` |
 
-El Ingress envía el path **sin reescribir**. El prefijo `/api` lo absorbe el backend vía `server.servlet.context-path: /api` en [`backend/src/main/resources/application.yml`](../backend/src/main/resources/application.yml). Por eso los `@RequestMapping` de los controllers no llevan `/api` (sería duplicado): `@RequestMapping("/copilot")` se sirve en `http://l1-copilot.local/api/copilot/...`. El actuator queda automáticamente en `/api/actuator/health` y las probes del Deployment ya apuntan ahí.
+El Ingress envía el path **sin reescribir**. El prefijo `/api` lo absorbe el backend vía `server.servlet.context-path: /api` en [`l1-copilot/backend/src/main/resources/application.yml`](../l1-copilot/backend/src/main/resources/application.yml). Por eso los `@RequestMapping` de los controllers no llevan `/api` (sería duplicado): `@RequestMapping("/copilot")` se sirve en `http://l1-copilot.local/api/copilot/...`. El actuator queda automáticamente en `/api/actuator/health` y las probes del Deployment ya apuntan ahí.
 
 > Ventaja: ni Traefik necesita un middleware `StripPrefix`, ni el frontend tiene que reescribir URLs. Si algún día se moviera el back a otro host, basta con cambiar `context-path` o el Ingress, sin tocar código de controllers.
 
@@ -425,8 +425,8 @@ Secret vía `secretEnv` en el values file correspondiente.
 
 El perfil `dev` solo necesita `GEMINI_API_KEY` (Postgres queda en H2). Tres formas de inyectarla en IntelliJ — usa la que prefieras:
 
-1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/Backend.run.xml` añade `infra/.env.l1-copilot`, `infra/.env.local` y `infra/.env.l1-copilot.local` (en ese orden) como ficheros de entorno. Mismo source de verdad que el deploy.
-2. **Variables en la run config**: edita `.run/Backend.run.xml` y añade `<env name="GEMINI_API_KEY" value="..." />` (queda commiteada — solo si te da igual).
+1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/l1-copilot - Backend.run.xml` añade `infra/.env.l1-copilot`, `infra/.env.local` y `infra/.env.l1-copilot.local` (en ese orden) como ficheros de entorno. Mismo source de verdad que el deploy.
+2. **Variables en la run config**: edita `.run/l1-copilot - Backend.run.xml` y añade `<env name="GEMINI_API_KEY" value="..." />` (queda commiteada — solo si te da igual).
 3. **Shell**: exporta antes de arrancar IntelliJ — `source infra/.env.l1-copilot && source infra/.env.local && source infra/.env.l1-copilot.local`.
 
 ### Estrategia de Secrets: evolución futura

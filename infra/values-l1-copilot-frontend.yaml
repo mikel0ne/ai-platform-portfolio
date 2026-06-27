@@ -3,14 +3,15 @@
 # Chart: infra/charts/generic-app
 # =============================================================================
 # Despliegue:
-#   docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile .
+#   docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile ./l1-copilot/frontend
 #   docker push registry.local/l1-copilot-frontend:1.0.0
 #
 #   helm upgrade --install l1-copilot-frontend infra/charts/generic-app \
 #     -f infra/values-l1-copilot-frontend.yaml
 #
-# El Ingress lo monta el backend (ingressExtraPaths apunta a este Service);
-# aquí Ingress queda desactivado.
+# El Ingress lo gestiona infra/scripts/setup-app-ingress.sh --project l1-copilot
+# directamente con kubectl (no el chart); aquí Ingress queda desactivado para
+# evitar conflictos con el recurso manual.
 # =============================================================================
 
 namespace: l1-copilot
@@ -68,6 +69,6 @@ securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: false   # nginx:alpine corre como root; usar nginx-unprivileged para true
 
-# Ingress lo monta el backend (ingressExtraPaths -> l1-copilot-frontend)
+# Ingress lo gestiona infra/scripts/setup-app-ingress.sh --project l1-copilot
 ingress:
   enabled: false

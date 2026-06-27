@@ -258,10 +258,14 @@ helm_deploy() {
   fi
 
   log "helm upgrade --install ${release}"
+  # --force-conflicts: Helm 4 usa server-side apply por defecto. Si un kubectl set/edit
+  # manual tocó antes el mismo recurso, queda como field-manager en conflicto y el
+  # upgrade falla; Helm debe poder reafirmar la propiedad de los campos que gestiona.
   helm upgrade --install "${release}" "${CHART_DIR}" \
     --namespace "${NAMESPACE}" \
     -f "${values}" \
     --set image.tag="${TAG}" \
+    --force-conflicts \
     --wait --timeout 3m
   ok "Release '${release}' desplegado"
 }

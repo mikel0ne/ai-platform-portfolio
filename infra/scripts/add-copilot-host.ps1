@@ -32,5 +32,5 @@ if ($test.TcpTestSucceeded) {
 } else {
     Write-Host "[!] No se puede alcanzar l1-copilot.local:80." -ForegroundColor Yellow
     Write-Host "    Asegurate de que k3s esta corriendo y has ejecutado:" -ForegroundColor Yellow
-    Write-Host "    bash infra/scripts/06-setup-app-ingress.sh" -ForegroundColor Yellow
+    Write-Host "    bash infra/scripts/setup-app-ingress.sh --project l1-copilot" -ForegroundColor Yellow
 }

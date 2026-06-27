@@ -5,7 +5,7 @@
 # El fichero .env NUNCA debe commitearse (está en .gitignore).
 #
 # Uso:
-#   .\scripts\create-secrets.ps1 -Namespace mi-namespace -SecretName mi-secret -EnvFile .env
+#   .\infra\scripts\create-secrets.ps1 -Namespace mi-namespace -SecretName mi-secret -EnvFile .env
 #
 # Formato del fichero .env:
 #   DB_PASSWORD=mi-password-seguro

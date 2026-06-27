@@ -14,8 +14,8 @@ CYAN='\033[0;36m'; NC='\033[0m'
 # ── Directorios ──────────────────────────────────────────────────────────────
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPTS_DIR")"
-BACKEND_DIR="$ROOT_DIR/backend"
-FRONTEND_DIR="$ROOT_DIR/frontend"
+BACKEND_DIR="$ROOT_DIR/l1-copilot/backend"
+FRONTEND_DIR="$ROOT_DIR/l1-copilot/frontend"
 
 # ── Fichero de PIDs para el stop ─────────────────────────────────────────────
 PID_FILE="$ROOT_DIR/.running.pids"
@@ -81,7 +81,7 @@ echo -e "  PID frontend: ${CYAN}$FRONT_PID${NC} — logs en frontend.log\n"
 # ── Esperar a que el backend esté listo ──────────────────────────────────────
 echo -e "${YELLOW}[WAIT]${NC} Esperando a que el backend arranque..."
 for i in $(seq 1 60); do
-  if curl -sf http://localhost:8079/actuator/health > /dev/null 2>&1; then
+  if curl -sf http://localhost:8079/api/actuator/health > /dev/null 2>&1; then
     echo -e "${GREEN}[OK]${NC} Backend listo ✓"
     break
   fi
@@ -112,8 +112,8 @@ done
 echo ""
 echo -e "${CYAN}============================================================${NC}"
 echo -e "${GREEN}  ✓ Todo arrancado correctamente${NC}"
-echo -e "  Backend  → ${CYAN}http://localhost:8079${NC}"
-echo -e "  Swagger  → ${CYAN}http://localhost:8079/swagger-ui/index.html${NC}"
+echo -e "  Backend  → ${CYAN}http://localhost:8079/api${NC}"
+echo -e "  Swagger  → ${CYAN}http://localhost:8079/api/swagger-ui/index.html${NC}"
 echo -e "  Frontend → ${CYAN}http://localhost:4199${NC}"
 echo -e "${CYAN}============================================================${NC}"
 echo -e "${YELLOW}  Pulsa Ctrl+C para detener ambos servicios${NC}\n"
