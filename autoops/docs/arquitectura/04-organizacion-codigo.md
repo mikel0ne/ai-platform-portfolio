@@ -57,7 +57,7 @@ proyecto previo se eliminó.
   <!-- Protocolo MCP (servidor) -->
   <dependency>
     <groupId>org.springframework.ai</groupId>
-    <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>   <!-- transporte HTTP/SSE -->
+    <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>   <!-- transporte HTTP (Streamable HTTP, Spring AI 2.x) -->
   </dependency>
 
   <!-- Motor RAG -->
@@ -84,8 +84,8 @@ proyecto previo se eliminó.
 </dependencies>
 ```
 
-> Para uso **local por stdio** en lugar de HTTP/SSE, se usa el starter `spring-ai-starter-mcp-server` (sin
-> WebMVC). El catálogo de tools es el mismo; solo cambia el transporte.
+> Para uso **local por stdio** en lugar de Streamable HTTP, se usa el starter `spring-ai-starter-mcp-server`
+> (sin WebMVC). El catálogo de tools es el mismo; solo cambia el transporte.
 
 ## 3. Paquetes (`io.github.mikel0ne.autoops`)
 
@@ -93,7 +93,7 @@ Organización **por característica**, no por capa técnica:
 
 ```
 io.github.mikel0ne.autoops
-├── AutoOpsApplication.java
+├── Application.java
 ├── tools/                     # ←— las tools que ve el cliente MCP (doc 03)
 │   ├── DiagnosticsTools.java        # @Tool ping
 │   ├── DocsTools.java               # @Tool buscar_docs
@@ -102,6 +102,7 @@ io.github.mikel0ne.autoops
 │   └── McpConfig.java               # ToolCallbackProvider (registra las 4 anteriores)
 ├── rag/                       # núcleo RAG compartido (tool + chat)
 │   ├── RagService.java              # API interna: buscar(consulta, k)
+│   ├── DocRetriever.java            # interfaz que implementa WeaviateGateway (testable con un doble)
 │   ├── DocChunk.java  Chunk.java  RagResult.java
 │   ├── Chunker.java                 # static/puro: heading+recursivo, ventana de vecinos (ver ADR-010)
 │   ├── IngestionService.java  IngestionController.java  IngestionProperties.java   # fuentes → chunks → embeddings → Weaviate

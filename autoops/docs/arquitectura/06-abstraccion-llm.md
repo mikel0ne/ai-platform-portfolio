@@ -119,7 +119,7 @@ Ejemplo: Azure OpenAI. Total: 1 dependencia + 1 clase + configuración. Cero cam
 3. **Configuración** (despliegue): `AUTOOPS_LLM_PROVIDER=azure-openai`, claves en el Secret y model names en el
    YAML.
 4. **Atención a los embeddings**: si el modelo de embeddings cambia de dimensión (la de `gemini-embedding-001`
-   no es la misma que la de `text-embedding-3-small`, p. ej.), hay que **recrear la clase `DocChunk` de
+   no es la misma que la de `text-embedding-3-small`, p. ej.), hay que **recrear la clase `AutoopsDocChunk` de
    Weaviate** con la nueva dimensión y **re-ingestar** el corpus. El LLM interno, en cambio, es intercambiable
    sin migración.
 

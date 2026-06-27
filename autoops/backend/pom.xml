@@ -16,7 +16,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.15</version>
+        <version>4.1.0</version>
         <relativePath/>
     </parent>
 
@@ -25,9 +25,9 @@
         <!-- Par de versiones validado: langgraph4j 1.8.x compilado contra langchain4j 1.14+ -->
         <langchain4j.version>1.16.2</langchain4j.version>
         <langgraph4j.version>1.8.17</langgraph4j.version>
-        <spring-ai.version>1.0.0</spring-ai.version>
+        <spring-ai.version>2.0.0</spring-ai.version>
         <fabric8.version>6.13.4</fabric8.version>
-        <springdoc.version>2.8.17</springdoc.version>
+        <springdoc.version>3.0.0</springdoc.version>
     </properties>
 
     <dependencyManagement>

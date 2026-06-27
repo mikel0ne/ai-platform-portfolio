@@ -2,6 +2,9 @@ package io.github.mikel0ne.autoops.observability;
 
 import io.github.mikel0ne.autoops.observability.model.LogEntry;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -9,6 +12,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 /**
  * Construcción de LogQL, resolución de la ventana de tiempo y aplanado de la respuesta de Loki, con
@@ -82,5 +89,27 @@ class LokiGatewayTest {
     void flatten_respuesta_vacia_no_revienta() {
         assertThat(LokiGateway.flatten(null)).isEmpty();
         assertThat(LokiGateway.flatten(new LokiGateway.LokiResponse("success", null))).isEmpty();
+    }
+
+    /**
+     * Regresión: la query LogQL trae llaves literales ({@code {namespace="autoops"}}). Si se pasan ya
+     * resueltas a {@code UriBuilder.build()}, Spring las reinterpreta como variables de plantilla sin
+     * valor y revienta con "Not enough variable values available to expand" antes de llegar a hacer la
+     * petición HTTP.
+     */
+    @Test
+    void queryRange_no_revienta_por_las_llaves_literales_del_logql() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo(allOf(
+                        containsString("/loki/api/v1/query_range"),
+                        containsString("query=%7Bnamespace%3D%22autoops%22%7D"))))
+                .andRespond(withSuccess("{\"status\":\"success\",\"data\":{\"resultType\":\"streams\",\"result\":[]}}",
+                        MediaType.APPLICATION_JSON));
+
+        LokiGateway gateway = new LokiGateway(builder.build());
+
+        assertThat(gateway.queryRange("autoops", null, null, null, null, null, 15, 10)).isEmpty();
+        server.verify();
     }
 }

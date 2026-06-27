@@ -34,7 +34,7 @@ flowchart LR
 
 - [x] Weaviate local (docker compose o el manifiesto de la guía de infra + port-forward).
 - [x] `WeaviateGateway` (cliente raw `io.weaviate:client`, no `WeaviateEmbeddingStore` — ver ADR-005; clase
-      `DocChunk`, reranker) + `IngestionService` (multi-fuente → chunks ~500 tokens con ventana de vecinos →
+      `AutoopsDocChunk`, reranker) + `IngestionService` (multi-fuente → chunks ~500 tokens con ventana de vecinos →
       embeddings) + comando/endpoint de ingesta.
 - [x] Ingesta multi-fuente y sentence-window (ADR-010, doc 02): `FuenteDocumental` (markdown local + Git +
       stub Confluence), `Chunker` híbrido heading+recursivo, metadatos ampliados (título/url/origen/docId/hash),
@@ -95,9 +95,13 @@ hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull
       + `rbac-autoops.yaml`), no en una carpeta `k8s/` separada como se planteó originalmente. El secreto (API
       key de Gemini) vive en `infra/.env.autoops.local`, gitignored — mismo efecto que el `01-secrets.yaml`
       previsto, mecanismo distinto.
-- [x] Dockerfile (guía infra 04) + perfil `k8s` (transporte SSE).
+- [x] Dockerfile (guía infra 04) + perfil `k8s` (transporte MCP, inicialmente SSE).
 - [x] Desplegar Weaviate + `autoops-mcp` + Ingress; ejecutar la ingesta del corpus.
-- [x] Registrar el endpoint SSE en Claude Code (`.mcp.json` apuntando a `http://autoops.local/sse`).
+- [x] Registrar el endpoint MCP en Claude Code (`.mcp.json` apuntando a `http://autoops.local/sse`).
+- [x] Migrar de SSE a **Streamable HTTP** (Spring Boot 4.1.0 + Spring AI 2.0.0): la transport SSE legacy
+      no soportaba keep-alive y los clientes basados en Node/undici (Claude Code, Copilot en VS Code e
+      IntelliJ) cortaban la conexión a los ~5 min de inactividad, dejando las tools inutilizables hasta un
+      reinicio manual. Endpoint nuevo: `http://autoops.local/mcp` (`.mcp.json` actualizado).
 - [ ] Probar el diagnóstico **contra el propio clúster**: AutoOps diagnosticándose a sí mismo (buen momento de demo).
 
 **Verificación:** checklist de la guía infra `07` completa; Claude Code lista las tools vía la URL del Ingress y

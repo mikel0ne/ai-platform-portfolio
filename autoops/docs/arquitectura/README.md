@@ -16,7 +16,7 @@ es autocontenido y referencia a los demás cuando hace falta.
 | Decisión | Valor | Por qué |
 |---|---|---|
 | Tipo de producto | **Servidor MCP**, no copiloto | El razonamiento y la UI los pone el cliente (Claude Code/Copilot); AutoOps es reutilizable y componible. |
-| Protocolo MCP | **Spring AI MCP Server** (sobre el MCP Java SDK oficial) | Publica beans `@Tool` como tools MCP con transporte HTTP/SSE o stdio. |
+| Protocolo MCP | **Spring AI MCP Server** (sobre el MCP Java SDK oficial) | Publica beans `@Tool` como tools MCP con transporte Streamable HTTP o stdio. |
 | Motor RAG | **LangChain4j 1.x + Weaviate** | RAG avanzado: búsqueda híbrida + reranking nativos de Weaviate, vía cliente raw `io.weaviate:client` (`WeaviateEmbeddingStore` de LangChain4j no expone hybrid+rerank, ver ADR-005). |
 | Bucle correctivo RAG | **LangGraph4j** (subgrafo CRAG) | El RAG valida sus resultados y reintenta (reformular/expandir): es un flujo cíclico → LangGraph4j. |
 | Acceso a Kubernetes | **Cliente fabric8, RBAC read-only** | Diagnóstico de runtime sin poder romper nada (sin escritura, sin Secrets). |
@@ -44,7 +44,7 @@ flowchart TB
     LLM[Proveedor LLM/embeddings<br/>default Gemini]
     LK[(Loki<br/>logs agregados)]
 
-    CC -->|MCP HTTP/SSE| MCP
+    CC -->|MCP Streamable HTTP| MCP
     BR -->|HTTP| CHAT
     MCP --> RAG
     MCP --> K8S

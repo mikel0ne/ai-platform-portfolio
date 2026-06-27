@@ -38,7 +38,9 @@ public class KubernetesTools {
           description = "Lista los pods de un namespace con su fase, READY, reinicios y antigüedad.")
     public List<PodStatus> estadoPods(
             @ToolParam(description = "Namespace") String namespace,
-            @ToolParam(required = false, description = "Selector de labels, p. ej. app=payments") String selector) {
+            @ToolParam(required = false, description = "Selector de labels, p. ej. app.kubernetes.io/instance=autoops-backend "
+                    + "(los pods de este clúster vienen de un chart Helm genérico: 'app.kubernetes.io/name' vale "
+                    + "siempre 'generic-app' para todos los servicios, no distingue nada; usar 'instance')") String selector) {
         return k8s.pods(namespace, selector);
     }
 

@@ -33,13 +33,21 @@ public class LokiGateway {
         String query = buildLogQl(namespace, pod, contenedor, texto);
         int limit = lineas == null ? 200 : lineas;
 
+        // La query LogQL trae llaves literales (p. ej. {namespace="autoops"}). Si se inyectan ya
+        // resueltas, UriBuilder las reinterpreta como variables de plantilla sin valor y revienta con
+        // "Not enough variable values available to expand". Se pasan como variables nombradas para que
+        // solo se sustituyan (y codifiquen) una vez, sin volver a escanear el resultado.
         LokiResponse respuesta = client.get()
                 .uri(uri -> uri.path("/loki/api/v1/query_range")
-                        .queryParam("query", query)
-                        .queryParam("start", ventana.desde().toString())
-                        .queryParam("end", ventana.hasta().toString())
-                        .queryParam("limit", limit)
-                        .build())
+                        .queryParam("query", "{query}")
+                        .queryParam("start", "{start}")
+                        .queryParam("end", "{end}")
+                        .queryParam("limit", "{limit}")
+                        .build(Map.of(
+                                "query", query,
+                                "start", ventana.desde().toString(),
+                                "end", ventana.hasta().toString(),
+                                "limit", limit)))
                 .retrieve()
                 .body(LokiResponse.class);
 
