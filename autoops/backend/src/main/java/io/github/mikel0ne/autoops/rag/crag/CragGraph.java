@@ -3,7 +3,9 @@ package io.github.mikel0ne.autoops.rag.crag;
 import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.config.PromptLoader;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
+import io.github.mikel0ne.autoops.rag.crag.nodes.ExpandNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.GradeNode;
+import io.github.mikel0ne.autoops.rag.crag.nodes.MultiQueryNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RerankNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RetrieveNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RewriteNode;
@@ -20,9 +22,14 @@ import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
 import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
 /**
- * Construye el grafo del RAG correctivo (CRAG) con LangGraph4j: {@code retrieve → rerank → grade} y, si la
- * recuperación es floja, {@code grade → rewrite → retrieve} hasta que el LLM evalúe los resultados como
- * suficientes o se agoten las iteraciones (doc 03 §3.3).
+ * Construye el grafo del RAG correctivo (CRAG) con LangGraph4j: {@code multiQuery → rerank → grade} y, si la
+ * recuperación es floja, {@code grade → rewrite → retrieve → rerank → grade} hasta que el LLM evalúe los
+ * resultados como suficientes o se agoten las iteraciones (doc 03 §3.3). Cuando {@code grade} da el visto
+ * bueno, {@code expand} amplía a documento completo los fragmentos relevantes pero cortos antes de terminar.
+ *
+ * <p>La primera vuelta la hace {@code multiQuery} (abanico de variantes + RRF, doc 03 §3.2bis); los
+ * reintentos siguen el camino antiguo, {@code retrieve} con una única consulta reformulada por
+ * {@code rewrite} — el abanico no se reabre en cada reintento, para no multiplicar el coste en llamadas.
  *
  * <p>Puntos finos del diseño: el tope de iteraciones vive en el <b>edge</b> (garantiza terminación) y la
  * decisión es <b>pura</b> (solo lee estado), trivial de testear. El grafo se compila una vez de forma
@@ -71,14 +78,19 @@ public class CragGraph {
         GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"));
         RewriteNode rewrite = new RewriteNode(
                 llm, prompts.load("crag_rewrite.txt"), props.kStep(), props.kMax());
+        MultiQueryNode multiQuery = new MultiQueryNode(
+                retriever, llm, prompts.load("crag_multiquery.txt"), props.multiQueryN());
         try {
             return new StateGraph<>(CragState::new)
+                    .addNode("multiQuery", node_async(multiQuery))
                     .addNode("retrieve", node_async(new RetrieveNode(retriever)))
                     .addNode("rerank", node_async(new RerankNode()))
                     .addNode("grade", node_async(grade))
+                    .addNode("expand", node_async(new ExpandNode(retriever)))
                     .addNode("rewrite", node_async(rewrite))
 
-                    .addEdge(START, "retrieve")
+                    .addEdge(START, "multiQuery")
+                    .addEdge("multiQuery", "rerank")
                     .addEdge("retrieve", "rerank")
                     .addEdge("rerank", "grade")
 
@@ -89,10 +101,11 @@ public class CragGraph {
                                 return "retry";                                        // amplía y reintenta
                             }),
                             EdgeMappings.builder()
-                                    .toEND("ok")
+                                    .to("expand", "ok")
                                     .to("rewrite", "retry")
                                     .build())
 
+                    .addEdge("expand", END)
                     .addEdge("rewrite", "retrieve")
                     .compile();
         } catch (GraphStateException e) {
