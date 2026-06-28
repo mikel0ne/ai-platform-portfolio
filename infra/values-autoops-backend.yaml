@@ -52,8 +52,8 @@ configmap:
     AUTOOPS_WEAVIATE_PORT: "8080"
     AUTOOPS_WEAVIATE_GRPC_PORT: "50051"
     AUTOOPS_WEAVIATE_CLASS_NAME: "AutoopsDocChunk"
-    # Corpus horneado en la imagen en /app/corpus (ver docker/backend.Dockerfile).
-    AUTOOPS_INGESTION_CORPUS_PATH: "/app/corpus"
+    # Ingesta solo desde GitHub (corpus local desactivado).
+    # AUTOOPS_INGESTION_CORPUS_PATH: "/app/corpus"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
 # Secret compartido: API key de Gemini (chat + embeddings) y token de GitHub (lectura del
