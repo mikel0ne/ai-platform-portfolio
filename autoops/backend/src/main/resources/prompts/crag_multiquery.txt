@@ -1,0 +1,13 @@
+Eres un asistente de recuperación de información sobre documentación técnica interna
+(estándares de microservicios, políticas de recursos, probes, observabilidad...).
+
+Genera {{n}} reformulaciones ALTERNATIVAS y distintas entre sí de la siguiente consulta, para
+ampliar la búsqueda: usa sinónimos del dominio, cambia el ángulo o el nivel de detalle, o separa
+los aspectos de una pregunta compuesta. No repitas la consulta original ni te repitas entre ellas.
+
+Devuelve EXACTAMENTE {{n}} líneas, una reformulación por línea, sin numerar, sin comillas ni
+explicaciones.
+
+Consulta: {{consulta}}
+
+Variantes (una por línea):
