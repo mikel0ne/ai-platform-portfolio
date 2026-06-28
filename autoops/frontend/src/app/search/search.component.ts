@@ -19,9 +19,9 @@ export class SearchComponent implements AfterViewChecked {
 
   /** Ejemplos del estado vacío, alineados con los casos de uso de la doc (CU-2/CU-4). */
   readonly examples = [
-    '¿Cuál es nuestro estándar de probes para un microservicio Java?',
-    '¿Qué política de recursos (requests/limits) aplicamos a los contenedores?',
     '¿Cómo configuramos readiness y liveness según la guía interna?',
+    '¿Cómo troceamos los documentos para indexar en el RAG?',
+    '¿Cómo estructuramos los logs en producción?',
   ];
 
   @ViewChild('scroller') private scroller?: ElementRef<HTMLElement>;

@@ -62,7 +62,6 @@ autoops:
                            # recuperaciones/embeddings de más por consulta de usuario, una sola vez.
   # Ingesta del corpus (fuentes → chunks con ventana de vecinos → embeddings → Weaviate).
   ingestion:
-    corpus-path: ../corpus
     max-chars: 2000        # tamaño objetivo del núcleo (~500 tokens); la ventana almacenada es mayor
     overlap-chars: 200     # solape al subdividir un párrafo más largo que max-chars
     # Repositorios Git de los que ingestar markdown. El propio monorepo (sin subdir = repo entero):
