@@ -1,11 +1,14 @@
 package io.github.mikel0ne.autoops.rag.crag;
 
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.rag.DocChunk;
+import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import io.github.mikel0ne.autoops.rag.RagService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -17,7 +20,7 @@ class CragLoopTest {
 
     private final PromptLoader prompts = new PromptLoader();
 
-    private RagService service(TestSupport.FakeRetriever retriever, CragProperties props,
+    private RagService service(DocRetriever retriever, CragProperties props,
                                 List<String> gradeRespuestas, List<String> rewriteRespuestas) {
         var chat = new TestSupport.ScriptedChatModel(gradeRespuestas, rewriteRespuestas);
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
@@ -27,9 +30,9 @@ class CragLoopTest {
     @Test
     void converge_a_la_primera_sin_reformular() {
         var retriever = new TestSupport.FakeRetriever(0.9);
-        var props = new CragProperties(5, 2, 0.5, 3, 12);
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1); // multiQueryN=1: abanico desactivado, no es lo que prueba este test
 
-        RagResult result = service(retriever, props, List.of("SUFICIENTE"), List.of())
+        RagResult result = service(retriever, props, List.of("1: SUFICIENTE"), List.of())
                 .buscar("probes", 5);
 
         assertThat(result.iteraciones()).isZero();
@@ -42,10 +45,10 @@ class CragLoopTest {
     @Test
     void reformula_una_vez_y_mejora() {
         var retriever = new TestSupport.FakeRetriever(0.2, 0.9);
-        var props = new CragProperties(5, 2, 0.5, 3, 12);
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1); // multiQueryN=1: abanico desactivado, no es lo que prueba este test
 
         RagResult result = service(retriever, props,
-                List.of("INSUFICIENTE", "SUFICIENTE"), List.of("prbs reformulada"))
+                List.of("1: INSUFICIENTE", "1: SUFICIENTE\n2: INSUFICIENTE"), List.of("prbs reformulada"))
                 .buscar("prbs", 5);
 
         assertThat(result.iteraciones()).isEqualTo(1);
@@ -57,10 +60,11 @@ class CragLoopTest {
     @Test
     void siempre_termina_y_devuelve_lo_mejor_aunque_nunca_sea_suficiente() {
         var retriever = new TestSupport.FakeRetriever(0.2);
-        var props = new CragProperties(5, 2, 0.5, 3, 12);
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1); // multiQueryN=1: abanico desactivado, no es lo que prueba este test
 
         RagResult result = service(retriever, props,
-                List.of("INSUFICIENTE", "INSUFICIENTE", "INSUFICIENTE"),
+                List.of("1: INSUFICIENTE", "1: INSUFICIENTE\n2: INSUFICIENTE",
+                        "1: INSUFICIENTE\n2: INSUFICIENTE\n3: INSUFICIENTE"),
                 List.of("reformulada 1", "reformulada 2"))
                 .buscar("consulta rara", 5);
 
@@ -77,14 +81,121 @@ class CragLoopTest {
         // fragmento responda a la pregunta. 'grade' no debe aceptar por el score solo: si el LLM dice
         // INSUFICIENTE, el grafo reformula y reintenta aunque el score sea muy alto en ambas vueltas.
         var retriever = new TestSupport.FakeRetriever(5.0, 5.0);
-        var props = new CragProperties(5, 2, 0.5, 3, 12);
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1); // multiQueryN=1: abanico desactivado, no es lo que prueba este test
 
         RagResult result = service(retriever, props,
-                List.of("INSUFICIENTE", "SUFICIENTE"), List.of("reformulada"))
+                List.of("1: INSUFICIENTE", "1: INSUFICIENTE\n2: SUFICIENTE"), List.of("reformulada"))
                 .buscar("recursos minimos de un microservicio", 5);
 
         assertThat(result.iteraciones()).isEqualTo(1);
         assertThat(retriever.calls).isEqualTo(2); // si hubiera atajo por score, sería 1
+        assertThat(result.confianza()).isEqualTo(RagResult.ALTA);
+    }
+
+    @Test
+    void abanico_multiquery_solo_en_la_primera_vuelta_se_fusiona_con_rrf() {
+        var retriever = new TestSupport.FakeRetriever(0.9, 0.5, 0.5);
+        var props = new CragProperties(2, 2, 0.5, 3, 12, 3); // k=2, multiQueryN=3
+        var chat = new TestSupport.ScriptedChatModel(
+                List.of("1: SUFICIENTE\n2: SUFICIENTE"), List.of(), List.of("variante uno\nvariante dos"));
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
+
+        RagResult result = new RagService(graph).buscar("consulta original", 0);
+
+        // abanico: original + 2 variantes generadas, una sola vez (no se reabre en reintentos)
+        assertThat(retriever.calls).isEqualTo(3);
+        assertThat(retriever.consultasRecibidas)
+                .containsExactly("consulta original", "variante uno", "variante dos");
+        assertThat(retriever.kRecibidos).containsExactly(2, 2, 2); // cada variante pide k, no k/N
+        // RRF empata las 3 (cada chunk aparece en una sola lista, rango 1): el orden de inserción decide
+        // el desempate y el resultado se recorta a k=2.
+        assertThat(result.chunks()).hasSize(2);
+        assertThat(result.iteraciones()).isZero();
+    }
+
+    @Test
+    void multiquery_n_uno_se_comporta_como_un_solo_retrieve_sin_llamar_al_llm_de_variantes() {
+        var retriever = new TestSupport.FakeRetriever(0.9);
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1); // multiQueryN=1: equivalente al retrieve de toda la vida
+        // sin respuestas de multiquery programadas: si el nodo llamara al LLM, fallaría con un veredicto vacío
+        var chat = new TestSupport.ScriptedChatModel(List.of("1: SUFICIENTE"), List.of());
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
+
+        RagResult result = new RagService(graph).buscar("probes", 0);
+
+        assertThat(retriever.calls).isEqualTo(1);
+        assertThat(retriever.consultasRecibidas).containsExactly("probes");
+        assertThat(result.confianza()).isEqualTo(RagResult.ALTA);
+    }
+
+    @Test
+    void filtra_los_chunks_no_relevantes_del_lote() {
+        // grade evalúa fragmento por fragmento en una sola llamada: de un lote con relevancia mixta, solo
+        // los marcados relevantes deben sobrevivir (los demás nunca deben llegar al redactor).
+        var bueno1 = new DocChunk("Las probes de liveness se configuran con...", "Guía", "probes.md",
+                "Liveness", "", "test", 0.9, "");
+        var malo = new DocChunk("La política de vacaciones del equipo es...", "RRHH", "rrhh.md",
+                "Vacaciones", "", "test", 0.8, "");
+        var bueno2 = new DocChunk("El timeout recomendado para probes es 5s", "Guía", "probes.md",
+                "Timeouts", "", "test", 0.7, "");
+        var retriever = new TestSupport.MultiChunkRetriever(List.of(List.of(bueno1, malo, bueno2)));
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
+
+        RagResult result = service(retriever, props,
+                List.of("1: SUFICIENTE\n2: INSUFICIENTE\n3: SUFICIENTE"), List.of())
+                .buscar("configuracion de probes", 5);
+
+        assertThat(result.chunks()).containsExactly(bueno1, bueno2);
+        assertThat(result.confianza()).isEqualTo(RagResult.ALTA);
+        assertThat(result.iteraciones()).isZero();
+    }
+
+    @Test
+    void el_retry_no_pierde_un_chunk_bueno_de_la_primera_iteracion() {
+        // Regresión: antes, retrieve sobreescribía 'candidatos' en cada vuelta, así que un chunk bueno de la
+        // 1ª iteración se perdía en la 2ª si la consulta reformulada no volvía a traerlo en el nuevo top-k.
+        var bueno = new DocChunk("Las probes de liveness se configuran con...", "Guía", "probes.md",
+                "Liveness", "", "test", 0.9, "");
+        var malo1 = new DocChunk("La política de vacaciones del equipo es...", "RRHH", "rrhh.md",
+                "Vacaciones", "", "test", 0.1, "");
+        var nuevo1 = new DocChunk("Otro fragmento sin relación con la consulta", "Otros", "otros.md",
+                "Seccion X", "", "test", 0.5, "");
+        var nuevo2 = new DocChunk("Otro fragmento más sin relación", "Otros", "otros.md",
+                "Seccion Y", "", "test", 0.4, "");
+        var retriever = new TestSupport.MultiChunkRetriever(List.of(
+                List.of(bueno, malo1),
+                List.of(nuevo1, nuevo2)));
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
+
+        RagResult result = service(retriever, props,
+                List.of(
+                        "1: INSUFICIENTE\n2: INSUFICIENTE",                          // iter 1: nada relevante, fuerza retry
+                        "1: SUFICIENTE\n2: INSUFICIENTE\n3: INSUFICIENTE\n4: INSUFICIENTE"), // iter 2: 'bueno' sigue ahí
+                List.of("probes reformulada"))
+                .buscar("configuracion de probes", 5);
+
+        assertThat(result.iteraciones()).isEqualTo(1);
+        assertThat(result.confianza()).isEqualTo(RagResult.ALTA);
+        assertThat(result.chunks()).containsExactly(bueno);
+    }
+
+    @Test
+    void expande_un_chunk_relevante_pero_corto_al_documento_completo() {
+        var corto = new DocChunk("Ver tabla de timeouts.", "Guía", "probes.md", "Timeouts", "", "test",
+                0.9, "doc-probes");
+        var parte1 = new DocChunk("Sección completa: las probes de liveness y readiness necesitan...",
+                "Guía", "probes.md", "Timeouts", "", "test", 0.0, "doc-probes");
+        var parte2 = new DocChunk("...continuación con la tabla de timeouts recomendados por tipo de probe.",
+                "Guía", "probes.md", "Timeouts", "", "test", 0.0, "doc-probes");
+        var retriever = new TestSupport.MultiChunkRetriever(
+                List.of(List.of(corto)),
+                Map.of("doc-probes", List.of(parte1, parte2)));
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
+
+        RagResult result = service(retriever, props, List.of("1: SUFICIENTE"), List.of())
+                .buscar("timeouts de las probes", 5);
+
+        assertThat(result.chunks()).containsExactly(parte1, parte2);
         assertThat(result.confianza()).isEqualTo(RagResult.ALTA);
     }
 }
