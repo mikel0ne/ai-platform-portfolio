@@ -9,8 +9,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Nodo {@code retrieve}: búsqueda híbrida (vector + BM25) con reranking sobre la consulta vigente
- * (doc 03 §3.2). Deja los candidatos en el estado.
+ * Nodo {@code retrieve}: búsqueda híbrida (vector + BM25) sobre la consulta vigente, en el camino de
+ * reintento del bucle correctivo ({@code rewrite → retrieve}); la primera vuelta la hace {@code multiQuery}
+ * (doc 03 §3.2, §3.2bis). <b>Acumula</b> los candidatos con los de iteraciones previas (en vez de
+ * sobreescribirlos): un chunk bueno encontrado en una vuelta no se pierde si la siguiente reformulación no
+ * vuelve a traerlo en el nuevo top-k. {@code rerank} se encarga de reordenar y recortar el conjunto acumulado
+ * a {@code k}.
  */
 public class RetrieveNode implements NodeAction<CragState> {
 
@@ -22,7 +26,8 @@ public class RetrieveNode implements NodeAction<CragState> {
 
     @Override
     public Map<String, Object> apply(CragState state) {
-        List<DocChunk> candidatos = retriever.retrieve(state.consultaActual(), state.k());
-        return Map.of("candidatos", candidatos);
+        List<DocChunk> nuevos = retriever.retrieve(state.consultaActual(), state.k());
+        List<DocChunk> acumulados = DocChunkDedup.merge(state.candidatos(), nuevos);
+        return Map.of("candidatos", acumulados);
     }
 }
