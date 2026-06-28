@@ -1,6 +1,8 @@
 package io.github.mikel0ne.autoops.rag.source;
 
 import io.github.mikel0ne.autoops.rag.IngestionProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -15,11 +17,14 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * Fuente de documentación desde una carpeta local de markdown ({@code corpus/*.md}). Es el origen por
- * defecto del proyecto; el {@code docId}/{@code fuente} es el nombre de fichero y no hay URL navegable.
+ * Fuente de documentación desde una carpeta local de markdown ({@code corpus/*.md}); opcional, sin efecto
+ * si {@code corpusPath} no apunta a un directorio existente (fuente desactivada). El {@code docId}/
+ * {@code fuente} es el nombre de fichero y no hay URL navegable.
  */
 @Component
 public class LocalMarkdownSource implements FuenteDocumental {
+
+    private static final Logger log = LoggerFactory.getLogger(LocalMarkdownSource.class);
 
     /** Primer encabezado H1 del documento, usado como título legible si existe. */
     private static final Pattern H1 = Pattern.compile("(?m)^#\\s+(.+)$");
@@ -39,7 +44,8 @@ public class LocalMarkdownSource implements FuenteDocumental {
     public List<Documento> leer() {
         Path dir = Path.of(props.corpusPath());
         if (!Files.isDirectory(dir)) {
-            throw new IllegalStateException("La ruta del corpus no es un directorio: " + dir.toAbsolutePath());
+            log.info("Fuente local desactivada: '{}' no es un directorio", dir.toAbsolutePath());
+            return List.of();
         }
         List<Documento> docs = new ArrayList<>();
         try (Stream<Path> files = Files.list(dir)) {
