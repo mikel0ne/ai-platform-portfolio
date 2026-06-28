@@ -13,6 +13,8 @@ import java.io.Serializable;
  * @param url     enlace canónico con ancla a la sección (cadena vacía si el origen no es navegable)
  * @param origen  clase de origen: {@code markdown-local} | {@code git} | {@code confluence}
  * @param score   relevancia: score del reranker de Weaviate si está disponible, si no el de la búsqueda híbrida
+ * @param docId   id estable del documento padre (permite recuperar el resto del documento, p. ej. en el
+ *                bucle CRAG cuando un fragmento relevante es demasiado corto por sí solo)
  */
 public record DocChunk(String texto, String titulo, String fuente, String seccion, String url, String origen,
-                       double score) implements Serializable {}
+                       double score, String docId) implements Serializable {}

@@ -7,8 +7,13 @@ import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.weaviate.client.WeaviateClient;
 import io.weaviate.client.base.Result;
 import io.weaviate.client.v1.data.model.WeaviateObject;
+import io.weaviate.client.v1.filters.Operator;
+import io.weaviate.client.v1.filters.WhereFilter;
 import io.weaviate.client.v1.graphql.model.GraphQLResponse;
 import io.weaviate.client.v1.graphql.query.argument.HybridArgument;
+import io.weaviate.client.v1.graphql.query.argument.SortArgument;
+import io.weaviate.client.v1.graphql.query.argument.SortOrder;
+import io.weaviate.client.v1.graphql.query.argument.WhereArgument;
 import io.weaviate.client.v1.graphql.query.fields.Field;
 import io.weaviate.client.v1.schema.model.Property;
 import io.weaviate.client.v1.schema.model.WeaviateClass;
@@ -185,9 +190,40 @@ public class WeaviateGateway implements DocRetriever {
                         Field.builder().name("seccion").build(),
                         Field.builder().name("url").build(),
                         Field.builder().name("origen").build(),
+                        Field.builder().name("docId").build(),
                         additional)
                 .run();
         failOnError("buscando en Weaviate", result);
+
+        return parse(result.getResult());
+    }
+
+    @Override
+    public List<DocChunk> documentoCompleto(String docId) {
+        WhereFilter filtro = WhereFilter.builder()
+                .path("docId")
+                .operator(Operator.Equal)
+                .valueText(docId)
+                .build();
+        SortArgument porOrden = SortArgument.builder()
+                .path(new String[]{"orden"})
+                .order(SortOrder.asc)
+                .build();
+
+        Result<GraphQLResponse> result = client.graphQL().get()
+                .withClassName(props.className())
+                .withWhere(WhereArgument.builder().filter(filtro).build())
+                .withSort(porOrden)
+                .withFields(
+                        Field.builder().name("texto").build(),
+                        Field.builder().name("titulo").build(),
+                        Field.builder().name("fuente").build(),
+                        Field.builder().name("seccion").build(),
+                        Field.builder().name("url").build(),
+                        Field.builder().name("origen").build(),
+                        Field.builder().name("docId").build())
+                .run();
+        failOnError("recuperando el documento " + docId, result);
 
         return parse(result.getResult());
     }
@@ -219,8 +255,9 @@ public class WeaviateGateway implements DocRetriever {
             String seccion = str(obj.get("seccion"));
             String url = str(obj.get("url"));
             String origen = str(obj.get("origen"));
+            String docId = str(obj.get("docId"));
             double score = scoreOf((Map<String, Object>) obj.get("_additional"));
-            chunks.add(new DocChunk(texto, titulo, fuente, seccion, url, origen, score));
+            chunks.add(new DocChunk(texto, titulo, fuente, seccion, url, origen, score, docId));
         }
         return chunks;
     }

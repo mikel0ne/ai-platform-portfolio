@@ -17,4 +17,13 @@ public interface DocRetriever {
      * @return fragmentos ordenados por relevancia descendente (puede estar vacío)
      */
     List<DocChunk> retrieve(String consulta, int k);
+
+    /**
+     * Recupera todos los fragmentos de un documento, en orden. Lo usa el bucle CRAG para expandir un
+     * fragmento relevante pero demasiado corto al documento completo (doc 03 §3.2).
+     *
+     * @param docId id estable del documento padre ({@link DocChunk#docId()})
+     * @return fragmentos del documento en su orden original (vacío si no se encuentra)
+     */
+    List<DocChunk> documentoCompleto(String docId);
 }
