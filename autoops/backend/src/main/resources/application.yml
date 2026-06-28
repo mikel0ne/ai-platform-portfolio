@@ -33,8 +33,8 @@ logging:
 autoops:
   llm:
     provider: gemini
-    chat-model-name: gemini-2.5-flash-lite       # cuota gratuita más alta; uso interno
-    embedding-model-name: gemini-embedding-001   # free tier real (text-embedding-004 no disponible); 100 RPM/1000 RPD
+    chat-model-name: gemini-3.1-flash-lite       # CRAG avanzado: eval chunks, reformular, redactar
+    embedding-model-name: gemini-embedding-001   # solo para transformar a vectores; 100 RPM/1000 RPD
     timeout: 30s
     temperature: 0.2
   # Weaviate: en local, vía port-forward (kubectl port-forward svc/weaviate 8088:8080).
@@ -57,6 +57,9 @@ autoops:
     alpha: 0.5             # peso vector vs BM25 en la búsqueda híbrida (1=vector, 0=BM25)
     k-step: 3              # cuánto crece k en cada iteración correctiva (amplía las recuperaciones)
     k-max: 12              # tope de k por mucho que itere el bucle
+    multi-query-n: 3       # variantes en el abanico inicial (incluida la original); <=1 lo desactiva.
+                           # Solo en la primera vuelta, nunca en reintentos: coste acotado a N-1
+                           # recuperaciones/embeddings de más por consulta de usuario, una sola vez.
   # Ingesta del corpus (fuentes → chunks con ventana de vecinos → embeddings → Weaviate).
   ingestion:
     corpus-path: ../corpus
