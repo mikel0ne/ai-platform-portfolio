@@ -20,8 +20,8 @@ export class SearchComponent implements AfterViewChecked {
   /** Ejemplos del estado vacío, alineados con los casos de uso de la doc (CU-2/CU-4). */
   readonly examples = [
     '¿Cómo configuramos readiness y liveness según la guía interna?',
-    '¿Cómo troceamos los documentos para indexar en el RAG?',
-    '¿Cómo estructuramos los logs en producción?',
+    '¿Cuál es el estándar de fragmentación (chunking)?',
+    '¿Qué formato deben llevar los logs en producción?',
   ];
 
   @ViewChild('scroller') private scroller?: ElementRef<HTMLElement>;
