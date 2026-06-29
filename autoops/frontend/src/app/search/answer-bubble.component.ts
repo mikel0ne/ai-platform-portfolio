@@ -163,7 +163,7 @@ type Relevancia = 'top' | 'media' | 'baja';
       white-space: nowrap;
     }
     .origin-git { background: #ddf4ff; color: #0969da; }
-    .origin-confluence { background: #e3dafc; color: #6e40c9; }
+    .origin-wikijs { background: #e3dafc; color: #6e40c9; }
     .origin-markdown-local { background: #eaeef2; color: #57606a; }
     .cite-title {
       font-weight: 600;
@@ -208,7 +208,7 @@ export class AnswerBubbleComponent {
 
   private static readonly ORIGEN_LABEL: Record<Origen, string> = {
     git: 'GitHub',
-    confluence: 'Confluence',
+    wikijs: 'Wiki',
     'markdown-local': 'Local',
   };
 
