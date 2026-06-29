@@ -110,7 +110,7 @@ io.github.mikel0ne.autoops
 │   │   ├── FuenteDocumental.java  Documento.java
 │   │   ├── LocalMarkdownSource.java # corpus/*.md local
 │   │   ├── GitMarkdownSource.java   # clona un repo (JGit) y permalinkea al SHA
-│   │   └── ConfluenceSource.java    # stub: registrado, leer() vacío hasta tener instancia
+│   │   └── WikiJsSource.java        # páginas de Wiki.js (wiki self-hosted) vía su API GraphQL
 │   ├── WeaviateConfig.java          # bean WeaviateClient (cliente raw, ver ADR-005)
 │   ├── WeaviateGateway.java         # esquema + ingesta + retrieve (híbrido+rerank, query GraphQL a mano)
 │   ├── WeaviateProperties.java

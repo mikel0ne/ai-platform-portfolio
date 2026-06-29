@@ -19,7 +19,7 @@ El front principal. Publica las **tools** que consume el cliente MCP (Claude Cod
 
 El cerebro de recuperación, compartido por la tool `buscar_docs` y por el chat:
 
-- **Ingesta multi-fuente**: cada `FuenteDocumental` (markdown local, repo Git, Confluence) aporta documentos →
+- **Ingesta multi-fuente**: cada `FuenteDocumental` (markdown local, repo Git, Wiki.js) aporta documentos →
   el `Chunker` los trocea (heading + recursivo, con ventana de vecinos) → embeddings → Weaviate (ver ADR-010).
 - **Recuperación avanzada**: búsqueda **híbrida** (vector + keyword) + **reranking** + **bucle correctivo
   CRAG** (califica la relevancia; si es floja, reformula/expande la consulta y reintenta). El ciclo se modela
@@ -188,8 +188,9 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
   1. **Abstracción de origen** (`io.github.mikel0ne.autoops.rag.source.FuenteDocumental`): Spring inyecta `List<FuenteDocumental>`;
      cada una emite `Documento`. `LocalMarkdownSource` (carpeta local) y `GitMarkdownSource` (JGit, clona una
      rama y construye el permalink al **commit SHA**, no a la rama — para que la cita no se rompa cuando la
-     rama avanza) están implementadas. `ConfluenceSource` es un **stub** deliberado (registrado, `leer()`
-     vacío): no hay instancia de Confluence todavía, pero la abstracción ya está lista para enchufarla.
+     rama avanza) están implementadas. `WikiJsSource` ingesta páginas de Wiki.js (wiki self-hosted, ver
+     infra/INFRA.md §7) vía su API GraphQL — sustituye al stub `ConfluenceSource`, que dejaba la abstracción
+     lista pero sin una instancia real contra la que tirar.
   2. **Chunking híbrido** (`Chunker`, estático y puro): parte por encabezado (mantiene el breadcrumb completo,
      p. ej. `Operación > Probes > Readiness`, como metadato `seccion`) y, dentro de cada sección, empaqueta
      párrafos hasta un tamaño objetivo; si un párrafo solo ya excede ese tamaño, lo subdivide con el splitter
@@ -199,7 +200,7 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
      anterior + el siguiente del mismo documento → más contexto para el LLM redactor). Es gratis aquí porque
      Weaviate tiene `vectorizer: none` (AutoOps calcula el vector a mano, ver ADR-005): basta con `embedAll`
      sobre `nucleo` e insertar `texto`.
-  4. **Metadatos ampliados:** `titulo`, `url` (con ancla a la sección), `origen` (`markdown-local`|`git`|`confluence`),
+  4. **Metadatos ampliados:** `titulo`, `url` (con ancla a la sección), `origen` (`markdown-local`|`git`|`wikijs`),
      `docId` (documento padre) y `hash` (SHA-256 del núcleo, para una futura ingesta incremental) — esquema en
      [05-contratos-api-datos.md](05-contratos-api-datos.md) §4.
   5. **`taskType` distinto en indexar vs consultar:** `GeminiModelConfig` expone dos beans `EmbeddingModel`

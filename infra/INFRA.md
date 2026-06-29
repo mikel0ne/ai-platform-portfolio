@@ -15,6 +15,7 @@
 | Base de datos relacional | PostgreSQL 16 Alpine (namespace `infra`, compartida) | ✅ Instalado |
 | Base de datos vectorial | Weaviate 1.27 (namespace `infra`, compartida) | 🆕 `06-setup-weaviate.sh` |
 | Observabilidad (logs) | Loki + Promtail + Grafana (namespace `observability`) | 🆕 `07-setup-observability.sh` |
+| Wiki self-hosted | Wiki.js (namespace `wiki`, fuente RAG adicional de AutoOps) | 🆕 `08-setup-wikijs.sh` |
 | Apps back/front | Chart `generic-app` + `deploy.sh --project <p>` | ✅ l1-copilot · 🆕 autoops |
 
 > **Criterio de recursos compartidos:** una sola instancia por motor (Postgres y
@@ -237,6 +238,22 @@ bash infra/scripts/07-setup-observability.sh
 
 ---
 
+### 7. Wiki.js (wiki self-hosted, fuente RAG adicional)
+
+- **Imagen**: `requarks/wiki:2` (Node.js, AGPL-3.0)
+- **Namespace**: `wiki` (proyecto propio, no `infra`: no es un backing service que otros consuman programáticamente)
+- **BD**: `wiki`, dentro del Postgres compartido del namespace `infra` (mismo `appuser`) — sin PVC propio, sin esquema manual: Wiki.js migra el suyo al arrancar.
+- **Instalación**: NO usa `deploy.sh` (pensado para build+push propio + backend/frontend); usa el chart `generic-app` directamente vía Helm, con un script dedicado:
+  ```bash
+  bash wiki/scripts/setup-wiki-db.sh      # crea la BD vacía
+  bash infra/scripts/08-setup-wikijs.sh   # namespace + secret + helm upgrade --install
+  infra/scripts/add-wiki-host.ps1         # (Admin) hosts: wiki.local
+  ```
+- **Values**: `values-wikijs.yaml` · **DNS interno**: `wikijs-generic-app.wiki.svc.cluster.local:3000` · **Acceso**: `http://wiki.local`
+- **Por qué existe**: sustituye al stub `ConfluenceSource` del backend de AutoOps (`autoops/backend/.../rag/source/`) — el RAG ingesta páginas de Wiki.js vía su API GraphQL (`WikiJsSource`), además del repo Git. El contenido de las páginas se versiona como backup en `wiki/content/*.txt` (no `.md`, para que `GitHubMarkdownSource` no lo re-ingeste) y se publica con `wiki/scripts/seed-wiki-content.sh`.
+
+---
+
 ## Estructura del repositorio (monorepo)
 
 ```
@@ -266,11 +283,13 @@ infra/
 │   └── autoops.env
 ├── namespace-l1-copilot.yaml               # Namespace por proyecto (convención namespace-<p>.yaml)
 ├── namespace-autoops.yaml
+├── namespace-wiki.yaml
 ├── rbac-autoops.yaml                       # RBAC read-only (convención rbac-<p>.yaml, opcional)
 ├── values-l1-copilot-backend.yaml          # Values Helm (convención values-<p>-<componente>.yaml)
 ├── values-l1-copilot-frontend.yaml
 ├── values-autoops-backend.yaml
 ├── values-autoops-frontend.yaml
+├── values-wikijs.yaml                      # Wiki.js: un solo componente, imagen pública (no convención backend/frontend)
 ├── .env.l1-copilot / .env.autoops          # Defaults compartidos (versionado)
 ├── .env.local                              # GEMINI_API_KEY real, compartida por TODOS los proyectos (no versionado)
 ├── .env.<p>.local                          # Override puntual de UN proyecto, opcional (no versionado)
@@ -290,6 +309,7 @@ infra/
     ├── 05-setup-registry-ingress.sh        # IngressRoute registry.local + daemon.json + k3s registries.yaml
     ├── 06-setup-weaviate.sh                # Weaviate compartido (ns infra)
     ├── 07-setup-observability.sh           # Loki + Promtail + Grafana (ns observability)
+    ├── 08-setup-wikijs.sh                  # Wiki.js vía Helm directo (ns wiki, sin deploy.sh)
     ├── deploy.sh                           # GENÉRICO: deploy.sh --project <p> --component <c>
     ├── setup-app-ingress.sh                # GENÉRICO: ingress por proyecto (--project <p>)
     ├── ingest-autoops.sh                   # Dispara la ingesta del corpus de AutoOps
@@ -298,12 +318,15 @@ infra/
     ├── add-host.ps1                        # (Admin) GENÉRICO: add-host.ps1 -Hostname <host>
     ├── add-copilot-host.ps1                # (Admin) hosts: l1-copilot.local
     ├── add-postgres-host.ps1               # (Admin) hosts: postgres.local
-    └── add-registry-host.ps1               # (Admin) hosts: registry.local
+    ├── add-registry-host.ps1               # (Admin) hosts: registry.local
+    └── add-wiki-host.ps1                   # (Admin) hosts: wiki.local
 ```
 
 > Scripts propios de cada proyecto (monorepo):
 > - `l1-copilot/scripts/setup-l1-copilot-db.sh` crea la BD `l1_copilot` en el Postgres compartido (schema + seed).
 > - `l1-copilot/scripts/seed-l1-copilot-db.sh` recarga sólo el seed (idempotente). Vía psql nativo de Windows.
+> - `wiki/scripts/setup-wiki-db.sh` crea la BD `wiki` vacía (sin schema: lo migra Wiki.js al arrancar).
+> - `wiki/scripts/seed-wiki-content.sh` publica/actualiza en Wiki.js las páginas versionadas en `wiki/content/*.txt`, vía la API GraphQL.
 > - `scripts/start.sh` / `stop.sh` (raíz, `.bat` incluidos) — scripts generales de arranque local.
 
 ---

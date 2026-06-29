@@ -134,7 +134,7 @@ erDiagram
         string fuente "fichero/page/path de origen"
         string seccion "breadcrumb de encabezados (p. ej. 'Operación > Probes > Readiness')"
         string url "permalink con ancla a la sección; vacío si el origen no es navegable"
-        string origen "markdown-local | git | confluence"
+        string origen "markdown-local | git | wikijs"
         string docId "id estable del documento padre"
         string hash "SHA-256 del núcleo; ingesta incremental/dedupe futura"
         int    orden "posición del chunk en el documento"
