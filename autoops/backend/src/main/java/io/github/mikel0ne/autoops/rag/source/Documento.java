@@ -8,7 +8,7 @@ package io.github.mikel0ne.autoops.rag.source;
  *                 Permite borrar/reindexar un documento entero sin tocar los demás.
  * @param titulo   título legible del documento (primer {@code # H1} del markdown o, si no hay, el nombre)
  * @param fuente   nombre corto del origen (fichero, page o path) — compatibilidad con el contrato previo
- * @param origen   clase de origen: {@code markdown-local} | {@code git} | {@code confluence}
+ * @param origen   clase de origen: {@code markdown-local} | {@code git} | {@code wikijs}
  * @param urlBase  enlace base al documento para construir citas con ancla por sección (cadena vacía si el
  *                 origen no tiene URL navegable, p. ej. markdown puramente local)
  * @param contenido markdown completo del documento

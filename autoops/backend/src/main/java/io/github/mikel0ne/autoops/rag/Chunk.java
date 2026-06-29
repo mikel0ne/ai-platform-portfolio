@@ -17,7 +17,7 @@ package io.github.mikel0ne.autoops.rag;
  * @param fuente  nombre corto del origen (fichero/page/path)
  * @param seccion breadcrumb de encabezados hasta este fragmento (p. ej. {@code Operación > Probes > Readiness})
  * @param url     enlace canónico con ancla a la sección (cadena vacía si el origen no es navegable)
- * @param origen  clase de origen: {@code markdown-local} | {@code git} | {@code confluence}
+ * @param origen  clase de origen: {@code markdown-local} | {@code git} | {@code wikijs}
  * @param orden   posición del fragmento dentro de su documento (desde 0)
  * @param hash    hash del {@code nucleo}; habilita ingesta incremental y dedupe
  */

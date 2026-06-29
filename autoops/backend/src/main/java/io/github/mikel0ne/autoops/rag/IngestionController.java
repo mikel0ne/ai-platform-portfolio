@@ -21,7 +21,7 @@ public class IngestionController {
     }
 
     /**
-     * Indexa el corpus local (y Confluence si está configurado). Con {@code reset=true} borra primero la
+     * Indexa el corpus local (y Wiki.js si está configurado). Con {@code reset=true} borra primero la
      * clase y reindexa desde cero (necesario, p. ej., al cambiar de modelo de embeddings y su dimensión —
      * doc 06 §4).
      */
