@@ -1,0 +1,21 @@
+# Bienvenida al equipo de Plataforma
+
+## Qué hace el equipo
+
+El equipo de Plataforma (alias interno **PLAT**) mantiene la infraestructura de base que comparten todos los proyectos del portfolio: el clúster Kubernetes local, el Postgres compartido, Weaviate, el registry de imágenes, la observabilidad (Loki/Grafana) y, desde hace poco, esta misma wiki. Los equipos de proyecto (AutoOps, L1 Support Copilot) no gestionan esa capa: piden cambios a PLAT en vez de tocarla directamente, para que no haya dos personas tocando el mismo Postgres compartido a la vez sin coordinarse.
+
+## De quién es el equipo
+
+PLAT está formado actualmente por **3 personas**. No hay un organigrama más complejo que ese para un portfolio de este tamaño — el equipo rota internamente quién hace de Incident Commander (IC) cada semana (ver el checklist de incidentes P1), pero el resto de responsabilidades (mantenimiento de Postgres/Weaviate, revisión de capacidad, scripts de `infra/`) se reparten de forma informal según quién tenga hueco.
+
+## Cómo pedir ayuda o acceso
+
+- **Canal de soporte**: `#plataforma-soporte`, con un **SLA de respuesta de 4 horas en horario laboral**. Fuera de ese horario no hay guardia 24/7 (es un portfolio personal, no un servicio en producción con clientes reales).
+- **Peticiones típicas**: nueva BD en el Postgres compartido, namespace nuevo para un proyecto, revisión de un `values-*.yaml` antes de un primer despliegue, ayuda con un `ImagePullBackOff` o un pod en `CrashLoopBackOff`.
+- **Qué NO pedir a PLAT**: bugs de la lógica de negocio de un proyecto (eso lo resuelve el propio equipo del proyecto); PLAT solo responde de la infraestructura compartida, no del código de cada aplicación.
+
+## Primeros pasos recomendados
+
+1. Leer la página "Primeros pasos: acceso al clúster local".
+2. Leer el "Inventario de servicios internos" para tener el mapa completo de qué hay desplegado.
+3. Unirse a `#plataforma-soporte` antes de tocar nada en el namespace `infra`.

@@ -1,0 +1,27 @@
+# Inventario de servicios internos (qué tenemos)
+
+## Resumen
+
+El portfolio cuenta actualmente con **2 aplicaciones desplegadas** (AutoOps MCP y L1 Support Copilot) y **4 servicios de infraestructura compartida** que ambas usan. Esta página es un mapa de alto nivel para quien llega nuevo; el detalle técnico de cada pieza vive en la documentación de arquitectura/infraestructura de cada proyecto (en Git), no aquí — esta wiki complementa esos documentos, no los duplica.
+
+## Aplicaciones
+
+| Servicio | Qué es | Host |
+|----------|--------|------|
+| AutoOps MCP | Servidor MCP sobre Kubernetes + buscador RAG sobre la documentación del propio portfolio | `autoops.local` |
+| L1 Support Copilot | Agente de soporte de primera línea sobre LangGraph4j | `l1-copilot.local` |
+
+## Infraestructura compartida (namespace `infra`, salvo donde se indique)
+
+| Servicio | Para qué sirve |
+|----------|-----------------|
+| **Git** | Fuente de verdad del código y de la documentación de arquitectura/infraestructura de cada proyecto. Es lo que ingesta AutoOps vía la API de GitHub para su RAG. |
+| **Esta wiki (Wiki.js)** | Documentación operativa "viva" (runbooks, onboarding, inventario) que no tiene sentido versionar como código de un proyecto concreto — es transversal. También es una segunda fuente del RAG de AutoOps, además de Git. |
+| **Postgres compartido** | Una sola instancia para todo el portfolio; cada proyecto crea su propia base de datos dentro (`l1_copilot`, `wiki`...). |
+| **Weaviate compartido** | Base vectorial; cada proyecto crea su propia clase (AutoOps usa `AutoopsDocChunk`). |
+| **Grafana/Loki** (namespace `observability`) | Logs centralizados de todos los namespaces, con retención de 7 días. |
+| **Registry local** (namespace `registry`) | Almacena las imágenes Docker que se construyen localmente para cada despliegue. |
+
+## Por qué Git y la wiki conviven como dos fuentes distintas
+
+Git es bueno para documentación que cambia junto al código (arquitectura, contratos de API). La wiki es mejor para contenido operativo que cambia por su cuenta y que cualquiera del equipo debería poder editar sin pasar por una pull request — por eso el RAG de AutoOps ingesta de ambas fuentes en paralelo, no solo de una.

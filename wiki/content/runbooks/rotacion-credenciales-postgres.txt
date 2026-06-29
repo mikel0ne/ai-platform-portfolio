@@ -1,0 +1,32 @@
+# Rotación de credenciales del Postgres compartido
+
+## Contexto
+
+El Postgres compartido (namespace `infra`) lo usan todos los proyectos del portfolio con el mismo usuario `appuser`. Al ser un único usuario compartido, una rotación de contraseña afecta a todos los proyectos a la vez: hay que coordinarla, no se puede rotar "solo para uno".
+
+## Política
+
+La rotación de la contraseña de `appuser` se hace **cada 90 días**. El responsable de ejecutarla es el equipo de Plataforma (alias interno **PLAT**), que es quien mantiene el Postgres compartido y el resto de infraestructura de base (Weaviate, registry, observabilidad).
+
+## Procedimiento
+
+1. Generar la contraseña nueva (no reutilizar ninguna de las 3 anteriores).
+2. Actualizar el Secret en el namespace `infra`:
+   ```
+   kubectl create secret generic postgres-credentials -n infra \
+     --dry-run=client -o yaml \
+     --from-literal=POSTGRES_USER=appuser \
+     --from-literal=POSTGRES_PASSWORD=<password-nueva> \
+   | kubectl apply -f -
+   ```
+3. Propagar el Secret a **cada namespace de proyecto** que tenga su propia copia (`autoops`, `l1-copilot`, `wiki`...) — no se actualiza solo, cada namespace tiene su propio objeto Secret aunque apunten al mismo usuario.
+4. Reiniciar los pods que leen la credencial como variable de entorno (un Secret actualizado no se repropaga solo a un pod ya arrancado): `kubectl rollout restart deployment/<nombre> -n <namespace>` para cada backend afectado.
+5. Verificar conexión: `psql -h postgres.local -p 15432 -U appuser -d appdb -c '\conninfo'` con la contraseña nueva.
+
+## Por qué importa el orden
+
+Si se reinicia un pod ANTES de actualizar su Secret local, el pod arranca con la contraseña vieja y falla la conexión. El orden correcto es siempre: Secret en `infra` → Secret en cada namespace de proyecto → reinicio de pods, namespace por namespace.
+
+## Verificación
+
+Tras la rotación, ningún pod debe quedar en `CrashLoopBackOff` por fallo de autenticación contra Postgres. Revisar `kubectl logs` de cada backend buscando `password authentication failed` como señal de que algún namespace quedó con el Secret antiguo.

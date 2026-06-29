@@ -1,0 +1,30 @@
+# Umbrales de alerta de memoria en pods
+
+## Contexto
+
+En un clúster pequeño como el de este portfolio, un solo pod con una fuga de memoria puede dejar sin recursos a los demás. No hay todavía un Prometheus/Alertmanager desplegado, así que la vigilancia de memoria es manual: este runbook fija los umbrales que usa el equipo de Plataforma (PLAT) al revisar `kubectl top pods` y decide cuándo actuar.
+
+## Umbrales
+
+| Nivel | Umbral | Acción |
+|-------|--------|--------|
+| Normal | < 85% del `limit` de memoria | Ninguna |
+| Aviso | ≥ 85% del `limit`, sostenido más de 5 minutos | Revisar logs y `kubectl top pod`; vigilar, no actuar todavía |
+| Crítico | ≥ 95% del `limit`, sostenido más de 5 minutos | Reinicio controlado del pod (`kubectl rollout restart`) |
+
+El umbral crítico real de memoria de un pod en este clúster es del **95% sostenido durante 5 minutos**; por debajo de eso, especialmente en picos puntuales (p. ej. el reranker de Weaviate al reindexar un corpus grande), no se considera incidente.
+
+## Diagnóstico
+
+1. `kubectl top pods -A --sort-by=memory` — vista rápida de los pods que más consumen.
+2. `kubectl describe pod <pod> -n <namespace>` — comprobar si hay `OOMKilled` en el historial de `Last State`.
+3. Si el pod ya fue `OOMKilled` una vez, el umbral de aviso pasa a aplicarse de forma más estricta (revisar tras cada redeploy, no solo cuando hay sospecha).
+
+## Solución
+
+- **Aviso (85-95%)**: no se reinicia nada en caliente. Se anota el pod y se revisa si el consumo baja solo (p. ej. tras terminar una ingesta). Si no baja en 30 minutos, se sube de nivel a crítico.
+- **Crítico (≥95%)**: `kubectl rollout restart deployment/<nombre> -n <namespace>`. Si el pod vuelve a subir al mismo nivel en menos de 10 minutos tras el reinicio, el problema no es un pico puntual: hay que revisar si el `limit` configurado en el values de Helm es demasiado bajo para la carga real (caso ya visto con el reranker de Weaviate, que subió de 1Gi a 2Gi de límite tras un OOM real durante un reindex grande).
+
+## Verificación
+
+Tras actuar, `kubectl top pod <pod> -n <namespace>` debe mostrar un consumo estable por debajo del 85% durante al menos 15 minutos.

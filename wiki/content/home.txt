@@ -1,0 +1,23 @@
+# AutoOps Wiki
+
+## Para qué sirve esta wiki
+
+Documentación operativa "viva" del portfolio (runbooks de incidentes, onboarding, inventario de servicios) que **complementa, sin duplicar**, la documentación de arquitectura e infraestructura que ya vive en Git (`autoops/docs/`, `l1-copilot/docs/`). Esas son fuente de verdad del diseño del propio código; esta wiki cubre el día a día operativo de un equipo más amplio.
+
+El contenido publicado aquí es también una **fuente adicional del buscador RAG de AutoOps**: lo que se escribe en esta wiki se puede preguntar directamente en el chat de búsqueda, igual que la documentación del repositorio.
+
+## Índice
+
+### Runbooks operativos
+
+- [Qué hacer si registry.local no responde](/es/runbooks/incidente-caida-registry-local)
+- [Umbrales de alerta de memoria en pods](/es/runbooks/umbral-alertas-memoria-pods)
+- [Rotación de credenciales del Postgres compartido](/es/runbooks/rotacion-credenciales-postgres)
+- [Checklist ante un incidente P1](/es/runbooks/checklist-incidente-p1)
+
+### Onboarding e infraestructura
+
+- [Bienvenida al equipo de Plataforma](/es/onboarding/bienvenida-equipo-plataforma)
+- [Inventario de servicios internos (qué tenemos)](/es/onboarding/inventario-servicios-internos)
+- [Primeros pasos: acceso al clúster local](/es/onboarding/primeros-pasos-acceso-cluster)
+- [Glosario interno](/es/onboarding/glosario-interno)

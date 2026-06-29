@@ -1,0 +1,22 @@
+# Checklist ante un incidente P1 (caída total de un servicio)
+
+## Cuándo aplica
+
+Un incidente es **P1** cuando un servicio del portfolio deja de responder por completo para todos los usuarios (no degradación parcial — eso es P2, ver la página de glosario). Ejemplos: el backend de AutoOps no responde a ninguna petición, o Postgres compartido cae y todos los proyectos pierden la base de datos a la vez.
+
+## Checklist (en orden)
+
+1. **Confirmar el alcance** — ¿es un solo proyecto o varios? Si Postgres o Weaviate compartidos están afectados, el incidente es transversal: tratarlo como P1 para todos los proyectos que dependen de ellos, no solo el primero que se detectó.
+2. **Asumir el rol de IC** — el Incident Commander (IC) coordina la respuesta; es un rol rotativo semanal dentro de PLAT, no un cargo fijo. El IC de turno es quien decide cuándo escalar o cerrar el incidente, no necesariamente quien lo detectó.
+3. **Abrir un canal de guerra** — en este portfolio, el canal `#plataforma-soporte` (ver página de bienvenida del equipo) hace de canal de guerra: ahí se centraliza toda la comunicación del incidente, sin duplicar en otros canales.
+4. **Diagnóstico rápido** — `kubectl get pods -A | grep -v Running` para ver qué está caído de un vistazo; logs del pod afectado; comprobar si fue un cambio reciente (`kubectl rollout history`).
+5. **Mitigar antes de investigar la causa raíz** — si hay un rollback obvio (un deploy reciente), hacerlo antes de seguir investigando. Restaurar el servicio tiene prioridad sobre entender por qué falló.
+6. **Comunicar el cierre** — cuando el servicio vuelve a responder con normalidad, avisar en el canal de guerra con hora exacta de recuperación.
+
+## Postmortem
+
+**Todo incidente P1 debe tener un postmortem publicado en un plazo máximo de 48 horas** desde el cierre. El postmortem lo redacta el IC que estuvo de turno, con: línea de tiempo, causa raíz, qué se hizo para mitigar, y acciones de seguimiento (con responsable y fecha, no solo "mejorar monitorización").
+
+## Verificación de cierre
+
+El incidente no se considera cerrado solo porque el servicio responda una vez: hay que confirmar estabilidad sostenida durante al menos 15 minutos antes de dar el aviso de cierre definitivo.
