@@ -32,7 +32,14 @@ describe('SearchStore', () => {
 
     const body: SearchResponse = {
       respuesta: 'Las probes readiness deben…',
-      citas: [{ fuente: 'estandar-microservicios.md', seccion: 'Probes', score: 0.83 }],
+      citas: [{
+        fuente: 'estandar-microservicios.md',
+        titulo: 'Estándar de microservicios',
+        seccion: 'Probes',
+        url: '',
+        origen: 'markdown-local',
+        score: 0.83,
+      }],
       confianza: 'alta',
     };
     req.flush(body);
