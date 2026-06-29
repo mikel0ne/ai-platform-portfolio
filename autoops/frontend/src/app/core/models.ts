@@ -5,7 +5,7 @@
  */
 
 /** Clase de origen del fragmento citado (DocChunk#origen en el backend). */
-export type Origen = 'markdown-local' | 'git' | 'confluence';
+export type Origen = 'markdown-local' | 'git' | 'wikijs';
 
 /** Cita que respalda la respuesta: fichero del corpus, sección, origen/link y score de recuperación. */
 export interface DocCitation {
