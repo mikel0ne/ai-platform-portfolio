@@ -54,6 +54,10 @@ configmap:
     AUTOOPS_WEAVIATE_CLASS_NAME: "AutoopsDocChunk"
     # Ingesta solo desde GitHub (corpus local desactivado).
     # AUTOOPS_INGESTION_CORPUS_PATH: "/app/corpus"
+    # Wiki.js: fuente RAG adicional (WikiJsSource). URL interna del Service del release
+    # `wikijs` (namespace `wiki`, ver infra/values-wikijs.yaml) y URL pública para las citas.
+    AUTOOPS_WIKIJS_URL: "http://wikijs-generic-app.wiki.svc.cluster.local:3000"
+    AUTOOPS_WIKIJS_PUBLIC_URL: "http://wiki.local"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
 # Secret compartido: API key de Gemini (chat + embeddings) y token de GitHub (lectura del
@@ -66,6 +70,9 @@ secretEnv:
   - name: GITHUB_TOKEN
     secretName: autoops-llm-secret
     secretKey: GITHUB_TOKEN
+  - name: WIKIJS_API_KEY
+    secretName: wikijs-ingestion-secret
+    secretKey: WIKIJS_API_KEY
 
 # ServiceAccount de SOLO LECTURA para las tools K8s (lo crea infra/rbac-autoops.yaml,
 # aplicado por deploy.sh junto al ClusterRole/ClusterRoleBinding). create:false porque
