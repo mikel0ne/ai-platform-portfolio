@@ -59,7 +59,7 @@ que se puede repetir con otra `url` para ir sumando más repos a la wiki:
 kubectl port-forward svc/autoops-backend-generic-app 8080:8080 -n autoops
 # En otra terminal:
 curl -X POST "http://localhost:8080/admin/vectorstore/drop"          # solo si quieres partir de cero
-curl -X POST "http://localhost:8080/admin/ingest"                    # corpus local (+ Confluence si está activo)
+curl -X POST "http://localhost:8080/admin/ingest"                    # corpus local (+ Wiki.js si está activo)
 curl -X POST "http://localhost:8080/admin/ingest/git?url=https://github.com/mikel0ne/langchain.git"
 # → { "url": "...", "branch": "main", "chunks": 142 }   (la rama se detecta sola si no se indica)
 ```

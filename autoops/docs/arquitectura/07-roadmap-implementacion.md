@@ -37,7 +37,7 @@ flowchart LR
       `AutoopsDocChunk`, reranker) + `IngestionService` (multi-fuente → chunks ~500 tokens con ventana de vecinos →
       embeddings) + comando/endpoint de ingesta.
 - [x] Ingesta multi-fuente y sentence-window (ADR-010, doc 02): `FuenteDocumental` (markdown local + Git +
-      stub Confluence), `Chunker` híbrido heading+recursivo, metadatos ampliados (título/url/origen/docId/hash),
+      Wiki.js), `Chunker` híbrido heading+recursivo, metadatos ampliados (título/url/origen/docId/hash),
       `taskType` distinto al indexar vs consultar.
 - [x] Redactar 4-6 documentos de `corpus/` (estándares ficticios pero realistas: convención de microservicios,
       política de recursos, guía de probes…).
