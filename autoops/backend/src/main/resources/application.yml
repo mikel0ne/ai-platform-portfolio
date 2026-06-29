@@ -66,6 +66,12 @@ autoops:
     overlap-chars: 200     # solape al subdividir un párrafo más largo que max-chars
     # La ingesta desde Git no va por aquí: el repo (y opcionalmente rama/subdir/webBase) se pasa por
     # parámetro en POST /admin/ingest/git, para poder ir alimentando la wiki con varios repos a demanda.
+  # Wiki.js (wiki self-hosted, fuente RAG adicional, ver infra/INFRA.md §7): activa WikiJsSource. Sin
+  # 'url' configurada (caso local, sin Wiki.js desplegado) la fuente se autodesactiva sola. En K8s la
+  # rellena infra/values-autoops-backend.yaml vía AUTOOPS_WIKIJS_URL / AUTOOPS_WIKIJS_PUBLIC_URL (binding
+  # relajado de Spring); la API key va aparte, por WIKIJS_API_KEY (secreto, no config).
+  wikijs:
+    locale: es
 
 # Swagger UI / OpenAPI (chat de búsqueda)
 springdoc:

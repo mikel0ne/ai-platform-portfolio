@@ -12,7 +12,7 @@ import java.util.List;
 
 /**
  * Indexa el corpus en Weaviate: recorre todas las {@link FuenteDocumental} disponibles (markdown local,
- * Confluence...), trocea cada documento en chunks con el {@link Chunker} (secciones + ventana de vecinos),
+ * Wiki.js...), trocea cada documento en chunks con el {@link Chunker} (secciones + ventana de vecinos),
  * calcula sus embeddings y los inserta (doc 03 §F1, doc 05 §4). El troceado es estático y sin estado para
  * poder testearlo sin red ni LLM.
  *

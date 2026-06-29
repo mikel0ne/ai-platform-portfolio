@@ -4,7 +4,7 @@ import java.util.List;
 
 /**
  * Origen de documentación a ingestar en el RAG. Abstrae de dónde salen los documentos (carpeta local de
- * markdown, repositorio Git, Confluence...) para que la ingesta sea agnóstica al origen: el
+ * markdown, repositorio Git, Wiki.js...) para que la ingesta sea agnóstica al origen: el
  * {@link io.github.mikel0ne.autoops.rag.IngestionService} recorre todas las implementaciones disponibles y trocea lo
  * que cada una emite.
  *
