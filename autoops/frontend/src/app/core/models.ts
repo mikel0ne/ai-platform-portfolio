@@ -4,10 +4,17 @@
  * el endpoint `POST /search` reutiliza el núcleo RAG y redacta la respuesta con el LLM interno.
  */
 
-/** Cita que respalda la respuesta: fichero del corpus, sección y score de recuperación. */
+/** Clase de origen del fragmento citado (DocChunk#origen en el backend). */
+export type Origen = 'markdown-local' | 'git' | 'confluence';
+
+/** Cita que respalda la respuesta: fichero del corpus, sección, origen/link y score de recuperación. */
 export interface DocCitation {
   fuente: string;
+  titulo: string;
   seccion: string;
+  /** Enlace canónico con ancla a la sección; cadena vacía si el origen no es navegable (markdown-local). */
+  url: string;
+  origen: Origen;
   score: number;
 }
 
