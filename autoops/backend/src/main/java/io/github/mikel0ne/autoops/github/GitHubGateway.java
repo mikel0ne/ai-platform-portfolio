@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.github;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -24,7 +25,16 @@ public class GitHubGateway {
         this.client = gitHubClient;
     }
 
-    /** SHA del último commit de una rama (para anclar permalinks, no a la rama que se mueve). */
+    /** Rama por defecto del repositorio (la que GitHub muestra al entrar), para no tener que adivinarla. */
+    public String ramaPorDefecto(String owner, String repo) {
+        RepoInfo info = client.get()
+                .uri("/repos/{owner}/{repo}", owner, repo)
+                .retrieve()
+                .body(RepoInfo.class);
+        return info == null ? null : info.defaultBranch();
+    }
+
+    /** SHA del último commit de una rama. Reservado para una futura tool de lectura de código bajo demanda. */
     public String ultimoCommitSha(String owner, String repo, String branch) {
         CommitRef ref = client.get()
                 .uri("/repos/{owner}/{repo}/commits/{branch}", owner, repo, branch)
@@ -66,6 +76,8 @@ public class GitHubGateway {
         byte[] raw = Base64.getMimeDecoder().decode(resp.content());
         return new String(raw, StandardCharsets.UTF_8);
     }
+
+    record RepoInfo(@JsonProperty("default_branch") String defaultBranch) {}
 
     record CommitRef(String sha) {}
 

@@ -27,6 +27,11 @@ public class ApiExceptionHandler {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    ProblemDetail invalidArgument(IllegalArgumentException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpected(Exception ex) {
         log.error("Error no controlado procesando la petición", ex);

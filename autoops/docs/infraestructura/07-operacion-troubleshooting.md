@@ -36,7 +36,7 @@ Con `k9s` instalado, `k9s -n autoops` da todo lo anterior de forma interactiva.
 | El cliente MCP no lista tools | Endpoint `/mcp` no accesible o mal registrado | Probar `http://autoops.local/actuator/health`; revisar la URL `/mcp` en la config del cliente y las anotaciones de Ingress (buffering off) |
 | La conexión MCP se corta a los segundos | Ingress bufferiza o timeout corto | Anotaciones `proxy-buffering: off` y `proxy-read-timeout` altos (guía 06 §2) |
 | El cliente MCP deja de poder llamar tools tras ~5 min idle (`-32001 Request timed out`) | Body-timeout del cliente (Node/undici) sobre una conexión sin keep-alive | Asegurar `spring.ai.mcp.server.streamable-http.keep-alive-interval` configurado (p. ej. `20s`) en `application.yml`; si reaparece, reiniciar la conexión del cliente |
-| `buscar_docs`/`/search` no devuelven nada o dan error de schema (`Cannot query field "titulo"...`) | Clase `AutoopsDocChunk` con esquema viejo (`ensureSchema()` es idempotente: si la clase ya existe, no la migra) | Re-ingestar con reset (§3): `POST /admin/ingest?reset=true` |
+| `buscar_docs`/`/search` no devuelven nada o dan error de schema (`Cannot query field "titulo"...`) | Clase `AutoopsDocChunk` con esquema viejo (`ensureSchema()` es idempotente: si la clase ya existe, no la migra) | Re-ingestar con reset (§3): `bash infra/scripts/ingest-autoops.sh --reset` |
 | `diagnosticar_pod` responde `403 Forbidden` | RBAC no aplicado o SA no asignado | `kubectl auth can-i list pods --as=system:serviceaccount:autoops:autoops-mcp -A` debe ser `yes`; ¿`serviceAccountName` en el Deployment? |
 | Respuestas del LLM interno con `429` | Límite de la capa gratuita de Gemini | Esperar la ventana de cuota; `gemini-2.5-flash-lite` tiene la cuota más alta; reducir tamaño de lote en la ingesta |
 | Despliego imagen nueva y no cambia nada | Etiqueta reutilizada con `IfNotPresent` | `--tag` único en `deploy.sh` (guía 04 §3); nunca reutilizar tag |
@@ -44,21 +44,24 @@ Con `k9s` instalado, `k9s -n autoops` da todo lo anterior de forma interactiva.
 ## 3. Ingesta del corpus (poblar el RAG)
 
 Tras desplegar (o tras un cambio de esquema/modelo de embeddings), hay que indexar la documentación interna en
-Weaviate. El script `infra/scripts/ingest-autoops.sh` automatiza el port-forward + la llamada al endpoint
-interno (`IngestionController`, NO expuesto por el Ingress):
+Weaviate. El script `infra/scripts/ingest-autoops.sh` automatiza el port-forward + las llamadas a los endpoints
+internos (`IngestionController`, NO expuestos por el Ingress):
 
 ```bash
-bash infra/scripts/ingest-autoops.sh            # ingesta incremental (no borra la clase)
-bash infra/scripts/ingest-autoops.sh --reset    # borra la clase y reindexa desde cero
+bash infra/scripts/ingest-autoops.sh            # ingesta incremental: corpus local + repo Git (no borra nada)
+bash infra/scripts/ingest-autoops.sh --reset    # vacía Weaviate y reindexa todo desde cero
 ```
 
-Equivalente manual (lo que hace el script por dentro):
+Equivalente manual (lo que hace el script por dentro): el repo Git se pasa por parámetro, no por config, así
+que se puede repetir con otra `url` para ir sumando más repos a la wiki:
 
 ```bash
 kubectl port-forward svc/autoops-backend-generic-app 8080:8080 -n autoops
 # En otra terminal:
-curl -X POST "http://localhost:8080/admin/ingest?reset=true"
-# → { "chunks": 142, "reset": true }
+curl -X POST "http://localhost:8080/admin/vectorstore/drop"          # solo si quieres partir de cero
+curl -X POST "http://localhost:8080/admin/ingest"                    # corpus local (+ Confluence si está activo)
+curl -X POST "http://localhost:8080/admin/ingest/git?url=https://github.com/mikel0ne/langchain.git"
+# → { "url": "...", "branch": "main", "chunks": 142 }   (la rama se detecta sola si no se indica)
 ```
 
 Verificar que `AutoopsDocChunk` tiene objetos (Weaviate vive en el namespace **`infra`**, compartido — no

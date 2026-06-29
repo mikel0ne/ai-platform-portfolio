@@ -64,11 +64,8 @@ autoops:
   ingestion:
     max-chars: 2000        # tamaño objetivo del núcleo (~500 tokens); la ventana almacenada es mayor
     overlap-chars: 200     # solape al subdividir un párrafo más largo que max-chars
-    # Repositorios Git de los que ingestar markdown. El propio monorepo (sin subdir = repo entero):
-    # cubre autoops/docs, l1-copilot/docs, infra/, READMEs, etc. — todo .md, nunca código fuente.
-    git:
-      - url: https://github.com/mikel0ne/langchain.git
-        branch: main
+    # La ingesta desde Git no va por aquí: el repo (y opcionalmente rama/subdir/webBase) se pasa por
+    # parámetro en POST /admin/ingest/git, para poder ir alimentando la wiki con varios repos a demanda.
 
 # Swagger UI / OpenAPI (chat de búsqueda)
 springdoc:
