@@ -213,10 +213,8 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
   bajo demanda (mismo patrón que `K8sInspectionService`/`LokiGateway`: leer en vivo, no indexar), no parte del
   RAG de documentación.
 - **Consecuencias:** cambio de esquema en Weaviate → cualquier despliegue de esto exige **reindexar desde
-  cero** (`POST /admin/ingest?reset=true`) con un `--tag` de imagen único. JGit 5.12 (la versión ya disponible
-  en el proyecto) no soporta *shallow clone* (`setDepth` llegó en JGit 6.3): `GitMarkdownSource` clona una sola
-  rama a profundidad completa, aceptable para un repo de documentación; si algún día se ingesta un repo grande,
-  subir la versión de JGit.
+  cero** (`POST /admin/vectorstore/drop` + `POST /admin/ingest` + `POST /admin/ingest/git?url=...`, o
+  directamente `infra/scripts/ingest-autoops.sh --reset`) con un `--tag` de imagen único.
 
 ## 4. Atributos de calidad y cómo se abordan
 

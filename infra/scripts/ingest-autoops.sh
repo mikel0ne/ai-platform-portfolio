@@ -2,13 +2,16 @@
 # =============================================================================
 # ingest-autoops.sh — dispara la ingesta del corpus de AutoOps en Weaviate.
 # =============================================================================
-# El endpoint /admin/ingest NO se expone por el Ingress (operación interna): se
-# alcanza con un port-forward temporal al Service del backend.
+# Los endpoints /admin/* NO se exponen por el Ingress (operación interna): se
+# alcanzan con un port-forward temporal al Service del backend.
 #
 # Uso:
-#   ./infra/scripts/ingest-autoops.sh            # ingesta incremental
-#   ./infra/scripts/ingest-autoops.sh --reset    # borra y reindexa (obligatorio
+#   ./infra/scripts/ingest-autoops.sh            # ingesta incremental (local + repo Git)
+#   ./infra/scripts/ingest-autoops.sh --reset    # vacía Weaviate y reindexa desde cero (obligatorio
 #                                                  # si cambias el modelo de embeddings)
+#
+# El repo Git (monorepo) se ingesta por parámetro vía /admin/ingest/git, no por config: para
+# ingestar otro repo a la wiki, repetir la llamada a ese endpoint con otra --url.
 #
 # Requiere: backend autoops desplegado y Ready; kubectl y curl en PATH.
 # =============================================================================
@@ -17,6 +20,7 @@ set -euo pipefail
 NS="autoops"
 SVC="autoops-backend-generic-app"
 LOCAL_PORT="18080"
+GIT_REPO_URL="https://github.com/mikel0ne/langchain.git"
 RESET="false"
 [[ "${1:-}" == "--reset" ]] && RESET="true"
 
@@ -34,11 +38,23 @@ PF_PID=$!
 trap 'kill "$PF_PID" 2>/dev/null || true' EXIT
 sleep 3
 
-step "Lanzando ingesta (reset=${RESET})..."
-curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/ingest?reset=${RESET}" \
+if [[ "$RESET" == "true" ]]; then
+  step "Vaciando la base vectorial..."
+  curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/vectorstore/drop" && echo
+  ok "Base vectorial vaciada"
+fi
+
+step "Ingestando corpus local..."
+curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/ingest" \
   -H 'Content-Type: application/json' \
   && echo
-ok "Ingesta solicitada"
+ok "Corpus local ingestado"
+
+step "Ingestando repo Git (${GIT_REPO_URL}, rama por defecto)..."
+curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/ingest/git?url=${GIT_REPO_URL}" \
+  -H 'Content-Type: application/json' \
+  && echo
+ok "Repo Git ingestado"
 
 step "Verificando objetos en la clase AutoopsDocChunk (Weaviate compartido)..."
 kubectl port-forward svc/weaviate "18088:8080" -n infra >/dev/null 2>&1 &

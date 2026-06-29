@@ -29,6 +29,19 @@ class GitHubGatewayTest {
     }
 
     @Test
+    void ramaPorDefecto_lee_el_default_branch_del_repo() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://api.github.com");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(requestTo("https://api.github.com/repos/org/repo"))
+                .andRespond(withSuccess("{\"default_branch\":\"main\"}", MediaType.APPLICATION_JSON));
+
+        GitHubGateway gateway = new GitHubGateway(builder.build());
+
+        assertThat(gateway.ramaPorDefecto("org", "repo")).isEqualTo("main");
+        server.verify();
+    }
+
+    @Test
     void ficherosMarkdown_filtra_solo_blobs_md_del_arbol() {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.github.com");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
