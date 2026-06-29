@@ -1,0 +1,35 @@
+# Primeros pasos: acceso al clúster local
+
+## Qué necesitas instalar
+
+1. **Rancher Desktop** (incluye k3s + dockerd) — ver `infra/scripts/01-install-rancher-desktop.ps1`.
+2. **kubectl** y **helm** (vienen con Rancher Desktop, comprueba que están en el PATH).
+3. **psql** si vas a tocar el Postgres compartido directamente.
+
+## Primer arranque
+
+Tras instalar Rancher Desktop y arrancar Kubernetes, **el clúster tarda entre 3 y 5 minutos en tener todos los pods de infraestructura en estado `Ready`** la primera vez (se están descargando todas las imágenes: Postgres, Weaviate, el reranker, Traefik...). En arranques posteriores, con las imágenes ya en caché local, es mucho más rápido.
+
+Comprobación de que todo está arriba:
+
+```bash
+kubectl get pods -A
+```
+
+Deberías ver, como mínimo, pods `Running` en los namespaces `infra`, `kube-system` y (si ya se desplegaron) `autoops` / `l1-copilot` / `wiki`.
+
+## Resolución de nombres `.local`
+
+Los servicios de este portfolio se acceden por nombre, no por IP/puerto: `autoops.local`, `l1-copilot.local`, `wiki.local`, `grafana.local`... Esto requiere añadir cada host al fichero hosts de Windows una vez, con permisos de Administrador:
+
+```powershell
+infra/scripts/add-host.ps1 -Hostname wiki.local
+```
+
+(Hay variantes específicas ya hechas para cada proyecto: `add-copilot-host.ps1`, `add-wiki-host.ps1`, etc.)
+
+## Errores típicos al empezar
+
+- `kubectl cluster-info` no responde → Rancher Desktop no ha terminado de arrancar Kubernetes; espera y reintenta antes de lanzar ningún script de `infra/scripts/`.
+- Un host `*.local` no resuelve → falta el paso anterior (fichero hosts), no un problema del clúster.
+- `docker push` a `registry.local` falla → ver el runbook "Qué hacer si registry.local no responde".

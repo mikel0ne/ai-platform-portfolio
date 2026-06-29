@@ -1,0 +1,24 @@
+# Glosario interno (siglas y nombres que vas a ver)
+
+## Equipo y roles
+
+- **PLAT** — alias interno del equipo de Plataforma, responsable de la infraestructura compartida (Postgres, Weaviate, registry, observabilidad, esta wiki). Ver "Bienvenida al equipo de Plataforma".
+- **IC (Incident Commander)** — persona que coordina la respuesta durante un incidente. Rotativo semanal dentro de PLAT; no es un cargo fijo.
+
+## Severidad de incidentes
+
+- **P1** — caída total de un servicio, o pérdida de datos. Requiere checklist de incidente y postmortem en 48h.
+- **P2** — degradación parcial con impacto real en el uso (por ejemplo, el servicio responde pero con latencia muy alta, o una funcionalidad concreta falla mientras el resto funciona).
+- **P3** — cosmético, o sin impacto apreciable en el servicio (un typo en una UI, un log con un nivel mal puesto).
+
+La diferencia clave entre P1 y P2: en P1 el servicio **no responde en absoluto** para nadie; en P2 el servicio sigue respondiendo pero degradado o con una parte rota. Un P2 mal gestionado que se deja crecer puede convertirse en P1.
+
+## Infraestructura
+
+- **namespace vs proyecto** — un namespace de Kubernetes es un límite técnico de aislamiento (RBAC, cuotas, nombres de recursos). Un "proyecto" en este portfolio normalmente vive en su propio namespace (`autoops`, `l1-copilot`, `wiki`), pero la infraestructura compartida (`infra`) no es un proyecto, es la capa de base que todos usan.
+- **release (Helm)** — una instalación con nombre de un chart Helm en un namespace concreto. Dos proyectos pueden usar el mismo chart (`generic-app`) con releases distintos (`autoops-backend`, `wikijs`...).
+- **fuente RAG** — cualquier origen de documentos que el buscador de AutoOps puede ingestar (Git, esta wiki...). Cada fuente aporta documentos con su propio "origen" para poder distinguir de dónde viene cada cita en una respuesta.
+
+## Convenciones de nombres `.local`
+
+Todo servicio expuesto por Ingress en este portfolio usa un host `<algo>.local` resuelto vía el fichero hosts de Windows, nunca una IP ni un puerto NodePort directo salvo para depuración puntual.

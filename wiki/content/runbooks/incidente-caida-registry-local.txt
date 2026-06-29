@@ -1,0 +1,31 @@
+# Qué hacer si registry.local no responde
+
+## Contexto
+
+`registry.local` es el registro Docker interno del clúster (namespace `registry`), usado por todos los proyectos del portfolio para `docker push`/`docker pull` durante un despliegue. Si deja de responder, ningún `helm upgrade --install` con imagen nueva puede completarse, aunque los pods ya desplegados sigan funcionando con normalidad.
+
+## Síntomas
+
+- `docker push registry.local/...` cuelga o devuelve `connection refused`.
+- En el clúster, los pods nuevos quedan en `ImagePullBackOff` aunque la imagen exista.
+- `curl -sk https://registry.local/v2/_catalog` no responde o tarda más de 90 segundos.
+
+## Dato clave
+
+El registry tiene configurado un **timeout de pull de 90 segundos** en el containerd de k3s. Si el pod tarda más que eso en arrancar la descarga, Kubernetes lo marca como `ImagePullBackOff` aunque el registry esté simplemente lento (no caído de verdad). Antes de reiniciar nada, comprobar si el problema es lentitud o caída real.
+
+## Diagnóstico
+
+1. `kubectl get pods -n registry` — comprobar que el pod `registry-*` está `Running`.
+2. `kubectl logs -n registry deployment/registry --tail=50` — buscar errores de disco lleno (el almacenamiento es un PVC local, puede llenarse tras muchos `push` de pruebas).
+3. `curl -sk https://registry.local/v2/_catalog` desde el host — si no responde en 90s, asumir caída real, no solo lentitud.
+
+## Solución
+
+- Si el pod está `Running` pero lento: esperar, no reiniciar (un reinicio en plena descarga deja la imagen a medias en el PVC).
+- Si el PVC está lleno: `kubectl exec -n registry deployment/registry -- du -sh /var/lib/registry`, y limpiar imágenes de prueba antiguas con `registry garbage-collect`.
+- Si el pod está caído (`CrashLoopBackOff`): `kubectl rollout restart deployment/registry -n registry` y reaplicar `infra/scripts/05-setup-registry-ingress.sh` si tras el reinicio Traefik no enruta (el `IngressRoute` no se pierde, pero el `daemon.json`/`registries.yaml` de la WSL sí puede perderse tras un *Reset Kubernetes* de Rancher Desktop).
+
+## Verificación
+
+`curl -sk https://registry.local/v2/_catalog` debe devolver la lista de repositorios en menos de 2 segundos. Un `docker push` de prueba debe completarse sin reintentos.
