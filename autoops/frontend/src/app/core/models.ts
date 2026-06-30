@@ -18,8 +18,8 @@ export interface DocCitation {
   score: number;
 }
 
-/** Nivel de confianza del RAG: `baja` = el LLM evaluador no considera los chunks suficientes, el usuario debe matizar. */
-export type Confianza = 'alta' | 'baja';
+/** Nivel de confianza del RAG: `alta` = todos los aspectos cubiertos, `media` = cobertura parcial, `baja` = sin confirmación directa, `nula` = solo respaldo descartado. */
+export type Confianza = 'alta' | 'media' | 'baja' | 'nula';
 
 /** Petición a `POST /search`. */
 export interface SearchRequest {

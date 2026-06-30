@@ -25,10 +25,19 @@ type Relevancia = 'top' | 'media' | 'baja';
       @if (msg.from === 'agent' && !msg.error) {
         @if (msg.confianza) {
           <div class="confidence" [class]="'conf-' + msg.confianza">
-            @if (msg.confianza === 'alta') {
-              <span class="dot" aria-hidden="true">●</span> Confianza alta
-            } @else {
-              <span class="dot" aria-hidden="true">●</span> Confianza baja · contrasta antes de aplicar
+            @switch (msg.confianza) {
+              @case ('alta') {
+                <span class="icon" aria-hidden="true">✓</span> Confianza alta
+              }
+              @case ('media') {
+                <span class="icon icon-media" aria-hidden="true">❓</span> Cobertura parcial · contrasta antes de aplicar
+              }
+              @case ('baja') {
+                <span class="icon icon-baja" aria-hidden="true">⚠️</span> Información tangencial · verifica antes de aplicar
+              }
+              @case ('nula') {
+                <span class="icon icon-nula" aria-hidden="true">❌</span> Sin documentación interna · verifica obligatoriamente
+              }
             }
           </div>
         }
@@ -119,9 +128,14 @@ type Relevancia = 'top' | 'media' | 'baja';
       border-radius: 20px;
       letter-spacing: 0.02em;
     }
-    .confidence .dot { font-size: 0.6rem; }
+    .confidence .icon { font-size: 0.8rem; }
     .conf-alta { background: #d1fae5; color: #065f46; }
-    .conf-baja { background: #fef3c7; color: #b45309; }
+    .conf-media { background: #fef3c7; color: #b45309; }
+    .conf-baja { background: #fb923c; color: #7c2d12; }
+    .conf-nula { background: #fecaca; color: #1f2937; }
+    .icon-media { color: #b45309; }
+    .icon-baja { color: #dc2626; }
+    .icon-nula { color: #000; }
 
     /* ── Citas ───────────────────────────────────────────────────────────── */
     .citations {
@@ -207,7 +221,7 @@ export class AnswerBubbleComponent {
   @Input({ required: true }) msg!: SearchMessage;
 
   private static readonly ORIGEN_LABEL: Record<Origen, string> = {
-    git: 'GitHub',
+    git: 'Git',
     wikijs: 'Wiki',
     'markdown-local': 'Local',
   };
