@@ -7,7 +7,6 @@ import io.github.mikel0ne.autoops.rag.crag.CragState;
 import org.bsc.langgraph4j.action.NodeAction;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -26,9 +25,6 @@ import java.util.Map;
  * sin llamada extra al LLM (equivalente exacto del antiguo {@code retrieve} en la primera vuelta).
  */
 public class MultiQueryNode implements NodeAction<CragState> {
-
-    /** Constante estandar de RRF (Cormack, Clarke & Buettcher 2009): amortigua el peso de los primeros puestos. */
-    private static final int RRF_K = 60;
 
     private final DocRetriever retriever;
     private final ChatModel chatModel;
@@ -58,7 +54,8 @@ public class MultiQueryNode implements NodeAction<CragState> {
                 .map(v -> retriever.retrieve(v, k))
                 .toList();
 
-        return Map.of("candidatos", fusionarConRrf(resultadosPorVariante, k));
+        List<DocChunk> fusionados = RrfFusion.fusionar(resultadosPorVariante).stream().limit(k).toList();
+        return Map.of("candidatos", fusionados);
     }
 
     /** Pide al LLM hasta {@code cuantas} reformulaciones alternativas, una por linea. */
@@ -73,34 +70,5 @@ public class MultiQueryNode implements NodeAction<CragState> {
                 .distinct()
                 .limit(cuantas)
                 .toList();
-    }
-
-    /**
-     * Reciprocal Rank Fusion: combina varias listas rankeadas en una sola, deduplicando candidatos
-     * repetidos entre variantes (suman su contribucion) y recortando al final a {@code k}, igual que
-     * habria devuelto una unica recuperacion.
-     */
-    private List<DocChunk> fusionarConRrf(List<List<DocChunk>> listas, int k) {
-        Map<String, Double> puntuacionRrf = new LinkedHashMap<>();
-        Map<String, DocChunk> representantePorClave = new LinkedHashMap<>();
-        for (List<DocChunk> lista : listas) {
-            for (int rango = 0; rango < lista.size(); rango++) {
-                DocChunk candidato = lista.get(rango);
-                String clave = clave(candidato);
-                puntuacionRrf.merge(clave, 1.0 / (RRF_K + rango + 1), Double::sum);
-                representantePorClave.merge(clave, candidato,
-                        (a, b) -> a.score() >= b.score() ? a : b);
-            }
-        }
-        return puntuacionRrf.entrySet().stream()
-                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-                .limit(k)
-                .map(entrada -> representantePorClave.get(entrada.getKey()))
-                .toList();
-    }
-
-    /** Identidad de un candidato a efectos de deduplicar entre variantes: no hay id, asi que es por contenido. */
-    private static String clave(DocChunk c) {
-        return c.fuente() + "|" + c.seccion() + "|" + c.texto();
     }
 }
