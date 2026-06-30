@@ -147,12 +147,12 @@ get_version_from_manifest() {
     backend)
       manifest_file="${REPO_ROOT}/${PROJECT}/backend/pom.xml"
       [[ -f "${manifest_file}" ]] || { err "No existe ${manifest_file}"; return 1; }
-      grep -oP '(?<=<version>)[^<]+' "${manifest_file}" | head -1
+      sed -n 's|.*<version>\([^<]*\)</version>.*|\1|p' "${manifest_file}" | head -1
       ;;
     frontend)
       manifest_file="${REPO_ROOT}/${PROJECT}/frontend/package.json"
       [[ -f "${manifest_file}" ]] || { err "No existe ${manifest_file}"; return 1; }
-      grep -oP '"version"\s*:\s*"\K[^"]+' "${manifest_file}"
+      sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${manifest_file}"
       ;;
   esac
 }
