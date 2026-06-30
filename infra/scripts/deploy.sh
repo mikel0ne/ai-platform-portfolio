@@ -17,6 +17,7 @@
 #
 # Uso:
 #   ./infra/scripts/deploy.sh --project autoops    --component backend
+#   ./infra/scripts/deploy.sh --project autoops    --component backend --bump minor
 #   ./infra/scripts/deploy.sh --project l1-copilot --component all --tag 1.0.2
 #   ./infra/scripts/deploy.sh --project autoops    --component frontend --skip-build
 #   ./infra/scripts/deploy.sh --project autoops    --uninstall
@@ -24,7 +25,8 @@
 # Flags:
 #   --project       Nombre del proyecto (obligatorio). Debe existir infra/projects/<p>.env
 #   --component     backend | frontend | all   (obligatorio salvo con --uninstall)
-#   --tag           Tag de la imagen (default: 1.0.0)
+#   --tag           Tag de la imagen (default: extrae del pom.xml/package.json)
+#   --bump          major | minor | patch   (incrementa versión en manifest y usa ese tag)
 #   --skip-build    No hace docker build/push, solo helm
 #   --skip-secrets  No toca los Secrets de K8s
 #   --dry-run       Renderiza el chart con helm template, no aplica nada
@@ -52,7 +54,8 @@ usage() {
 # ── Parseo de argumentos ─────────────────────────────────────────────────────
 PROJECT=""
 COMPONENT=""
-TAG="1.0.0"
+TAG=""
+BUMP=""
 SKIP_BUILD="false"
 SKIP_SECRETS="false"
 DRY_RUN="false"
@@ -63,6 +66,7 @@ while [[ $# -gt 0 ]]; do
     --project)      PROJECT="${2:?--project requiere valor}"; shift 2 ;;
     --component)    COMPONENT="${2:?--component requiere valor}"; shift 2 ;;
     --tag)          TAG="${2:?--tag requiere valor}"; shift 2 ;;
+    --bump)         BUMP="${2:?--bump requiere valor}"; shift 2 ;;
     --skip-build)   SKIP_BUILD="true"; shift ;;
     --skip-secrets) SKIP_SECRETS="true"; shift ;;
     --dry-run)      DRY_RUN="true"; shift ;;
@@ -133,6 +137,77 @@ load_env() {
     warn "Crea infra/.env.local con tu GEMINI_API_KEY (compartida por todos los proyectos)."
   fi
   set +a
+}
+
+# ── Versionado automático ───────────────────────────────────────────────────
+get_version_from_manifest() {
+  local component="$1"
+  local manifest_file
+  case "${component}" in
+    backend)
+      manifest_file="${REPO_ROOT}/${PROJECT}/backend/pom.xml"
+      [[ -f "${manifest_file}" ]] || { err "No existe ${manifest_file}"; return 1; }
+      grep -oP '(?<=<version>)[^<]+' "${manifest_file}" | head -1
+      ;;
+    frontend)
+      manifest_file="${REPO_ROOT}/${PROJECT}/frontend/package.json"
+      [[ -f "${manifest_file}" ]] || { err "No existe ${manifest_file}"; return 1; }
+      grep -oP '"version"\s*:\s*"\K[^"]+' "${manifest_file}"
+      ;;
+  esac
+}
+
+bump_version() {
+  local version="$1"
+  local bump_type="$2"
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "${version}"
+  patch=${patch:-0}
+
+  case "${bump_type}" in
+    major) major=$((major + 1)); minor=0; patch=0 ;;
+    minor) minor=$((minor + 1)); patch=0 ;;
+    patch) patch=$((patch + 1)) ;;
+    *) err "bump_type debe ser major|minor|patch"; return 1 ;;
+  esac
+  echo "${major}.${minor}.${patch}"
+}
+
+update_version_in_manifest() {
+  local component="$1"
+  local new_version="$2"
+  local manifest_file
+  case "${component}" in
+    backend)
+      manifest_file="${REPO_ROOT}/${PROJECT}/backend/pom.xml"
+      sed -i "0,/<version>[^<]*<\/version>/{s/<version>[^<]*<\/version>/<version>${new_version}<\/version>/}" "${manifest_file}"
+      ok "Versión en pom.xml actualizada a ${new_version}"
+      ;;
+    frontend)
+      manifest_file="${REPO_ROOT}/${PROJECT}/frontend/package.json"
+      sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${new_version}\"/" "${manifest_file}"
+      ok "Versión en package.json actualizada a ${new_version}"
+      ;;
+  esac
+}
+
+apply_version_bump() {
+  local component="$1"
+  if [[ -z "${BUMP}" ]]; then
+    return
+  fi
+  log "Aplicando bump '${BUMP}' a ${component}"
+  local current_version
+  current_version=$(get_version_from_manifest "${component}") || return 1
+  local new_version
+  new_version=$(bump_version "${current_version}" "${BUMP}") || return 1
+  log "  ${current_version} → ${new_version}"
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    warn "  (dry-run: no se modifica el manifest)"
+  else
+    update_version_in_manifest "${component}" "${new_version}"
+  fi
+  TAG="${new_version}"
 }
 
 # ── Namespace + RBAC ─────────────────────────────────────────────────────────
@@ -284,6 +359,7 @@ uninstall_all() {
 deploy_component() {
   local component="$1"
   printf '\n\033[1;36m═══ %s · %s ═══\033[0m\n' "${PROJECT}" "${component^^}"
+  apply_version_bump "${component}"
   build_and_push "${component}"
   sync_secrets   "${component}"
   helm_deploy    "${component}"
@@ -295,8 +371,24 @@ main() {
     return
   fi
 
+  if [[ -n "${BUMP}" && -z "${TAG}" ]]; then
+    if ! [[ "${BUMP}" =~ ^(major|minor|patch)$ ]]; then
+      err "--bump debe ser major|minor|patch"; exit 1
+    fi
+  fi
+
   load_env
   ensure_namespace
+
+  if [[ -z "${TAG}" && -z "${BUMP}" ]]; then
+    if [[ "${COMPONENT}" == "backend" || "${COMPONENT}" == "all" ]]; then
+      TAG=$(get_version_from_manifest backend) || TAG="0.0.0"
+      log "TAG extraído del backend: ${TAG}"
+    elif [[ "${COMPONENT}" == "frontend" ]]; then
+      TAG=$(get_version_from_manifest frontend) || TAG="0.0.0"
+      log "TAG extraído del frontend: ${TAG}"
+    fi
+  fi
 
   case "${COMPONENT}" in
     backend)  deploy_component backend  ;;
