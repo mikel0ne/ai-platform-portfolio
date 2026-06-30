@@ -86,7 +86,8 @@ public class WeaviateGateway implements DocRetriever {
                         Property.builder().name("origen").dataType(List.of("text")).tokenization("field").build(),
                         Property.builder().name("docId").dataType(List.of("text")).tokenization("field").build(),
                         Property.builder().name("hash").dataType(List.of("text")).tokenization("field").build(),
-                        Property.builder().name("orden").dataType(List.of("int")).build()))
+                        Property.builder().name("orden").dataType(List.of("int")).build(),
+                        Property.builder().name("seccionChars").dataType(List.of("int")).build()))
                 .build();
         Result<Boolean> created = client.schema().classCreator().withClass(clazz).run();
         failOnError("creando la clase " + props.className(), created);
@@ -109,9 +110,8 @@ public class WeaviateGateway implements DocRetriever {
 
     /**
      * Calcula embeddings de los chunks y los inserta por lotes. Devuelve el nº de objetos insertados.
-     * Se embebe el {@code nucleo} (texto pequeño y limpio → match preciso) pero se almacena {@code texto}
-     * (la ventana con los vecinos → contexto para el redactor): patrón sentence-window, gratis aquí porque
-     * el vector lo calcula AutoOps y no Weaviate.
+     * Se embebe y se almacena el mismo texto (el núcleo): no se hornea ventana de vecinos. El contexto
+     * extra (sección completa) lo resuelve el bucle CRAG en consulta a partir de {@code seccionChars}.
      *
      * <p>Los embeddings se piden en lotes de {@link #EMBED_BATCH_SIZE}, con una pausa entre lotes
      * ({@link #PAUSA_ENTRE_LOTES}): el free tier de Gemini limita a 100 requests/minuto y cuenta cada
@@ -129,7 +129,7 @@ public class WeaviateGateway implements DocRetriever {
             }
             int to = Math.min(from + EMBED_BATCH_SIZE, chunks.size());
             List<TextSegment> lote = chunks.subList(from, to).stream()
-                    .map(c -> TextSegment.from(c.nucleo()))
+                    .map(c -> TextSegment.from(c.texto()))
                     .toList();
             embeddings.addAll(embedder.embedAll(lote).content());
         }
@@ -147,6 +147,7 @@ public class WeaviateGateway implements DocRetriever {
             properties.put("docId", c.docId());
             properties.put("hash", c.hash());
             properties.put("orden", c.orden());
+            properties.put("seccionChars", c.seccionChars());
             objects.add(WeaviateObject.builder()
                     .className(props.className())
                     .properties(properties)
@@ -191,6 +192,8 @@ public class WeaviateGateway implements DocRetriever {
                         Field.builder().name("url").build(),
                         Field.builder().name("origen").build(),
                         Field.builder().name("docId").build(),
+                        Field.builder().name("seccionChars").build(),
+                        Field.builder().name("orden").build(),
                         additional)
                 .run();
         failOnError("buscando en Weaviate", result);
@@ -199,7 +202,7 @@ public class WeaviateGateway implements DocRetriever {
     }
 
     @Override
-    public List<DocChunk> documentoCompleto(String docId) {
+    public List<DocChunk> seccionCompleta(String docId, String seccion) {
         WhereFilter filtro = WhereFilter.builder()
                 .path("docId")
                 .operator(Operator.Equal)
@@ -221,11 +224,58 @@ public class WeaviateGateway implements DocRetriever {
                         Field.builder().name("seccion").build(),
                         Field.builder().name("url").build(),
                         Field.builder().name("origen").build(),
-                        Field.builder().name("docId").build())
+                        Field.builder().name("docId").build(),
+                        Field.builder().name("seccionChars").build(),
+                        Field.builder().name("orden").build())
                 .run();
-        failOnError("recuperando el documento " + docId, result);
+        failOnError("recuperando la sección de " + docId, result);
 
-        return parse(result.getResult());
+        // 'seccion' es texto con tokenización por palabra (para BM25), así que el match exacto del
+        // breadcrumb se hace aquí, sobre los núcleos ya filtrados por docId (índice exacto, barato).
+        return parse(result.getResult()).stream()
+                .filter(c -> c.seccion().equals(seccion))
+                .toList();
+    }
+
+    @Override
+    public List<DocChunk> vecinosEnSeccion(String docId, String seccion, int orden, int radio) {
+        // Filtro dirigido por rango de 'orden' (índice int): trae solo los núcleos [orden-radio, orden+radio]
+        // del documento, no la sección entera. El match exacto de sección se afina en Java (ver seccionCompleta).
+        WhereFilter filtro = WhereFilter.builder()
+                .operator(Operator.And)
+                .operands(new WhereFilter[]{
+                        WhereFilter.builder().path("docId").operator(Operator.Equal).valueText(docId).build(),
+                        WhereFilter.builder().path("orden").operator(Operator.GreaterThanEqual)
+                                .valueInt(orden - radio).build(),
+                        WhereFilter.builder().path("orden").operator(Operator.LessThanEqual)
+                                .valueInt(orden + radio).build()
+                })
+                .build();
+        SortArgument porOrden = SortArgument.builder()
+                .path(new String[]{"orden"})
+                .order(SortOrder.asc)
+                .build();
+
+        Result<GraphQLResponse> result = client.graphQL().get()
+                .withClassName(props.className())
+                .withWhere(WhereArgument.builder().filter(filtro).build())
+                .withSort(porOrden)
+                .withFields(
+                        Field.builder().name("texto").build(),
+                        Field.builder().name("titulo").build(),
+                        Field.builder().name("fuente").build(),
+                        Field.builder().name("seccion").build(),
+                        Field.builder().name("url").build(),
+                        Field.builder().name("origen").build(),
+                        Field.builder().name("docId").build(),
+                        Field.builder().name("seccionChars").build(),
+                        Field.builder().name("orden").build())
+                .run();
+        failOnError("recuperando vecinos de " + docId, result);
+
+        return parse(result.getResult()).stream()
+                .filter(c -> c.seccion().equals(seccion))
+                .toList();
     }
 
     // -------------------------------------------------------------- parsing
@@ -256,8 +306,10 @@ public class WeaviateGateway implements DocRetriever {
             String url = str(obj.get("url"));
             String origen = str(obj.get("origen"));
             String docId = str(obj.get("docId"));
+            int seccionChars = intOf(obj.get("seccionChars"));
+            int orden = intOf(obj.get("orden"));
             double score = scoreOf((Map<String, Object>) obj.get("_additional"));
-            chunks.add(new DocChunk(texto, titulo, fuente, seccion, url, origen, score, docId));
+            chunks.add(new DocChunk(texto, titulo, fuente, seccion, url, origen, score, docId, seccionChars, orden));
         }
         return chunks;
     }
@@ -278,6 +330,12 @@ public class WeaviateGateway implements DocRetriever {
         }
         Double hybrid = toDouble(additional.get("score"));
         return hybrid == null ? 0.0 : hybrid;
+    }
+
+    /** Lee un entero de Weaviate (los números llegan como Double en el JSON). 0 si falta. */
+    private static int intOf(Object value) {
+        Double d = toDouble(value);
+        return d == null ? 0 : d.intValue();
     }
 
     // -------------------------------------------------------------- helpers
