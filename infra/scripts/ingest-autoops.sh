@@ -44,12 +44,6 @@ if [[ "$RESET" == "true" ]]; then
   ok "Base vectorial vaciada"
 fi
 
-step "Ingestando corpus local..."
-curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/ingest" \
-  -H 'Content-Type: application/json' \
-  && echo
-ok "Corpus local ingestado"
-
 step "Ingestando repo Git (${GIT_REPO_URL}, rama por defecto)..."
 curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/ingest/git?url=${GIT_REPO_URL}" \
   -H 'Content-Type: application/json' \

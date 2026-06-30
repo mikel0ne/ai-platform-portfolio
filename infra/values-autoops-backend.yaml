@@ -45,9 +45,9 @@ configmap:
   data:
     SPRING_PROFILES_ACTIVE: "k8s"
     AUTOOPS_LLM_PROVIDER: "gemini"
-    # Modelo de embeddings del free tier real (text-embedding-004 NO está disponible
-    # en esta API/key; gemini-embedding-001 → 100 RPM / 1000 RPD).
-    AUTOOPS_LLM_EMBEDDING_MODEL_NAME: "gemini-embedding-001"
+    # Modelo de embeddings: gemini-embedding-2 (flexible 128-3000 dims, mejor que gemini-embedding-001)
+    # Free tier: 100 RPM.
+    AUTOOPS_LLM_EMBEDDING_MODEL_NAME: "gemini-embedding-2"
     AUTOOPS_WEAVIATE_HOST: "weaviate.infra.svc.cluster.local"
     AUTOOPS_WEAVIATE_PORT: "8080"
     AUTOOPS_WEAVIATE_GRPC_PORT: "50051"
