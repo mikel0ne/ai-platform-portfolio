@@ -366,13 +366,33 @@ El Ingress envía el path **sin reescribir**. El prefijo `/api` lo absorbe el ba
 
 Un único script bash **genérico** orquesta el ciclo completo (namespace → RBAC → Secrets → docker build/push → helm upgrade --install) sobre el chart `infra/charts/generic-app`. Lo específico de cada proyecto vive en `infra/projects/<project>.env`; los nombres de values/namespace/rbac/.env se derivan **por convención** del nombre de proyecto.
 
+**Versionado automático desde manifests:**
+- La versión se extrae automáticamente del `pom.xml` (backend) o `package.json` (frontend) si no se pasa `--tag`
+- Nuevo parámetro `--bump major|minor|patch` que incrementa la versión y actualiza el manifest
+  - `--bump major`: 1.2.3 → 2.0.0
+  - `--bump minor`: 1.2.3 → 1.3.0
+  - `--bump patch`: 1.2.3 → 1.2.4
+
 ```bash
 # Desde la raíz del repo (Git Bash de Windows):
-./infra/scripts/deploy.sh --project autoops    --component backend
-./infra/scripts/deploy.sh --project autoops    --component all --tag 0.1.1
+
+# Usa versión actual del manifest (recomendado — sin sorpresas manuales)
+./infra/scripts/deploy.sh --project autoops --component backend
+
+# Bump automático: incrementa versión + actualiza pom.xml/package.json
+./infra/scripts/deploy.sh --project autoops --component backend --bump minor
+./infra/scripts/deploy.sh --project autoops --component frontend --bump patch
+
+# Override manual (legacy)
+./infra/scripts/deploy.sh --project autoops --component all --tag 0.1.1
 ./infra/scripts/deploy.sh --project l1-copilot --component frontend --tag 1.0.2
-./infra/scripts/deploy.sh --project autoops    --component backend --dry-run
-./infra/scripts/deploy.sh --project autoops    --uninstall
+
+# Simulación (no modifica manifests)
+./infra/scripts/deploy.sh --project autoops --component backend --bump minor --dry-run
+./infra/scripts/deploy.sh --project autoops --component backend --dry-run
+
+# Limpieza
+./infra/scripts/deploy.sh --project autoops --uninstall
 
 # Ingress por proyecto (tras desplegar back+front):
 ./infra/scripts/setup-app-ingress.sh --project autoops      # http://autoops.local
@@ -387,7 +407,9 @@ Run configs equivalentes en IntelliJ (`.run/`), todas vía `run-sh-gitbash.cmd`:
 - **autoops · Backend / Frontend** y **l1-copilot · Backend / Frontend / …** → run de desarrollo local (mvn/ng).
 - **l1-copilot · Reset DB (seed)** → `l1-copilot/scripts/seed-l1-copilot-db.sh`
 
-> **Trampa del tag fijo + `IfNotPresent`**: con `registry.local` local, redesplegar con el **mismo** tag no repulea la imagen ni recrea el pod. Pasa siempre un `--tag` único por build.
+> **No necesitas acordarte de actualizar versiones manualmente:** `--bump` actualiza pom.xml/package.json automáticamente. Si usas `--tag` sin `--bump`, la versión queda desalineada (no recomendado).
+>
+> **Trampa del tag fijo + `IfNotPresent`**: con `registry.local` local, redesplegar con el **mismo** tag no repulea la imagen ni recrea el pod. Por eso `--bump` automático es útil: siempre saca un tag nuevo.
 
 Todas pasan por el wrapper `infra/scripts/run-sh-gitbash.cmd`, que invoca el `.sh` con el Git Bash de Windows (no WSL — necesitamos los .exe de Rancher Desktop y psql nativos). Detalles del wrapper:
 
