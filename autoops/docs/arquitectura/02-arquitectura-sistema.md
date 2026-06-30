@@ -20,7 +20,8 @@ El front principal. Publica las **tools** que consume el cliente MCP (Claude Cod
 El cerebro de recuperación, compartido por la tool `buscar_docs` y por el chat:
 
 - **Ingesta multi-fuente**: cada `FuenteDocumental` (markdown local, repo Git, Wiki.js) aporta documentos →
-  el `Chunker` los trocea (heading + recursivo, con ventana de vecinos) → embeddings → Weaviate (ver ADR-010).
+  el `Chunker` los trocea (heading + recursivo; cada chunk almacena su núcleo + `seccionChars`) → embeddings →
+  Weaviate (ver ADR-010/011).
 - **Recuperación avanzada**: búsqueda **híbrida** (vector + keyword) + **reranking** + **bucle correctivo
   CRAG** (califica la relevancia; si es floja, reformula/expande la consulta y reintenta). El ciclo se modela
   con **LangGraph4j** (ver [03-tools-mcp.md](03-tools-mcp.md) §3).
@@ -180,6 +181,10 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 
 ### ADR-010 — Ingesta multi-fuente, chunking híbrido y ventana de vecinos (sentence-window)
 
+> **Nota:** el punto 3 (ventana de vecinos horneada en ingesta) quedó **superseded por ADR-011**: el contexto
+> extra ya no se almacena por chunk, se resuelve en consulta con auto-merging de sección. El resto del ADR
+> (abstracción de origen, chunking híbrido, metadatos, `taskType`) sigue vigente.
+
 - **Contexto:** la ingesta solo leía `corpus/*.md` local, con cuatro metadatos (`texto`, `fuente`, `seccion`,
   `orden`) y un único texto que a la vez se embebía y se almacenaba. No había forma de traer documentación
   desde un repositorio Git, ni de citar con título/URL, ni de dar al LLM redactor más contexto que el propio
@@ -216,6 +221,28 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 - **Consecuencias:** cambio de esquema en Weaviate → cualquier despliegue de esto exige **reindexar desde
   cero** (`POST /admin/vectorstore/drop` + `POST /admin/ingest` + `POST /admin/ingest/git?url=...`, o
   directamente `infra/scripts/ingest-autoops.sh --reset`) con un `--tag` de imagen único.
+
+### ADR-011 — Contexto en consulta: auto-merging de sección en vez de ventana de vecinos
+
+- **Contexto:** la ventana de vecinos de ADR-010 horneaba en cada chunk el texto del núcleo anterior y el
+  siguiente. Eso traía tres problemas: el texto se almacenaba ~3× (cada núcleo aparecía en su chunk y en los de
+  sus dos vecinos), los vecinos se cogían por `orden` de documento y **cruzaban fronteras de sección** (bleed de
+  contexto), y `grade` evaluaba la relevancia sobre el texto ventaneado (un núcleo podía parecer relevante por
+  culpa de un vecino de otra sección). Además, el nodo `expand` decidía ampliar por un umbral de caracteres
+  arbitrario (~400) y lo hacía al **documento completo**, cuyo método devolvía las ventanas solapadas (cada
+  núcleo ~3 veces en el contexto del redactor).
+- **Decisión:**
+  1. **Se elimina la ventana horneada:** cada chunk embebe y almacena el mismo texto (el núcleo). El `Chunker`
+     deja de calcular `conVentanaDeVecinos`.
+  2. **Metadato de jerarquía:** en ingesta se estampa `seccionChars` (tamaño total de la sección) en cada chunk,
+     para que el bucle CRAG decida la expansión **sin consultar**.
+  3. **Auto-merging de sección en `expand`** (patrón Parent-Document/Auto-Merging, doc 03 §3.2): los fragmentos
+     relevantes se agrupan por `(docId, seccion)` y, según `seccionChars` y la co-recuperación (≥2 hits), se
+     fusionan a la **sección** (no al documento) vía `DocRetriever.seccionCompleta(docId, seccion)`, uniendo los
+     núcleos sin solape. `documentoCompleto` se retira.
+- **Consecuencias:** cambio de esquema (campo `seccionChars`) **y** de qué texto se almacena (núcleo, no ventana)
+  → **reindexar desde cero** (mismo procedimiento que ADR-010). A cambio: sin duplicación de texto, sin bleed
+  entre secciones, `grade` juzga el núcleo limpio, y la expansión es determinista y acotada a la sección.
 
 ## 4. Atributos de calidad y cómo se abordan
 

@@ -34,11 +34,11 @@ flowchart LR
 
 - [x] Weaviate local (docker compose o el manifiesto de la guía de infra + port-forward).
 - [x] `WeaviateGateway` (cliente raw `io.weaviate:client`, no `WeaviateEmbeddingStore` — ver ADR-005; clase
-      `AutoopsDocChunk`, reranker) + `IngestionService` (multi-fuente → chunks ~500 tokens con ventana de vecinos →
+      `AutoopsDocChunk`, reranker) + `IngestionService` (multi-fuente → chunks ~500 tokens (núcleo) + seccionChars →
       embeddings) + comando/endpoint de ingesta.
-- [x] Ingesta multi-fuente y sentence-window (ADR-010, doc 02): `FuenteDocumental` (markdown local + Git +
-      Wiki.js), `Chunker` híbrido heading+recursivo, metadatos ampliados (título/url/origen/docId/hash),
-      `taskType` distinto al indexar vs consultar.
+- [x] Ingesta multi-fuente (ADR-010/011, doc 02): `FuenteDocumental` (markdown local + Git +
+      Wiki.js), `Chunker` híbrido heading+recursivo, metadatos ampliados (título/url/origen/docId/hash/seccionChars),
+      `taskType` distinto al indexar vs consultar. El contexto extra se da en consulta (auto-merging de sección).
 - [x] Redactar 4-6 documentos de `corpus/` (estándares ficticios pero realistas: convención de microservicios,
       política de recursos, guía de probes…).
 - [x] `CragGraph` (LangGraph4j): nodos `retrieve`/`rerank`/`grade`/`rewrite`. El edge ya no usa umbral de score
