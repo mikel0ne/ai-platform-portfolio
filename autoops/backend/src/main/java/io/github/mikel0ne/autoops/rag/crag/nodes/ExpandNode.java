@@ -6,24 +6,39 @@ import io.github.mikel0ne.autoops.rag.crag.CragState;
 import org.bsc.langgraph4j.action.NodeAction;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
- * Nodo {@code expand}: cuando {@code grade} ya dio el visto bueno, un fragmento relevante pero demasiado
- * corto (p. ej. el final de una sección con poco texto) puede no bastarle al redactor aunque haya sido
- * marcado relevante. Este nodo amplía esos fragmentos al documento completo (doc 03 §3.2).
+ * Nodo {@code expand}: cuando {@code grade} ya dio el visto bueno, amplía los fragmentos relevantes a su
+ * <b>sección</b> cuando conviene (patrón <i>auto-merging</i>, doc 03 §3.2). Es estructural y determinista:
+ * agrupa los relevantes por {@code (docId, seccion)} y decide por grupo a partir de {@code seccionChars}
+ * (ya recuperado con cada fragmento), sin ninguna consulta extra para decidir.
  *
- * <p>Solo actúa en el camino "ok": si {@code grade} no dio el visto bueno (se agotaron las iteraciones sin
- * encontrar nada relevante), {@code candidatos} no son fragmentos confirmados como relevantes y no se tocan.
+ * <ul>
+ *   <li><b>Caso A</b> — ≥2 núcleos relevantes de la misma sección (co-recuperación): se fusiona la sección.</li>
+ *   <li><b>Caso B</b> — un único hit pero su sección es pequeña ({@code <= UMBRAL_PEQUENA}): se fusiona.</li>
+ *   <li><b>Techo</b> — sección demasiado grande ({@code > TOPE_FUSION}): no se fusiona, para no diluir.</li>
+ *   <li><b>Caso C</b> — un único hit en sección grande: se devuelve el núcleo con sus vecinos ±{@code RADIO_VECINOS}
+ *       acotados a la sección (un poco de contexto sin volcar la sección entera, sin bleed entre secciones).</li>
+ * </ul>
+ *
+ * <p>Solo se consulta Weaviate ({@code seccionCompleta}) para los grupos que de verdad se fusionan. Solo
+ * actúa en el camino "ok": si {@code grade} no dio el visto bueno (se agotaron las iteraciones sin nada
+ * relevante), {@code candidatos} no son fragmentos confirmados y no se tocan.
  */
 public class ExpandNode implements NodeAction<CragState> {
 
-    /** Por debajo de este nº de caracteres, un chunk relevante se considera "corto" y se expande al
-     * documento completo. El núcleo objetivo de un chunk es de ~2000 caracteres (ver IngestionProperties);
-     * un chunk muy por debajo de eso (incluida la ventana de vecinos) probablemente viene de una sección
-     * breve y se queda corto de contexto para el redactor. */
-    private static final int UMBRAL_CORTO = 400;
+    /** Sección por debajo de este tamaño (caracteres) → un hit único se expande a ella entera (Caso B). */
+    private static final int UMBRAL_PEQUENA = 3000;
+
+    /** Ninguna sección fusionada supera esto: por encima no se fusiona, para no diluir el contexto. */
+    private static final int TOPE_FUSION = 8000;
+
+    /** Caso C: nº de núcleos a traer a cada lado del hit, acotados a la sección. 0 = solo el núcleo. */
+    private static final int RADIO_VECINOS = 1;
 
     private final DocRetriever retriever;
 
@@ -36,18 +51,57 @@ public class ExpandNode implements NodeAction<CragState> {
         if (!state.suficiente()) {
             return Map.of();
         }
-        List<DocChunk> expandido = new ArrayList<>();
+        // Agrupa los relevantes por (docId, seccion), preservando el orden de aparición.
+        Map<String, List<DocChunk>> porSeccion = new LinkedHashMap<>();
         for (DocChunk c : state.candidatos()) {
-            expandido.addAll(expandirSiCorto(c));
+            porSeccion.computeIfAbsent(clave(c), k -> new ArrayList<>()).add(c);
         }
-        return Map.of("candidatos", DocChunkDedup.merge(List.of(), expandido));
+        List<DocChunk> salida = new ArrayList<>();
+        for (List<DocChunk> grupo : porSeccion.values()) {
+            salida.addAll(expandirGrupo(grupo));
+        }
+        return Map.of("candidatos", DocChunkDedup.merge(List.of(), salida));
     }
 
-    private List<DocChunk> expandirSiCorto(DocChunk c) {
-        if (c.texto().length() >= UMBRAL_CORTO || c.docId() == null || c.docId().isBlank()) {
-            return List.of(c);
+    /** Decide por grupo usando {@code seccionChars} (sin consultar); solo consulta si va a fusionar. */
+    private List<DocChunk> expandirGrupo(List<DocChunk> grupo) {
+        DocChunk ref = grupo.get(0);
+        boolean sinDocId = ref.docId() == null || ref.docId().isBlank();
+        if (sinDocId || ref.seccionChars() > TOPE_FUSION) {
+            return grupo; // no se puede expandir, o la sección es demasiado grande para fusionar
         }
-        List<DocChunk> documento = retriever.documentoCompleto(c.docId());
-        return documento.isEmpty() ? List.of(c) : documento;
+        if (grupo.size() >= 2 || ref.seccionChars() <= UMBRAL_PEQUENA) {
+            return List.of(fusionarSeccion(grupo)); // Caso A o Caso B
+        }
+        return List.of(conVecinos(ref)); // Caso C: núcleo + vecinos ±RADIO_VECINOS dentro de la sección
+    }
+
+    /** Une los núcleos de la sección en un único {@link DocChunk}, heredando los metadatos del grupo. */
+    private DocChunk fusionarSeccion(List<DocChunk> grupo) {
+        DocChunk ref = grupo.get(0);
+        List<DocChunk> seccion = retriever.seccionCompleta(ref.docId(), ref.seccion());
+        if (seccion.isEmpty()) {
+            return ref; // defensa: si no se recupera la sección, deja el fragmento sin tocar
+        }
+        String texto = seccion.stream().map(DocChunk::texto).collect(Collectors.joining("\n\n"));
+        double score = grupo.stream().mapToDouble(DocChunk::score).max().orElse(ref.score());
+        return new DocChunk(texto, ref.titulo(), ref.fuente(), ref.seccion(), ref.url(), ref.origen(),
+                score, ref.docId(), ref.seccionChars(), ref.orden());
+    }
+
+    /** Da un poco de contexto a un hit suelto: su núcleo + los vecinos ±RADIO_VECINOS de la misma sección. */
+    private DocChunk conVecinos(DocChunk hit) {
+        List<DocChunk> vecinos = retriever.vecinosEnSeccion(
+                hit.docId(), hit.seccion(), hit.orden(), RADIO_VECINOS);
+        if (vecinos.size() <= 1) {
+            return hit; // borde de sección (sin vecinos): el núcleo tal cual
+        }
+        String texto = vecinos.stream().map(DocChunk::texto).collect(Collectors.joining("\n\n"));
+        return new DocChunk(texto, hit.titulo(), hit.fuente(), hit.seccion(), hit.url(), hit.origen(),
+                hit.score(), hit.docId(), hit.seccionChars(), hit.orden());
+    }
+
+    private static String clave(DocChunk c) {
+        return c.docId() + " | " + c.seccion();
     }
 }
