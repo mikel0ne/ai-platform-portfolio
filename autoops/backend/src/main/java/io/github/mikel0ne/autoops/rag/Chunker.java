@@ -12,7 +12,9 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Trocea un documento markdown en {@link Chunk}s. Estrategia <b>híbrida heading + recursivo</b> (decisión de
@@ -24,9 +26,11 @@ import java.util.List;
  *       {@code maxChars}.</li>
  *   <li><b>Recursivo:</b> si un solo párrafo excede {@code maxChars}, lo subdivide con el splitter recursivo de
  *       LangChain4j (corta por frases/palabras) en vez de emitir un chunk gigante.</li>
- *   <li><b>Ventana de vecinos:</b> el texto que se <i>embebe</i> es el núcleo; el que se <i>almacena</i> añade
- *       el chunk anterior y el posterior del mismo documento, para dar contexto al redactor (ver {@link Chunk}).</li>
  * </ol>
+ *
+ * <p>No se hornea ninguna ventana de vecinos: cada chunk almacena su núcleo tal cual. El contexto extra
+ * (sección completa) lo resuelve el bucle CRAG en consulta. En su lugar se estampa en cada chunk
+ * {@code seccionChars} (tamaño total de su sección), para que el CRAG decida si expandir sin consultar.
  *
  * <p>Es {@code static} y puro: testeable sin Weaviate, sin red y sin LLM.
  */
@@ -41,7 +45,7 @@ public final class Chunker {
 
     public static List<Chunk> trocear(Documento doc, int maxChars, int overlapChars) {
         List<Nucleo> nucleos = extraerNucleos(doc, maxChars, overlapChars);
-        return conVentanaDeVecinos(doc, nucleos);
+        return construirChunks(doc, nucleos);
     }
 
     // ------------------------------------------------------- 1) secciones + 2/3) empaquetado/recursivo
@@ -120,23 +124,20 @@ public final class Chunker {
         return splitter.split(Document.from(texto)).stream().map(TextSegment::text).toList();
     }
 
-    // ------------------------------------------------------- 4) ventana de vecinos
+    // ------------------------------------------------------- 4) ensamblado de chunks + seccionChars
 
-    private static List<Chunk> conVentanaDeVecinos(Documento doc, List<Nucleo> nucleos) {
+    private static List<Chunk> construirChunks(Documento doc, List<Nucleo> nucleos) {
+        // Tamaño total de cada sección (suma de longitudes de sus núcleos): lo lee el bucle CRAG para
+        // decidir si expandir un fragmento a su sección completa sin consultar Weaviate (auto-merging).
+        Map<String, Integer> charsPorSeccion = new HashMap<>();
+        for (Nucleo n : nucleos) {
+            charsPorSeccion.merge(n.seccion(), n.texto().length(), Integer::sum);
+        }
         List<Chunk> chunks = new ArrayList<>(nucleos.size());
         for (int i = 0; i < nucleos.size(); i++) {
             Nucleo cur = nucleos.get(i);
-            StringBuilder ventana = new StringBuilder();
-            if (i > 0) {
-                ventana.append(nucleos.get(i - 1).texto()).append("\n\n");
-            }
-            ventana.append(cur.texto());
-            if (i < nucleos.size() - 1) {
-                ventana.append("\n\n").append(nucleos.get(i + 1).texto());
-            }
             chunks.add(new Chunk(
                     cur.texto(),
-                    ventana.toString(),
                     doc.docId(),
                     doc.titulo(),
                     doc.fuente(),
@@ -144,7 +145,8 @@ public final class Chunker {
                     urlConAncla(doc.urlBase(), cur.seccion()),
                     doc.origen(),
                     i,
-                    sha256(cur.texto())));
+                    sha256(cur.texto()),
+                    charsPorSeccion.get(cur.seccion())));
         }
         return chunks;
     }
