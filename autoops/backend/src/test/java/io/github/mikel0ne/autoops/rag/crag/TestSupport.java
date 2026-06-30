@@ -37,30 +37,37 @@ final class TestSupport {
             consultasRecibidas.add(consulta);
             double score = scoresPerCall[Math.min(calls, scoresPerCall.length - 1)];
             calls++;
-            return List.of(new DocChunk("texto para: " + consulta, "Título", "fuente.md", "seccion", "", "test", score, ""));
+            return List.of(new DocChunk("texto para: " + consulta, "Título", "fuente.md", "seccion", "", "test", score, "", 0, 0));
         }
 
         @Override
-        public List<DocChunk> documentoCompleto(String docId) {
+        public List<DocChunk> seccionCompleta(String docId, String seccion) {
+            return List.of();
+        }
+
+        @Override
+        public List<DocChunk> vecinosEnSeccion(String docId, String seccion, int orden, int radio) {
             return List.of();
         }
     }
 
-    /** Recuperador con lotes de chunks fijados por llamada (para lotes con relevancia mixta) y documentos
-     * completos fijados por docId (para probar la expansión de {@code expand}). */
+    /** Recuperador con lotes de chunks fijados por llamada (para lotes con relevancia mixta) y secciones
+     * completas fijadas por docId (para probar la expansión/auto-merge de {@code expand}). */
     static final class MultiChunkRetriever implements DocRetriever {
         private final List<List<DocChunk>> chunksPerCall;
-        private final Map<String, List<DocChunk>> documentos;
+        private final Map<String, List<DocChunk>> secciones;
         int calls = 0;
+        int seccionCalls = 0;
+        int vecinosCalls = 0;
         final List<Integer> kRecibidos = new ArrayList<>();
 
         MultiChunkRetriever(List<List<DocChunk>> chunksPerCall) {
             this(chunksPerCall, Map.of());
         }
 
-        MultiChunkRetriever(List<List<DocChunk>> chunksPerCall, Map<String, List<DocChunk>> documentos) {
+        MultiChunkRetriever(List<List<DocChunk>> chunksPerCall, Map<String, List<DocChunk>> secciones) {
             this.chunksPerCall = chunksPerCall;
-            this.documentos = documentos;
+            this.secciones = secciones;
         }
 
         @Override
@@ -72,8 +79,20 @@ final class TestSupport {
         }
 
         @Override
-        public List<DocChunk> documentoCompleto(String docId) {
-            return documentos.getOrDefault(docId, List.of());
+        public List<DocChunk> seccionCompleta(String docId, String seccion) {
+            seccionCalls++;
+            return secciones.getOrDefault(docId, List.of()).stream()
+                    .filter(c -> c.seccion().equals(seccion))
+                    .toList();
+        }
+
+        @Override
+        public List<DocChunk> vecinosEnSeccion(String docId, String seccion, int orden, int radio) {
+            vecinosCalls++;
+            return secciones.getOrDefault(docId, List.of()).stream()
+                    .filter(c -> c.seccion().equals(seccion))
+                    .filter(c -> Math.abs(c.orden() - orden) <= radio)
+                    .toList();
         }
     }
 
