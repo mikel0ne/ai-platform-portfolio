@@ -23,8 +23,8 @@
 
 | Tarea | Cómo se hace | Dónde está | Precauciones |
 |-------|--------------|-----------|--------------|
-| **Desplegar AutoOps (backend/frontend)** | `./infra/scripts/deploy.sh --project autoops --component <backend\|frontend\|all> --tag <VERSION_NUEVA>` | `infra/scripts/deploy.sh` línea 19-22 | ⚠️ SIEMPRE pasa `--tag` único. Tag fijo + IfNotPresent = pod no se recrea. |
-| **Desplegar L1 Copilot** | `./infra/scripts/deploy.sh --project l1-copilot --component <backend\|frontend\|all> --tag <VERSION>` | `infra/scripts/deploy.sh` línea 19-22 | Idem. Validar conexión DB antes (`psql -h postgres.local ...`). |
+| **Desplegar AutoOps (backend/frontend)** | `./infra/scripts/deploy.sh --project autoops --component <backend\|frontend\|all> --bump <major\|minor\|patch>` (recomendado) o `--tag <VERSION>` | `infra/scripts/deploy.sh` · `infra/INFRA.md` línea 365-395 | ✅ `--bump` actualiza pom.xml/package.json automáticamente. Usa tag manual solo si es necesario override. |
+| **Desplegar L1 Copilot** | `./infra/scripts/deploy.sh --project l1-copilot --component <backend\|frontend\|all> --bump <major\|minor\|patch>` (recomendado) | `infra/scripts/deploy.sh` · `infra/INFRA.md` línea 365-395 | Validar conexión DB antes (`psql -h postgres.local ...`). Mismo --bump que autoops. |
 | **Ingestar corpus RAG (Git + Wiki, SIN corpus local)** | `bash infra/scripts/ingest-autoops.sh` | `infra/scripts/ingest-autoops.sh` línea 1-67 | ⚠️ **MODIFICADO**: NO ingesta corpus local. Espera 1 min entre Git y Wiki. Monitorea `kubectl logs -n autoops autoops-backend-generic-app-* --tail=20`. |
 | **Limpiar RAG antes de reingestar** | `curl -X POST http://localhost:18080/admin/vectorstore/drop` (requiere port-forward previo) | `ingest-autoops.sh` línea 41-45 | ⚠️ **NO REVERSIBLE**. Borra TODO. Usa `--reset` en el script, no directamente. |
 | **Setup infraestructura (Rancher, Postgres, Weaviate, etc.)** | `bash infra/scripts/0X-setup-*.sh` (ver listado abajo) | `infra/scripts/` · `infra/INFRA.md` línea 304-323 | Solo en setup inicial. K8s está persistido (no necesita re-ejecutar). |
@@ -45,8 +45,8 @@
 
 ### 2. **Tag de imagen FIJO en registry.local**
 - Con `imagePullPolicy: IfNotPresent`, usar tag=`0.1.4` dos veces NO recrea el pod
-- **Solución**: SIEMPRE pasa `--tag <VERSION_NUEVA_DISTINTA>` a deploy.sh
-- El script valida esto (línea 120-130 de deploy.sh), pero tienes que acordarte
+- **Solución**: Usa `--bump major|minor|patch` → siempre saca un tag nuevo automáticamente
+- **Legacy**: si pasas `--tag <VERSION>` manualmente, tienes que acordarte de cambiar el número cada vez
 
 ### 3. **Corpus local en ingesta**
 - ~~El script `ingest-autoops.sh` ingestaba corpus local automáticamente~~
