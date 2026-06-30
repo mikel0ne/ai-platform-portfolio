@@ -131,10 +131,10 @@ type Relevancia = 'top' | 'media' | 'baja';
     .confidence .icon { font-size: 0.8rem; }
     .conf-alta { background: #d1fae5; color: #065f46; }
     .conf-media { background: #fef3c7; color: #b45309; }
-    .conf-baja { background: #fb923c; color: #7c2d12; }
+    .conf-baja { background: #fea054; color: #930007; }
     .conf-nula { background: #fecaca; color: #1f2937; }
     .icon-media { color: #b45309; }
-    .icon-baja { color: #dc2626; }
+    .icon-baja { color: #930007; }
     .icon-nula { color: #000; }
 
     /* ── Citas ───────────────────────────────────────────────────────────── */
