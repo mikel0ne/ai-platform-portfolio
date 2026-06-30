@@ -36,6 +36,24 @@ public class CragState extends AgentState {
         return this.<List<DocChunk>>value("candidatos").orElseGet(List::of);
     }
 
+    /** Pool sin filtrar de la última iteración, justo antes de {@code grade} (lo fija {@code rerank}). Solo
+     * se usa como último recurso cuando nada se cataloga como bueno (confianza {@code nula}). */
+    public List<DocChunk> candidatosCrudos() {
+        return this.<List<DocChunk>>value("candidatosCrudos").orElseGet(List::of);
+    }
+
+    /** Lista de preguntas a cubrir: la posición 1 es siempre la original; el resto, si {@code multiQuery}
+     * generó variantes, son las reformulaciones del abanico. De inicio (sin abanico), solo la original. */
+    public List<String> preguntas() {
+        return this.<List<String>>value("preguntas").orElseGet(() -> List.of(consulta()));
+    }
+
+    /** Cobertura por pregunta tras el último {@code grade}: {@code CUBIERTA}/{@code PARCIAL}/{@code SIN_CUBRIR},
+     * en el mismo orden que {@link #preguntas()}. Vacía hasta el primer {@code grade}. */
+    public List<String> coberturaPreguntas() {
+        return this.<List<String>>value("coberturaPreguntas").orElseGet(List::of);
+    }
+
     /** Mejor score del conjunto actual (lo fija {@code grade}). */
     public double mejorScore() {
         return this.<Double>value("mejorScore").orElse(0.0);
