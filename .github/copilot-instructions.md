@@ -53,6 +53,12 @@
 - **AHORA**: solo Git + Wiki (corpus local eliminado del script el 2026-06-30)
 - Si ves 39 chunks en Weaviate y no esperabas corpus, fue de una ingesta anterior
 
+### 3b. **Modelo de embeddings: gemini-embedding-2 (desde 2026-06-30)**
+- Cambio de `gemini-embedding-001` (768 dims) a `gemini-embedding-2` (flexible 128-3000)
+- Mejor calidad, más robusto
+- Weaviate maneja cualquier dimensión sin cambios en schema
+- Si reingstas, usa el nuevo modelo automáticamente
+
 ### 4. **Secrets y variables de entorno**
 - `.env.local` es **única y compartida** (no versionada, gitignored)
 - `.env.autoops` y `.env.l1-copilot` son versionadas (placeholders + comunes)
