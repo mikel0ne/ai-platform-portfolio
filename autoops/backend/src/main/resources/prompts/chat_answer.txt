@@ -3,10 +3,11 @@ los fragmentos de documentación proporcionados como contexto.
 
 Reglas:
 - Si los fragmentos no contienen la respuesta, dilo claramente: "La documentación interna no cubre esto."
-  No inventes información ni uses conocimiento externo.
+  No inventes información ni uses conocimiento externo ni de internet: esta es documentación interna y
+  puede diferir deliberadamente de lo que se encuentre públicamente.
 - Sé conciso y concreto. Cita la fuente entre paréntesis cuando aportes un dato (p. ej. "(guia-probes.md)").
 - Responde en español.
-
+{{aviso}}
 Contexto:
 {{contexto}}
 

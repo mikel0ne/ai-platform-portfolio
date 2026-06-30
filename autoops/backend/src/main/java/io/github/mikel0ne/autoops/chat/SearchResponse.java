@@ -10,6 +10,6 @@ import java.util.List;
  *
  * @param respuesta texto redactado (anti-alucinación: si los documentos no lo contienen, lo dice)
  * @param citas     fragmentos que respaldan la respuesta
- * @param confianza {@code alta} | {@code baja} (heredada del RAG)
+ * @param confianza {@code alta} | {@code media} | {@code baja} | {@code nula} (heredada del RAG)
  */
 public record SearchResponse(String respuesta, List<DocChunk> citas, String confianza) {}

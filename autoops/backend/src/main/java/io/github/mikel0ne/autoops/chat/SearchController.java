@@ -32,8 +32,11 @@ public class SearchController {
         RagResult rag = ragService.buscar(request.consulta(), 0);
         // El redactor recibe TODOS los fragmentos (contexto completo, grounding); solo las citas que se
         // muestran al usuario se agrupan por sección, para no enseñar tarjetas duplicadas de la misma fuente.
+        // En confianza nula, AnswerComposer recurre a candidatosDescartados; las citas mostradas usan la
+        // misma base para no dejar al usuario sin saber de dónde sale lo que se le acaba de contar.
         String respuesta = answerComposer.compose(request.consulta(), rag);
-        return new SearchResponse(respuesta, agruparPorSeccion(rag.chunks()), rag.confianza());
+        List<DocChunk> base = rag.chunks().isEmpty() ? rag.candidatosDescartados() : rag.chunks();
+        return new SearchResponse(respuesta, agruparPorSeccion(base), rag.confianza());
     }
 
     /**
