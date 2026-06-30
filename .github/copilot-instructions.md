@@ -90,14 +90,21 @@
 
 ## Bash a usar (Windows)
 
-**SIEMPRE usa Git Bash, nunca WSL ni PowerShell** para los scripts de deploy/ingest:
-```bash
-# EN HERRAMIENTAS CLAUDE CODE: usa bash nativo (disponible)
-./infra/scripts/deploy.sh ...
-bash infra/scripts/ingest-autoops.sh
+**SIEMPRE usa Git Bash, nunca WSL ni PowerShell** para los scripts de deploy/ingest.
 
-# EN POWERSHELL: usa Git Bash explícitamente si necesario
-& "C:\Program Files\Git\bin\bash.exe" -c "cd /c/Users/... && ./script.sh"
+### ✅ Método correcto desde PowerShell: `run-sh-gitbash.cmd`
+
+El wrapper `infra/scripts/run-sh-gitbash.cmd` auto-detecta bash (Git for Windows o cmder) y lanza cualquier `.sh` del repo. **Es el método oficial y el único fiable desde PowerShell/JetBrains.**
+
+```powershell
+# Desde PowerShell (terminal de Copilot / JetBrains):
+.\infra\scripts\run-sh-gitbash.cmd infra/scripts/deploy.sh --project autoops --component frontend --bump patch
+.\infra\scripts\run-sh-gitbash.cmd infra/scripts/deploy.sh --project autoops --component backend --bump patch
+.\infra\scripts\run-sh-gitbash.cmd infra/scripts/ingest-autoops.sh
 ```
 
-El Bash tool de Claude Code tira directo a Git Bash. Los scripts están hechos para eso (PATH con kubectl, docker, git, psql nativos de Windows).
+> ⚠️ **NO usar** `& "C:\Program Files\Git\bin\bash.exe" -c "..."` directamente — la ruta de bash varía según la instalación (Git nativo vs cmder). El `.cmd` resuelve esto automáticamente.
+>
+> ⚠️ **NO usar** `bash script.sh` en PowerShell — llama al bash de WSL/WindowsApps, que no tiene acceso a kubectl/docker/psql de Windows.
+
+Los scripts están hechos para Git Bash (PATH con kubectl, docker, git, psql nativos de Windows).

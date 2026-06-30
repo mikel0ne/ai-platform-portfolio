@@ -128,14 +128,22 @@ type Relevancia = 'top' | 'media' | 'baja';
       border-radius: 20px;
       letter-spacing: 0.02em;
     }
-    .confidence .icon { font-size: 0.8rem; }
-    .conf-alta { background: #d1fae5; color: #065f46; }
-    .conf-media { background: #fef3c7; color: #b45309; }
-    .conf-baja { background: #fea054; color: #930007; }
-    .conf-nula { background: #fecaca; color: #1f2937; }
-    .icon-media { color: #b45309; }
-    .icon-baja { color: #930007; }
-    .icon-nula { color: #000; }
+    .confidence .icon {
+      font-size: 0.8rem;
+      height: 18px;
+      width: 18px;
+      text-align: center;
+      border-radius: 50%;
+      margin-left: -7px;
+    }
+    .conf-alta  { background: #8fe4a8; color: #065f46; }
+    .conf-media { background: #f1e89d; color: #9b4300; }
+    .conf-baja  { background: #ffc494; color: #930007; }
+    .conf-nula  { background: #ffabab; color: #1f2937; }
+    .conf-alta  .icon { background-color: #daffec; }
+    .conf-media .icon { background-color: #fff6d6; }
+    .conf-baja  .icon { background-color: #FFE2C4; line-height: 1; }
+    .conf-nula  .icon { background-color: #fce8e8; }
 
     /* ── Citas ───────────────────────────────────────────────────────────── */
     .citations {
