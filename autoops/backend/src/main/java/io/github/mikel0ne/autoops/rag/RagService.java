@@ -2,11 +2,13 @@ package io.github.mikel0ne.autoops.rag;
 
 import io.github.mikel0ne.autoops.rag.crag.CragGraph;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import io.github.mikel0ne.autoops.rag.crag.nodes.GradeNode;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +21,9 @@ import java.util.Map;
 public class RagService {
 
     private static final Logger log = LoggerFactory.getLogger(RagService.class);
+
+    /** Tope de candidatos descartados que se ofrecen como último recurso en confianza {@code nula}. */
+    private static final int TOPE_DESCARTADOS = 3;
 
     private final CragGraph cragGraph;
 
@@ -45,11 +50,26 @@ public class RagService {
 
         List<DocChunk> chunks = estado.candidatos();
         int iteraciones = estado.iteraciones();
-        boolean suficiente = !chunks.isEmpty() && estado.suficiente();
-        String confianza = suficiente ? RagResult.ALTA : RagResult.BAJA;
+        List<String> cobertura = estado.coberturaPreguntas();
 
-        log.debug("buscar_docs: consulta='{}' k={} iteraciones={} mejorScore={} suficiente={} confianza={}",
-                consulta, kEfectivo, iteraciones, estado.mejorScore(), suficiente, confianza);
-        return new RagResult(chunks, iteraciones, confianza);
+        String confianza;
+        List<DocChunk> descartados = List.of();
+        if (!cobertura.isEmpty() && cobertura.stream().allMatch(GradeNode.CUBIERTA::equals)) {
+            confianza = RagResult.ALTA;
+        } else if (cobertura.stream().anyMatch(GradeNode.CUBIERTA::equals)) {
+            confianza = RagResult.MEDIA;
+        } else if (cobertura.stream().anyMatch(GradeNode.PARCIAL::equals)) {
+            confianza = RagResult.BAJA;
+        } else {
+            confianza = RagResult.NULA;
+            descartados = estado.candidatosCrudos().stream()
+                    .sorted(Comparator.comparingDouble(DocChunk::score).reversed())
+                    .limit(TOPE_DESCARTADOS)
+                    .toList();
+        }
+
+        log.debug("buscar_docs: consulta='{}' k={} iteraciones={} mejorScore={} cobertura={} confianza={}",
+                consulta, kEfectivo, iteraciones, estado.mejorScore(), cobertura, confianza);
+        return new RagResult(chunks, iteraciones, confianza, descartados);
     }
 }
