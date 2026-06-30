@@ -129,7 +129,7 @@ erDiagram
     DOC_CHUNK {
         uuid   id PK
         vector embedding "embebe el NUCLEO del chunk; dim = la del modelo configurado (gemini-embedding-001)"
-        text   texto "ALMACENADO: ventana = chunk anterior + nucleo + chunk siguiente (ver ADR-010)"
+        text   texto "ALMACENADO: el núcleo del chunk (sin ventana; el contexto extra lo da el CRAG en consulta)"
         string titulo "título del documento de origen"
         string fuente "fichero/page/path de origen"
         string seccion "breadcrumb de encabezados (p. ej. 'Operación > Probes > Readiness')"
@@ -138,6 +138,7 @@ erDiagram
         string docId "id estable del documento padre"
         string hash "SHA-256 del núcleo; ingesta incremental/dedupe futura"
         int    orden "posición del chunk en el documento"
+        int    seccionChars "tamaño total (caracteres) de la sección; el CRAG decide la expansión sin consultar"
     }
 ```
 
@@ -157,7 +158,8 @@ infraestructura `03-weaviate.md`):
     { "name": "origen",  "dataType": ["text"], "tokenization": "field" },
     { "name": "docId",   "dataType": ["text"], "tokenization": "field" },
     { "name": "hash",    "dataType": ["text"], "tokenization": "field" },
-    { "name": "orden",   "dataType": ["int"] }
+    { "name": "orden",   "dataType": ["int"] },
+    { "name": "seccionChars", "dataType": ["int"] }
   ],
   "moduleConfig": { "reranker-transformers": {} }   // reranking nativo
 }
@@ -168,8 +170,9 @@ infraestructura `03-weaviate.md`):
   la clase con la nueva dimensión y **re-ingestar** el corpus (ver doc 06).
 - La **búsqueda híbrida** (vector + BM25 sobre `texto`) y el **reranking** se piden en la query, no cambian el
   esquema.
-- **El vector embebe `nucleo`, no `texto`** (patrón *sentence-window*, ADR-010 en doc 02): `nucleo` es interno
-  al `Chunker` y no se persiste como propiedad — solo su `hash` se guarda, para una futura ingesta incremental.
+- **Se embebe y se almacena el mismo texto (el núcleo)**: ya no se hornea la ventana de vecinos (ADR-010 quedó
+  superseded por ADR-011, doc 02). El contexto extra lo resuelve el bucle CRAG en consulta vía auto-merging de
+  sección (`expand`, doc 03 §3.2), usando `seccionChars` para decidir sin consultar.
 
 ## 5. Versionado del contrato
 

@@ -104,7 +104,7 @@ io.github.mikel0ne.autoops
 │   ├── RagService.java              # API interna: buscar(consulta, k)
 │   ├── DocRetriever.java            # interfaz que implementa WeaviateGateway (testable con un doble)
 │   ├── DocChunk.java  Chunk.java  RagResult.java
-│   ├── Chunker.java                 # static/puro: heading+recursivo, ventana de vecinos (ver ADR-010)
+│   ├── Chunker.java                 # static/puro: heading+recursivo; almacena el núcleo + seccionChars (ver ADR-010/011)
 │   ├── IngestionService.java  IngestionController.java  IngestionProperties.java   # fuentes → chunks → embeddings → Weaviate
 │   ├── source/                      # orígenes de documentación (ver ADR-010)
 │   │   ├── FuenteDocumental.java  Documento.java

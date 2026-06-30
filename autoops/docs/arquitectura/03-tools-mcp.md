@@ -220,11 +220,17 @@ public class CragState extends AgentState {
   bajo); `mejorScore` queda en el estado solo para logs. Si ningún fragmento es relevante, `candidatos` se
   deja sin filtrar (para que `retrieve` pueda acumular sobre ellos en el siguiente reintento, o para no dejar
   al cliente sin nada si se agotan las iteraciones).
-- **`expand`** — solo en el camino "ok" de `grade`. Si la recuperación fue realmente suficiente (no por
-  agotar iteraciones), un fragmento relevante pero corto (menos de ~400 caracteres) se amplía al documento
-  completo vía `docId` (`DocRetriever.documentoCompleto`), ordenado por la posición original del fragmento en
-  el documento. No actúa si `grade` no dio el visto bueno: en ese caso `candidatos` no son fragmentos
-  confirmados como relevantes.
+- **`expand`** — solo en el camino "ok" de `grade`. Aplica **auto-merging acotado a la sección** (patrón
+  Parent-Document/Auto-Merging): agrupa los fragmentos relevantes por `(docId, seccion)` y decide por grupo de
+  forma **determinista y sin consultar**, usando `seccionChars` (el tamaño de la sección, que ya viaja con cada
+  `DocChunk` desde la ingesta). Casos: **(A)** si ≥2 núcleos de la misma sección son relevantes (co-recuperación),
+  se fusiona la sección; **(B)** si hay un único hit pero su sección es pequeña (`<= UMBRAL_PEQUENA`), también;
+  **(techo)** si la sección supera `TOPE_FUSION` no se fusiona, para no diluir el contexto; **(C)** un hit suelto
+  en sección grande se devuelve con sus vecinos ±`RADIO_VECINOS` (=1) **acotados a la sección**
+  (`DocRetriever.vecinosEnSeccion`, fetch dirigido por rango de `orden`, sin cruzar a otra sección). Solo se
+  consulta Weaviate (lookups filtrados por índice, no búsquedas semánticas) cuando hay que fusionar o traer
+  vecinos, uniendo los núcleos —ordenados por `orden`— en una sola cita. No actúa si `grade` no dio el visto
+  bueno: en ese caso `candidatos` no son fragmentos confirmados como relevantes.
 - **`rewrite`** — usa el **LLM interno** para reformular/expandir la consulta, una sola reformulación
   secuencial (incorpora sinónimos del dominio, separa preguntas compuestas) **y aumenta `k`** (`kStep` por
   vuelta, tope `kMax`): cada reintento mira más lejos en el ranking, no solo cambia las palabras. No abre un
@@ -312,8 +318,8 @@ el LLM interno (instrucción anti-alucinación: "si los documentos no contienen 
 | Unitario (mapeo K8s) | `K8sInspectionService.toDiagnosis`/`toPodStatus`/`toDescription`/`hace` (estáticos, puros) | Objetos `Pod` de fixture construidos a mano con el builder de fabric8 (`PodBuilder`); sin cliente ni clúster real (`K8sInspectionMappingTest`). |
 | Unitario (`consultar_logs`) | Construcción de LogQL, resolución de la ventana de tiempo, aplanado de la respuesta de Loki, escapado/variables de la URI | Métodos `static` puros de `LokiGateway` + `MockRestServiceServer` para el caso de regresión de la URI (sin Loki real, `LokiGatewayTest`). |
 | Unitario (nodos CRAG) | `multiQuery`/`retrieve`/`rerank`/`grade`/`expand`/`rewrite` aislados | `DocRetriever` y `ChatModel` falsos (`TestSupport.ScriptedChatModel`/`FakeRetriever`/`MultiChunkRetriever`, con cola de respuestas propia para el prompt de `multiQuery`); aserciones sobre el delta de estado. |
-| Integración (CRAG) | El bucle converge, escala `k` y termina; filtra por fragmento sin perder los buenos entre reintentos; expande los relevantes cortos; el abanico `multiQuery` fusiona con RRF y no se reabre en reintentos | `FakeRetriever`/`MultiChunkRetriever` programados con lotes de relevancia mixta; aserciones: filtra los no relevantes del lote, un fragmento bueno de la 1ª iteración sobrevive al retry aunque la 2ª no lo recupere de nuevo, un fragmento relevante pero corto se expande al documento completo vía `docId`; con `multiQueryN>1`, recuperó una vez por variante y recortó a `k` tras la fusión; con `multiQueryN<=1`, una sola recuperación sin llamar al LLM de variantes (`CragLoopTest`, incluye el test de regresión "score alto pero irrelevante no evita la evaluación del LLM"). |
-| Unitario (ingesta) | `Chunker` (heading+recursivo, ventana de vecinos), `GitMarkdownSource` (permalink/webBase sin red) | Fixtures de markdown en memoria; sin Git real ni Weaviate (`IngestionChunkingTest`, `GitMarkdownSourceTest`). |
+| Integración (CRAG) | El bucle converge, escala `k` y termina; filtra por fragmento sin perder los buenos entre reintentos; auto-merging de sección en `expand`; el abanico `multiQuery` fusiona con RRF y no se reabre en reintentos | `FakeRetriever`/`MultiChunkRetriever` programados con lotes de relevancia mixta; aserciones: filtra los no relevantes del lote, un fragmento bueno de la 1ª iteración sobrevive al retry aunque la 2ª no lo recupere de nuevo, auto-merging por sección (Caso A ≥2 hits, Caso B sección pequeña, Caso C hit suelto con vecinos ±1 acotados a la sección, techo de sección grande sin consultar); con `multiQueryN>1`, recuperó una vez por variante y recortó a `k` tras la fusión; con `multiQueryN<=1`, una sola recuperación sin llamar al LLM de variantes (`CragLoopTest`, incluye el test de regresión "score alto pero irrelevante no evita la evaluación del LLM"). |
+| Unitario (ingesta) | `Chunker` (heading+recursivo; almacena el núcleo + `seccionChars`), `GitMarkdownSource` (permalink/webBase sin red) | Fixtures de markdown en memoria; sin Git real ni Weaviate (`IngestionChunkingTest`, `GitMarkdownSourceTest`). |
 
 Ningún test necesita un LLM real, un clúster real ni Weaviate/Loki reales. No hay tests de integración con
 contexto Spring (`@SpringBootTest`): en este entorno el loopback bloquea la creación de los `ChatModel`/
