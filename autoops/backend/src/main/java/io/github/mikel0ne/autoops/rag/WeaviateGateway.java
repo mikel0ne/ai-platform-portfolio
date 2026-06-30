@@ -101,65 +101,86 @@ public class WeaviateGateway implements DocRetriever {
 
     // ---------------------------------------------------------------- ingesta
 
-    /** Máximo de textos por llamada a embedAll: el free tier de Gemini cuenta cada texto del lote contra
-     * la cuota de 100 requests/minuto, así que un lote ya casi la agota por sí solo. */
-    private static final int EMBED_BATCH_SIZE = 90;
-
-    /** Pausa entre lotes para no encadenar dos lotes en la misma ventana de cuota por minuto. */
-    private static final Duration PAUSA_ENTRE_LOTES = Duration.ofSeconds(65);
+    /** Pausa antes de reintentar en 429 (Gemini rate limit). */
+    private static final Duration PAUSA_429 = Duration.ofSeconds(60);
 
     /**
-     * Calcula embeddings de los chunks y los inserta por lotes. Devuelve el nº de objetos insertados.
-     * Se embebe y se almacena el mismo texto (el núcleo): no se hornea ventana de vecinos. El contexto
-     * extra (sección completa) lo resuelve el bucle CRAG en consulta a partir de {@code seccionChars}.
-     *
-     * <p>Los embeddings se piden en lotes de {@link #EMBED_BATCH_SIZE}, con una pausa entre lotes
-     * ({@link #PAUSA_ENTRE_LOTES}): el free tier de Gemini limita a 100 requests/minuto y cuenta cada
-     * texto del lote como una request, así que dos lotes consecutivos sin pausa agotan la cuota (429).
+     * Ingesta chunk por chunk. Cada chunk se embeddia e inserta individualmente.
+     * Si hay un 429 (rate limit de Gemini), espera 1 minuto y reintenta indefinidamente.
+     * Otros errores: fallan el proceso.
      */
     public int ingest(List<Chunk> chunks) {
         if (chunks.isEmpty()) {
             return 0;
         }
         EmbeddingModel embedder = docEmbeddingModel.getObject();
-        List<Embedding> embeddings = new ArrayList<>(chunks.size());
-        for (int from = 0; from < chunks.size(); from += EMBED_BATCH_SIZE) {
-            if (from > 0) {
-                esperarRenovacionDeCuota();
-            }
-            int to = Math.min(from + EMBED_BATCH_SIZE, chunks.size());
-            List<TextSegment> lote = chunks.subList(from, to).stream()
-                    .map(c -> TextSegment.from(c.texto()))
-                    .toList();
-            embeddings.addAll(embedder.embedAll(lote).content());
+        int ingestados = 0;
+
+        for (Chunk c : chunks) {
+            Embedding embedding = embedConReintentos429(embedder, c.texto());
+            insertConReintentos429(c, embedding);
+            ingestados++;
         }
 
-        List<WeaviateObject> objects = new ArrayList<>(chunks.size());
-        for (int i = 0; i < chunks.size(); i++) {
-            Chunk c = chunks.get(i);
-            Map<String, Object> properties = new LinkedHashMap<>();
-            properties.put("texto", c.texto());
-            properties.put("titulo", c.titulo());
-            properties.put("fuente", c.fuente());
-            properties.put("seccion", c.seccion());
-            properties.put("url", c.url());
-            properties.put("origen", c.origen());
-            properties.put("docId", c.docId());
-            properties.put("hash", c.hash());
-            properties.put("orden", c.orden());
-            properties.put("seccionChars", c.seccionChars());
-            objects.add(WeaviateObject.builder()
-                    .className(props.className())
-                    .properties(properties)
-                    .vector(toFloatArray(embeddings.get(i)))
-                    .build());
+        log.info("Ingesta Weaviate: {} chunks insertados en {}", ingestados, props.className());
+        return ingestados;
+    }
+
+    private Embedding embedConReintentos429(EmbeddingModel embedder, String texto) {
+        while (true) {
+            try {
+                return embedder.embed(TextSegment.from(texto)).content();
+            } catch (Exception e) {
+                if (es429(e)) {
+                    log.warn("429 en embedding (Gemini rate limit). Esperando 60s antes de reintentar...");
+                    esperarSegundos(PAUSA_429.getSeconds());
+                } else {
+                    throw e;
+                }
+            }
         }
-        Result<?> batch = client.batch().objectsBatcher()
-                .withObjects(objects.toArray(new WeaviateObject[0]))
-                .run();
-        failOnError("insertando el lote de chunks", batch);
-        log.info("Ingesta Weaviate: {} chunks insertados en {}", objects.size(), props.className());
-        return objects.size();
+    }
+
+    private void insertConReintentos429(Chunk c, Embedding embedding) {
+        while (true) {
+            try {
+                Map<String, Object> properties = new LinkedHashMap<>();
+                properties.put("texto", c.texto());
+                properties.put("titulo", c.titulo());
+                properties.put("fuente", c.fuente());
+                properties.put("seccion", c.seccion());
+                properties.put("url", c.url());
+                properties.put("origen", c.origen());
+                properties.put("docId", c.docId());
+                properties.put("hash", c.hash());
+                properties.put("orden", c.orden());
+                properties.put("seccionChars", c.seccionChars());
+
+                WeaviateObject obj = WeaviateObject.builder()
+                        .className(props.className())
+                        .properties(properties)
+                        .vector(toFloatArray(embedding))
+                        .build();
+
+                Result<?> result = client.batch().objectsBatcher()
+                        .withObjects(obj)
+                        .run();
+                failOnError("insertando chunk " + c.docId(), result);
+                return;
+            } catch (Exception e) {
+                if (es429(e)) {
+                    log.warn("429 en insert (Gemini rate limit). Esperando 60s antes de reintentar...");
+                    esperarSegundos(PAUSA_429.getSeconds());
+                } else {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private static boolean es429(Exception e) {
+        String msg = e.getMessage();
+        return msg != null && (msg.contains("429") || msg.contains("RESOURCE_EXHAUSTED") || msg.contains("rate limit"));
     }
 
     // ------------------------------------------------------------ recuperación
@@ -340,12 +361,12 @@ public class WeaviateGateway implements DocRetriever {
 
     // -------------------------------------------------------------- helpers
 
-    private static void esperarRenovacionDeCuota() {
+    private static void esperarSegundos(long segundos) {
         try {
-            Thread.sleep(PAUSA_ENTRE_LOTES.toMillis());
+            Thread.sleep(segundos * 1000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Ingesta interrumpida esperando la cuota de Gemini", e);
+            throw new IllegalStateException("Ingesta interrumpida esperando el retry de Gemini", e);
         }
     }
 
