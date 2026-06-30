@@ -55,7 +55,7 @@ public class MultiQueryNode implements NodeAction<CragState> {
                 .toList();
 
         List<DocChunk> fusionados = RrfFusion.fusionar(resultadosPorVariante).stream().limit(k).toList();
-        return Map.of("candidatos", fusionados);
+        return Map.of("candidatos", fusionados, "preguntas", variantes);
     }
 
     /** Pide al LLM hasta {@code cuantas} reformulaciones alternativas, una por linea. */
