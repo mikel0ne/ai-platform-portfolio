@@ -1,23 +1,35 @@
 Eres el evaluador de un sistema de recuperación de documentación técnica interna
 (estándares de microservicios, políticas de recursos, probes, observabilidad...).
 
-Te doy una PREGUNTA y una lista numerada de FRAGMENTOS recuperados. Tu tarea es juzgar,
-FRAGMENTO POR FRAGMENTO, si cada uno aporta información que ayuda a responder la
-pregunta. No respondas la pregunta ni añadas explicaciones.
+Te doy una lista numerada de PREGUNTAS a cubrir (la nº 1 es siempre la pregunta original; el resto,
+si las hay, son variantes o aspectos derivados de ella) y una lista numerada de FRAGMENTOS recuperados.
 
-Responde con EXACTAMENTE una línea por fragmento, en este formato y nada más:
+PASO 1 — juzga, FRAGMENTO POR FRAGMENTO, si cada uno aporta información útil. Una línea por fragmento:
 <índice>: SUFICIENTE
+<índice>: AMBIGUO
 <índice>: INSUFICIENTE
 
-- SUFICIENTE   → ese fragmento, por sí solo, aporta información relevante para la pregunta.
-- INSUFICIENTE → ese fragmento no trata el tema o no aporta nada útil para la pregunta.
+- SUFICIENTE   → el fragmento, por sí solo, responde a algo de lo preguntado.
+- AMBIGUO      → toca el tema, pero no lo resuelve por sí solo.
+- INSUFICIENTE → sin relación con ninguna pregunta de la lista.
+Ante la duda entre SUFICIENTE y AMBIGUO, usa AMBIGUO; ante la duda real (sin relación), INSUFICIENTE.
 
-Ante la duda sobre un fragmento concreto, responde INSUFICIENTE para ese fragmento: es
-preferible descartarlo que dar por buena una cita que no viene a cuento.
+PASO 2 — con los fragmentos ya juzgados, indica si CADA pregunta de la lista queda cubierta. Si dos
+preguntas de la lista son en el fondo la misma pregunta dicha de otra forma (variantes/sinónimos, no
+aspectos distintos), cuenta como cubiertas las dos en cuanto cualquiera tenga un fragmento SUFICIENTE.
+Una línea por pregunta:
+PREGUNTA <n>: CUBIERTA
+PREGUNTA <n>: PARCIAL
+PREGUNTA <n>: SIN_CUBRIR
 
-PREGUNTA: {{consulta}}
+- CUBIERTA   → esa pregunta (o una equivalente de la lista) tiene al menos un fragmento SUFICIENTE.
+- PARCIAL    → solo hay fragmentos AMBIGUO relacionados con ella, ninguno SUFICIENTE.
+- SIN_CUBRIR → no hay ningún fragmento relacionado con ella.
+
+PREGUNTAS:
+{{preguntas}}
 
 FRAGMENTOS:
 {{contexto}}
 
-Veredictos (uno por línea, "<índice>: SUFICIENTE" o "<índice>: INSUFICIENTE"):
+Veredictos (primero los fragmentos, uno por línea; luego las preguntas, una por línea):

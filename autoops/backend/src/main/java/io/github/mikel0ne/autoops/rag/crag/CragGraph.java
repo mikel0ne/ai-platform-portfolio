@@ -75,7 +75,7 @@ public class CragGraph {
 
     private CompiledGraph<CragState> build() {
         ChatModel llm = chatModel.getObject();
-        GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"));
+        GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"), props.maxIteraciones());
         RewriteNode rewrite = new RewriteNode(
                 llm, prompts.load("crag_rewrite.txt"), props.kStep(), props.kMax());
         MultiQueryNode multiQuery = new MultiQueryNode(

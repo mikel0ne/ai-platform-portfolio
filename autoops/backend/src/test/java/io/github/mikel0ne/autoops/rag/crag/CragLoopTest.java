@@ -58,7 +58,7 @@ class CragLoopTest {
     }
 
     @Test
-    void siempre_termina_y_devuelve_lo_mejor_aunque_nunca_sea_suficiente() {
+    void siempre_termina_y_no_cataloga_nada_como_bueno_si_todo_es_insuficiente() {
         var retriever = new TestSupport.FakeRetriever(0.2);
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1); // multiQueryN=1: abanico desactivado, no es lo que prueba este test
 
@@ -69,10 +69,46 @@ class CragLoopTest {
                 .buscar("consulta rara", 5);
 
         assertThat(result.iteraciones()).isEqualTo(2); // tope de reformulaciones
-        assertThat(result.confianza()).isEqualTo(RagResult.BAJA);
-        assertThat(result.chunks()).isNotEmpty(); // nunca deja al cliente sin nada
+        assertThat(result.confianza()).isEqualTo(RagResult.NULA);
+        assertThat(result.chunks()).isEmpty(); // nada catalogado como útil: no llega al redactor como cita
+        assertThat(result.candidatosDescartados()).isNotEmpty(); // pero sí queda un último recurso disponible
         assertThat(retriever.calls).isEqualTo(3); // inicial + 2 reintentos
         assertThat(retriever.kRecibidos).containsExactly(5, 8, 11); // k sigue creciendo hasta el tope
+    }
+
+    @Test
+    void cobertura_parcial_de_un_abanico_de_preguntas_da_confianza_media() {
+        // multiQuery genera 2 preguntas (original + 1 variante, genuinamente distinta); el LLM declara
+        // explícitamente cobertura solo para la original: ni alta (no todas cubiertas) ni baja
+        // (una sí quedó CUBIERTA), sino media.
+        var n1 = new DocChunk("Responde a la original.", "Guía", "probes.md", "A", "", "test", 0.9, "", 0, 0);
+        var n2 = new DocChunk("No responde a nada en concreto.", "Guía", "probes.md", "B", "", "test",
+                0.5, "", 0, 0);
+        var retriever = new TestSupport.MultiChunkRetriever(List.of(List.of(n1, n2)));
+        var props = new CragProperties(5, 0, 0.5, 3, 12, 2); // maxIteraciones=0: sin reintentos, resuelve a la 1ª
+        var chat = new TestSupport.ScriptedChatModel(
+                List.of("1: SUFICIENTE\n2: INSUFICIENTE\nPREGUNTA 1: CUBIERTA\nPREGUNTA 2: SIN_CUBRIR"),
+                List.of(), List.of("variante"));
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
+
+        RagResult result = new RagService(graph).buscar("pregunta compuesta", 0);
+
+        assertThat(result.confianza()).isEqualTo(RagResult.MEDIA);
+        assertThat(result.chunks()).containsExactly(n1);
+    }
+
+    @Test
+    void solo_ambiguos_en_todas_las_preguntas_da_confianza_baja() {
+        var n1 = new DocChunk("Toca el tema pero no lo resuelve.", "Guía", "probes.md", "A", "", "test",
+                0.9, "", 0, 0);
+        var retriever = new TestSupport.MultiChunkRetriever(List.of(List.of(n1)));
+        var props = new CragProperties(5, 0, 0.5, 3, 12, 1); // maxIteraciones=0, multiQueryN=1: 1 sola pregunta
+
+        RagResult result = service(retriever, props, List.of("1: AMBIGUO\nPREGUNTA 1: PARCIAL"), List.of())
+                .buscar("pregunta dudosa", 5);
+
+        assertThat(result.confianza()).isEqualTo(RagResult.BAJA);
+        assertThat(result.chunks()).containsExactly(n1); // el ambiguo se conserva como mejor esfuerzo
     }
 
     @Test
