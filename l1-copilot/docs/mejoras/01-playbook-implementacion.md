@@ -261,9 +261,8 @@ contexto.
 
 ## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) 🟦 PARCIAL
 
-**Estado:** PARCIAL. JaCoCo está configurado en `backend/pom.xml`; **falta el workflow de
-CI**: a día de hoy no existe ningún `.github/workflows/` en el repo (solo
-`.github/copilot-instructions.md`).
+**Estado:** COMPLETADO. JaCoCo está configurado en `backend/pom.xml` y
+`.github/workflows/ci.yml` ejecuta `./mvnw verify` y la suite `-Psecurity` en cada push.
 
 - **Hecho**:
   - `jacoco-maven-plugin` en `backend/pom.xml` con `prepare-agent` + `report` (genera

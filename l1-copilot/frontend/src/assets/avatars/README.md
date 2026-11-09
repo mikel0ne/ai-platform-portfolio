@@ -1,7 +1,7 @@
-# Avatares locales
+# Demo avatars
 
-Imágenes de perfil servidas por el frontend en `/assets/avatars/...`.
-Se referencian desde el seed de la BD (`users.avatar_url`).
+Profile pictures served by the frontend at `/assets/avatars/...` and referenced by the DB seed
+(`users.avatar_url`). Both images are **AI-generated** and do not depict real people.
 
-- `ana.jpg` — foto de Ana García (u-001). Mujer joven.
-- `luis.jpg` — foto de Luis Pérez (u-002). Señor mayor.
+- `ana.jpg`: Ana García (u-001), young customer.
+- `luis.jpg`: Luis Pérez (u-002), older customer.

@@ -57,7 +57,7 @@ gantt
 
 ## Fase 3 — El grafo (el corazón; reservar la sesión más larga)
 
-**Releer:** [04 — Grafo LangGraph4j](04-grafo-langgraph.md) **y** los ejemplos de `llms-lgraph.txt` (adaptive-rag y memory-agent).
+**Releer:** [04 — Grafo LangGraph4j](04-grafo-langgraph.md) **y** los ejemplos oficiales de LangGraph4j (adaptive-rag y memory-agent).
 
 1. `SupportState` + `SCHEMA` (solo canal `history` como appender) + enums `Intent`/`Awaiting`/`Verdict`/`Navigation`/`Treatment`; estado con tipos serializables simples (sin serializer a medida).
 2. AiServices: `IntentClassifier` (salida estructurada `RouterDecision`) y `Responder`; probarlos sueltos con un `main`/test `@Tag("llm")`.

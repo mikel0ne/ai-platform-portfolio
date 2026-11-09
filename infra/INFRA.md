@@ -262,7 +262,7 @@ bash infra/scripts/07-setup-observability.sh
 ├── docker/                     # Dockerfiles genéricos (backend Java, frontend nginx) — compartidos
 ├── .run/                       # Run configs IntelliJ (prefijo por proyecto: «autoops · …»)
 ├── scripts/                    # scripts generales (start/stop local)
-├── llms-*.txt · CLAUDE.md · README.md
+├── README.md
 ├── autoops/                    # proyecto AutoOps MCP
 │   ├── backend/  frontend/  docs/  corpus/
 └── l1-copilot/                 # proyecto L1 Support Copilot
@@ -436,7 +436,7 @@ cp infra/.env.local.example infra/.env.local
 ### Flujo Secret → variable de entorno
 
 ```
-.env.<p>  +  .env.local  (+ .env.<p>.local si hace falta override)   (fuente de verdad)
+infra/.env.local  (+ .env.<p>.local si hace falta override)   (fuente de verdad)
         │
         ▼  deploy.sh → sync_secrets()
 kubectl create secret generic <secret> --dry-run=client -o yaml | kubectl apply

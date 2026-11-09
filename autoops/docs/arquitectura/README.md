@@ -74,5 +74,5 @@ El MCP y el chat son **dos fronts sobre el mismo núcleo RAG**. Las tools de Kub
 - Para **empezar a implementar**: ir a [07-roadmap-implementacion.md](07-roadmap-implementacion.md).
 - Para **entender el sistema**: leer 01 → 02 → 03.
 - Regla de oro del repo: el protocolo MCP lo gestiona Spring AI; LangChain4j es el **motor RAG**; los flujos
-  **cíclicos** (el bucle CRAG) se implementan con **LangGraph4j** (sintaxis de `llms-lgraph.txt`); el wiring
-  Spring/LangChain4j sigue `llms-lc4j.txt`.
+  **cíclicos** (el bucle CRAG) se implementan con **LangGraph4j**; el wiring
+  Spring/LangChain4j sigue la documentación oficial de LangChain4j.

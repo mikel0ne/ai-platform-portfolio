@@ -1,6 +1,6 @@
 # 04 — El grafo LangGraph4j
 
-Documento central del agente. Define el estado, los nodos, las aristas y el ciclo conversacional, usando estrictamente la API de **LangGraph4j** (`org.bsc.langgraph4j`): `StateGraph`, `AgentState`, `Channels`, `node_async`/`edge_async`, `CompiledGraph`, checkpointers. Referencia local: `llms-lgraph.txt`.
+Documento central del agente. Define el estado, los nodos, las aristas y el ciclo conversacional, usando estrictamente la API de **LangGraph4j** (`org.bsc.langgraph4j`): `StateGraph`, `AgentState`, `Channels`, `node_async`/`edge_async`, `CompiledGraph`, checkpointers. Referencia: documentación oficial de LangGraph4j.
 
 ## Topología del grafo
 
@@ -140,7 +140,7 @@ public enum Treatment  { TU, USTED }                                 // registro
 
 `awaiting` es la pieza que implementa el ciclo: indica **qué pregunta dejó pendiente el turno anterior**, para que el router del turno siguiente interprete el mensaje del usuario como respuesta a esa pregunta y no como una petición nueva (aunque también debe detectar cambios de tema: "déjalo, mejor cancela el otro").
 
-> **Serialización:** el checkpointer serializa el estado. Mantener en el estado solo tipos serializables sencillos (String, Long, Boolean, records). Los `ChatMessage` de LangChain4j se guardan vía el `StateSerializer` correspondiente (LangGraph4j trae serializers para mensajes LC4j; ver ejemplos de `llms-lgraph.txt`).
+> **Serialización:** el checkpointer serializa el estado. Mantener en el estado solo tipos serializables sencillos (String, Long, Boolean, records). Los `ChatMessage` de LangChain4j se guardan vía el `StateSerializer` correspondiente (LangGraph4j trae serializers para mensajes LC4j; ver los ejemplos oficiales de LangGraph4j).
 
 ## Construcción del grafo
 
@@ -284,7 +284,7 @@ public class RouterNode implements NodeAction<SupportState> {
 }
 ```
 
-El clasificador es un **AiService de LangChain4j con salida estructurada** (patrón de `llms-lc4j.txt`):
+El clasificador es un **AiService de LangChain4j con salida estructurada**:
 
 ```java
 public interface IntentClassifier {
@@ -448,7 +448,7 @@ Regla del prompt de `respond`: *"Responde únicamente con la información de TOO
 > - Usuario pide **cancelar** un pedido ya entregado → cancelar no aplica; el responder le hace ver que ese procedimiento ya no es posible y le ofrece la **devolución** (regla derivada de `cancel_check`, ver arriba).
 > - Usuario pide **devolver** y no ha mencionado la cancelación → el responder va **directo** a la vía de devolución y **no** introduce el tema de la cancelación. Anticipar "ya no se puede cancelar" cuando nadie lo ha pedido solo confunde.
 >
-> Esta es la **regla simétrica** añadida al system prompt de `Responder`. Importante: el `toolResult` de `return_check` ya era correcto (solo habla de devolución); la fuga venía del prompt, que describía el ciclo del pedido emparejando siempre cancelación y devolución. Encaja con la norma de redacción de prompts (ver `copilot-instructions.md`): se dan **indicaciones** de qué comunicar, no respuestas literales, y no se sacan temas que el usuario no ha planteado.
+> Esta es la **regla simétrica** añadida al system prompt de `Responder`. Importante: el `toolResult` de `return_check` ya era correcto (solo habla de devolución); la fuga venía del prompt, que describía el ciclo del pedido emparejando siempre cancelación y devolución. Encaja con la norma de redacción de prompts: se dan **indicaciones** de qué comunicar, no respuestas literales, y no se sacan temas que el usuario no ha planteado.
 
 ## Compilación, checkpointer y memoria conversacional
 
@@ -496,7 +496,7 @@ Con el mismo `threadId`, `MemorySaver` restaura `intent`, `candidates`, `awaitin
 
 ## Observabilidad y testing del grafo
 
-- **Logs por nodo** con el patrón `---NOMBRE---` (igual que los ejemplos de `llms-lgraph.txt`); con `dev.langchain4j: DEBUG` ya activado en `application.yml` se ven además las llamadas al modelo.
+- **Logs por nodo** con el patrón `---NOMBRE---` (igual que los ejemplos oficiales de LangGraph4j); con `dev.langchain4j: DEBUG` ya activado en `application.yml` se ven además las llamadas al modelo.
 - **Diagrama generado**: `graph.getGraph(GraphRepresentation.Type.MERMAID)` exporta la topología real; incluirlo en el README del repo y en CI para detectar derivas doc/código.
 - **Tests sin LLM**: las aristas (`routeFromRouter`...) son funciones puras sobre `SupportState` → tests unitarios triviales construyendo el estado con `Map.of`. Los nodos de tool se testean con repositorios H2.
 - **Tests con LLM falso**: para el flujo completo, sustituir `IntentClassifier`/`Responder` por fakes deterministas (`@MockBean`) y verificar la secuencia de nodos con `graph.stream(...)` inspeccionando `NodeOutput.node()`.

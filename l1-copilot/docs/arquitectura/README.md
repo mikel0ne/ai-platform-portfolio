@@ -20,8 +20,8 @@ Documentación exhaustiva de diseño y código del **Agente de Soporte de Nivel 
 
 ## Reglas de oro del proyecto
 
-1. **Flujos cíclicos = LangGraph4j.** El agente se modela con `StateGraph`, `Node` y `Edge` de LangGraph4j (ver `llms-lgraph.txt`). No se simulan ciclos con cadenas lineales de LangChain4j.
-2. **Servicios lineales y wiring Spring = LangChain4j.** La integración con Gemini, los `@Tool` y los servicios REST siguen los patrones de `llms-lc4j.txt`.
+1. **Flujos cíclicos = LangGraph4j.** El agente se modela con `StateGraph`, `Node` y `Edge` de LangGraph4j. No se simulan ciclos con cadenas lineales de LangChain4j.
+2. **Servicios lineales y wiring Spring = LangChain4j.** La integración con Gemini, los `@Tool` y los servicios REST siguen los patrones de la documentación de LangChain4j.
 3. **La IA orquesta, el código Java ejecuta.** Todo acceso a datos pasa por métodos `@Tool` deterministas; el `userId` se inyecta desde la sesión, nunca desde el LLM (anti prompt-injection).
 4. **El estado vive en el grafo.** La memoria a corto plazo (intención detectada, `orderId` pendiente, historial) se guarda en el `AgentState` con checkpointer y `threadId` = id de conversación.
 
