@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 07-setup-observability.sh
-# Instala el stack de LOGS compartido (Loki + Promtail + Grafana) en el
-# namespace 'observability' de k3s. Recoge los logs de todo el clúster.
+# Installs the shared LOG stack (Loki + Promtail + Grafana) in the
+# 'observability' namespace of k3s. It collects the logs of the whole cluster.
 #
-# Usa el chart grafana/loki-stack con infra/observability/loki-stack-values.yaml.
-# Expone Grafana por Traefik en http://grafana.local (admin / GRAFANA_ADMIN_PASSWORD de infra/.env.local).
+# Uses the grafana/loki-stack chart with infra/observability/loki-stack-values.yaml and
+# exposes Grafana through Traefik at http://grafana.local (admin / GRAFANA_ADMIN_PASSWORD from infra/.env.local).
 #
-# Requisitos: Rancher Desktop / k3s corriendo, kubectl y helm disponibles.
+# Requires Rancher Desktop / k3s running, kubectl and helm.
 # =============================================================================
 
 set -euo pipefail
@@ -30,70 +30,70 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # =============================================================================
-# 0. Requisitos
+# 0. Requirements
 # =============================================================================
-step "Verificando requisitos..."
-command -v kubectl &>/dev/null || fail "'kubectl' no encontrado."
-command -v helm &>/dev/null    || fail "'helm' no encontrado."
+step "Checking requirements..."
+command -v kubectl &>/dev/null || fail "'kubectl' not found."
+command -v helm &>/dev/null    || fail "'helm' not found."
 kubectl cluster-info &>/dev/null || fail "k3s no responde. Abre Rancher Desktop."
 [[ -f "$VALUES" ]] || fail "No encuentro $VALUES"
-ok "kubectl, helm y k3s disponibles"
+ok "kubectl, helm and k3s available"
 
 # =============================================================================
 # 1. Namespace
 # =============================================================================
-step "Asegurando namespace '$NS'..."
-kubectl get namespace "$NS" &>/dev/null && ok "Namespace '$NS' ya existe" || {
+step "Ensuring namespace '$NS'..."
+kubectl get namespace "$NS" &>/dev/null && ok "Namespace '$NS' already exists" || {
   kubectl create namespace "$NS"; ok "Namespace '$NS' creado"
 }
 
 # =============================================================================
-# 2. Repo Helm de Grafana
+# 2. Grafana Helm repo
 # =============================================================================
-step "Añadiendo el repo Helm de Grafana..."
+step "Adding the Grafana Helm repo..."
 helm repo add grafana https://grafana.github.io/helm-charts >/dev/null 2>&1 || true
 helm repo update grafana >/dev/null
-ok "Repo grafana actualizado"
+ok "grafana repo updated"
 
 # =============================================================================
-# 3. Instalar / actualizar loki-stack
+# 3. Install / upgrade loki-stack
 # =============================================================================
-step "Instalando loki-stack (Loki + Promtail + Grafana)..."
+step "Installing loki-stack (Loki + Promtail + Grafana)..."
 helm upgrade --install "$RELEASE" grafana/loki-stack \
   --set-string grafana.adminPassword="${GRAFANA_ADMIN_PASSWORD}" \
   --namespace "$NS" \
   -f "$VALUES" \
   --wait --timeout 5m
-ok "loki-stack desplegado"
+ok "loki-stack deployed"
 
 # =============================================================================
-# 4. Ingress de Grafana (Traefik)
+# 4. Grafana Ingress (Traefik)
 # =============================================================================
-step "Aplicando Ingress de Grafana (grafana.local)..."
+step "Applying the Grafana Ingress (grafana.local)..."
 kubectl apply -f "$GRAFANA_INGRESS"
-ok "Ingress 'grafana' aplicado"
+ok "Ingress 'grafana' applied"
 
 # =============================================================================
-# 5. Estado
+# 5. Status
 # =============================================================================
-step "Pods en '$NS':"
+step "Pods in '$NS':"
 kubectl get pods -n "$NS"
 
 # =============================================================================
-# 6. Resumen
+# 6. Summary
 # =============================================================================
 echo ""
 echo "============================================================"
-echo "  Observabilidad (logs) desplegada en namespace '$NS'"
+echo "  Observability (logs) deployed to namespace '$NS'"
 echo "============================================================"
 echo "  Grafana   : http://grafana.local   (admin / GRAFANA_ADMIN_PASSWORD)"
-echo "  Loki      : loki.${NS}.svc.cluster.local:3100 (datasource ya configurado)"
-echo "  Promtail  : DaemonSet — recoge logs de TODOS los namespaces"
+echo "  Loki      : loki.${NS}.svc.cluster.local:3100 (datasource already configured)"
+echo "  Promtail  : DaemonSet, collects logs from ALL namespaces"
 echo "------------------------------------------------------------"
-echo "  Resuelve el host (una vez, como Admin):"
+echo "  Resolve the host (once, as Administrator):"
 echo "    infra/scripts/add-host.ps1 -Hostname grafana.local"
 echo "------------------------------------------------------------"
-echo "  En Grafana → Explore → datasource Loki. Ejemplos de query:"
+echo "  In Grafana: Explore -> Loki datasource. Sample queries:"
 echo '    {namespace="autoops"}'
 echo '    {namespace="autoops", pod=~"autoops-backend.*"} |= "ERROR"'
 echo "============================================================"

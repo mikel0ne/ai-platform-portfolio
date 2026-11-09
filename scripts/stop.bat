@@ -1,29 +1,24 @@
 @echo off
 :: =============================================================================
-::  scripts\stop.bat — Para todos los procesos Java (Spring Boot) y Node (Angular)
-::  Doble clic para detener ambos servicios.
+::  scripts\stop.bat - stops the backend and frontend windows opened by start.bat
+::  Only the two titled windows are closed (with their process tree), never every
+::  java.exe / node.exe on the machine.
 :: =============================================================================
 chcp 65001 > nul
 
 echo.
 echo  ============================================================
-echo   L1 Support Copilot — PARAR servicios
+echo   L1 Support Copilot - stopping services
 echo  ============================================================
 echo.
 
-echo [STOP] Buscando procesos Java (Spring Boot)...
-for /f "tokens=2" %%i in ('tasklist /fi "imagename eq java.exe" /fo list ^| findstr PID') do (
-    echo        Matando java.exe PID %%i
-    taskkill /PID %%i /F >nul 2>&1
-)
+echo [STOP] Backend window...
+taskkill /FI "WINDOWTITLE eq Backend - Spring Boot*" /T /F >nul 2>&1 && echo        stopped || echo        not running
 
-echo [STOP] Buscando procesos Node (Angular)...
-for /f "tokens=2" %%i in ('tasklist /fi "imagename eq node.exe" /fo list ^| findstr PID') do (
-    echo        Matando node.exe PID %%i
-    taskkill /PID %%i /F >nul 2>&1
-)
+echo [STOP] Frontend window...
+taskkill /FI "WINDOWTITLE eq Frontend - Angular*" /T /F >nul 2>&1 && echo        stopped || echo        not running
 
 echo.
-echo  [OK] Servicios detenidos.
+echo  [OK] Done. Services started through Git Bash are stopped with scripts/stop.sh.
 echo.
 pause

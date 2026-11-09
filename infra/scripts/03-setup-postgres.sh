@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 03-setup-postgres.sh
-# Despliega PostgreSQL 16 (Alpine) en el namespace 'infra' de k3s.
+# Deploys PostgreSQL 16 (Alpine) to the 'infra' namespace of k3s.
 #
-# Características:
-#   - Imagen ligera: postgres:16-alpine  (~80 MB)
-#   - Persistencia:  PersistentVolumeClaim de 1 Gi
-#   - Credenciales:  almacenadas en un Secret de Kubernetes
-#   - Acceso intern: ClusterIP en puerto 5432
-#   - Acceso externo: NodePort 30532 (desde host / WSL)
+# Features:
+#   - Small image:     postgres:16-alpine (~80 MB)
+#   - Persistence:     1 Gi PersistentVolumeClaim
+#   - Credentials:     stored in a Kubernetes Secret
+#   - Internal access: ClusterIP on port 5432
+#   - External access: NodePort (from the host / WSL)
 #
-# Requisitos: Rancher Desktop instalado, k3s corriendo, kubectl disponible
+# Requires Rancher Desktop with k3s running and kubectl.
 # =============================================================================
 
 set -euo pipefail
@@ -31,7 +31,7 @@ PG_PASSWORD="$POSTGRES_PASSWORD"
 PG_DB="appdb"
 PG_VERSION="16-alpine"
 PG_STORAGE="1Gi"
-PG_NODEPORT="15432"           # puerto accesible desde fuera del cluster
+PG_NODEPORT="15432"           # reachable from outside the cluster
 
 step()  { echo -e "\n==> $*"; }
 ok()    { echo "    [ok] $*"; }
@@ -39,45 +39,45 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # =============================================================================
-# 0. Requisitos
+# 0. Requirements
 # =============================================================================
-step "Verificando requisitos..."
+step "Checking requirements..."
 for cmd in kubectl; do
-  command -v "$cmd" &>/dev/null || fail "'$cmd' no encontrado en el PATH."
+  command -v "$cmd" &>/dev/null || fail "'$cmd' not found on PATH."
 done
 kubectl cluster-info &>/dev/null || fail "k3s no responde. Abre Rancher Desktop."
-ok "kubectl y k3s disponibles"
+ok "kubectl and k3s available"
 
 # =============================================================================
 # 1. Namespace
 # =============================================================================
-step "Creando namespace '$NS'..."
+step "Creating namespace '$NS'..."
 if kubectl get namespace "$NS" &>/dev/null; then
-  warn "Namespace '$NS' ya existe, omitiendo."
+  warn "Namespace '$NS' already exists, skipping."
 else
   kubectl create namespace "$NS"
-  ok "Namespace '$NS' creado"
+  ok "Namespace '$NS' created"
 fi
 
 # =============================================================================
-# 2. Secret con credenciales
+# 2. Credentials Secret
 # =============================================================================
-step "Creando Secret 'postgres-credentials' en namespace '$NS'..."
+step "Creating Secret 'postgres-credentials' in namespace '$NS'..."
 if kubectl get secret postgres-credentials -n "$NS" &>/dev/null; then
-  warn "Secret ya existe, omitiendo (no se sobreescribirán credenciales)."
+  warn "Secret already exists, skipping (credentials are never overwritten)."
 else
   kubectl create secret generic postgres-credentials \
     --namespace "$NS" \
     --from-literal=POSTGRES_USER="$PG_USER" \
     --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
     --from-literal=POSTGRES_DB="$PG_DB"
-  ok "Secret creado"
+  ok "Secret created"
 fi
 
 # =============================================================================
 # 3. PersistentVolumeClaim
 # =============================================================================
-step "Creando PersistentVolumeClaim 'postgres-pvc'..."
+step "Creating PersistentVolumeClaim 'postgres-pvc'..."
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -93,12 +93,12 @@ spec:
     requests:
       storage: ${PG_STORAGE}
 EOF
-ok "PVC aplicado"
+ok "PVC applied"
 
 # =============================================================================
 # 4. Deployment
 # =============================================================================
-step "Desplegando PostgreSQL ${PG_VERSION}..."
+step "Deploying PostgreSQL ${PG_VERSION}..."
 kubectl apply -f - <<EOF
 apiVersion: apps/v1
 kind: Deployment
@@ -150,12 +150,12 @@ spec:
           persistentVolumeClaim:
             claimName: postgres-pvc
 EOF
-ok "Deployment aplicado"
+ok "Deployment applied"
 
 # =============================================================================
 # 5. Service (ClusterIP + NodePort)
 # =============================================================================
-step "Creando Service 'postgres'..."
+step "Creating Service 'postgres'..."
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Service
@@ -175,19 +175,19 @@ spec:
       targetPort: 5432
       nodePort: ${PG_NODEPORT}
 EOF
-ok "Service aplicado (ClusterIP:5432 / NodePort:${PG_NODEPORT})"
+ok "Service applied (ClusterIP:5432 / NodePort:${PG_NODEPORT})"
 
 # =============================================================================
-# 6. Esperar a que el pod esté Ready
+# 6. Wait until the pod is Ready
 # =============================================================================
-step "Esperando a que el pod de PostgreSQL esté listo (máx. 120 s)..."
+step "Waiting for the PostgreSQL pod to be ready (max. 120 s)..."
 kubectl rollout status deployment/postgres -n "$NS" --timeout=120s
-ok "PostgreSQL listo"
+ok "PostgreSQL ready"
 
 # =============================================================================
-# 7. Prueba de conexión
+# 7. Connection test
 # =============================================================================
-step "Probando conexión con psql (dentro del pod)..."
+step "Testing the connection with psql (inside the pod)..."
 PG_POD=$(kubectl get pod -n "$NS" -l app=postgres -o jsonpath="{.items[0].metadata.name}")
 
 kubectl exec -n "$NS" "$PG_POD" -- \
@@ -207,25 +207,25 @@ kubectl exec -n "$NS" "$PG_POD" -- \
     SELECT * FROM healthcheck;
   "
 
-ok "Conexión verificada correctamente"
+ok "Connection verified"
 
 # =============================================================================
-# 8. Resumen
+# 8. Summary
 # =============================================================================
 echo ""
 echo "============================================================"
-echo "  PostgreSQL desplegado en namespace '$NS'"
+echo "  PostgreSQL deployed to namespace '$NS'"
 echo "============================================================"
-echo "  Host interno (en-cluster) : postgres.${NS}.svc.cluster.local"
-echo "  Puerto interno            : 5432"
-echo "  Host externo (NodePort)   : localhost:${PG_NODEPORT}"
-echo "  Base de datos             : ${PG_DB}"
-echo "  Usuario                   : ${PG_USER}"
-echo "  Contraseña                : ${PG_PASSWORD}"
+echo "  Internal host (in-cluster) : postgres.${NS}.svc.cluster.local"
+echo "  Internal port              : 5432"
+echo "  External host (NodePort)   : localhost:${PG_NODEPORT}"
+echo "  Database                   : ${PG_DB}"
+echo "  User                       : ${PG_USER}"
+echo "  Password                   : POSTGRES_PASSWORD in infra/.env.local"
 echo "------------------------------------------------------------"
-echo "  Conexión desde app (JDBC) :"
+echo "  From an app (JDBC)         :"
 echo "  jdbc:postgresql://postgres.${NS}.svc.cluster.local:5432/${PG_DB}"
-echo "  Conexión desde host       :"
+echo "  From the host              :"
   echo "  psql -h postgres.local -p ${PG_NODEPORT} -U ${PG_USER} -d ${PG_DB}"
-  echo "  (requiere: 127.0.0.1 postgres.local en fichero hosts de Windows)"
+  echo "  (requires 127.0.0.1 postgres.local in the Windows hosts file)"
 echo "============================================================"

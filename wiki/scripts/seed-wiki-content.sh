@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
 # seed-wiki-content.sh
-# Publica/actualiza en Wiki.js las páginas versionadas en wiki/content/**/*.txt.
-# Wrapper fino: la lógica vive en seed-wiki-content.js (Node, usa fetch nativo)
-# porque construir JSON con markdown multilínea a mano en bash+curl es frágil
-# por escapado; Node ya es una dependencia del repo (frontend Angular).
+# Publishes or updates in Wiki.js the pages versioned in wiki/content/**/*.txt.
+# Thin wrapper: the logic lives in seed-wiki-content.js (Node, native fetch) because
+# building JSON with multi-line markdown by hand in bash+curl is fragile to escape;
+# Node is already a dependency of the repo (Angular frontends).
 #
-# Variables reconocidas:
-#   WIKIJS_API_KEY   (obligatoria; se carga de infra/.env.local)
+# Variables:
+#   WIKIJS_API_KEY   (required; loaded from infra/.env.local)
 #   WIKI_BASE_URL     (default: http://wiki.local)
 # =============================================================================
 
@@ -25,7 +25,7 @@ for env_file in "${REPO_ROOT}/infra/.env.local"; do
   fi
 done
 
-command -v node >/dev/null 2>&1 || { echo "[x] node no encontrado en el PATH." >&2; exit 1; }
-[ -n "${WIKIJS_API_KEY:-}" ] || { echo "[x] Falta WIKIJS_API_KEY (defínela en infra/.env.local)." >&2; exit 1; }
+command -v node >/dev/null 2>&1 || { echo "[x] node not found on PATH." >&2; exit 1; }
+[ -n "${WIKIJS_API_KEY:-}" ] || { echo "[x] WIKIJS_API_KEY is missing (define it in infra/.env.local)." >&2; exit 1; }
 
 exec node "${SCRIPT_DIR}/seed-wiki-content.js" "$@"

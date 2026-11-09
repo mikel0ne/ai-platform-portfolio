@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 02-setup-registry.sh
-# Despliega un registry local en k3s accesible en localhost:30500
-# Requiere: Rancher Desktop instalado y k3s corriendo
+# Deploys a local registry in k3s, reachable at localhost:30500.
+# Requires Rancher Desktop with k3s running.
 # =============================================================================
 
 set -euo pipefail
@@ -16,40 +16,40 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # -----------------------------------------------------------------------------
-# 1. Requisitos
+# 1. Requirements
 # -----------------------------------------------------------------------------
-step "Verificando requisitos..."
+step "Checking requirements..."
 
 for cmd in kubectl docker; do
-  command -v "$cmd" &>/dev/null || fail "$cmd no encontrado en el PATH."
+  command -v "$cmd" &>/dev/null || fail "$cmd not found on PATH."
 done
-ok "kubectl y docker disponibles"
+ok "kubectl and docker available"
 
-# jq (necesario para editar daemon.json)
+# jq (needed to edit daemon.json)
 if ! command -v jq &>/dev/null; then
-  warn "jq no encontrado, instalando..."
+  warn "jq not found, installing..."
   sudo apt-get install -y jq -qq
 fi
 
-kubectl cluster-info &>/dev/null || fail "k3s no responde. Abre Rancher Desktop y espera a que el clúster esté verde."
-ok "k3s operativo"
+kubectl cluster-info &>/dev/null || fail "k3s is not responding. Open Rancher Desktop and wait for the cluster to turn green."
+ok "k3s up"
 
 # -----------------------------------------------------------------------------
 # 2. Namespace
 # -----------------------------------------------------------------------------
-step "Creando namespace '$REGISTRY_NAMESPACE'..."
+step "Creating namespace '$REGISTRY_NAMESPACE'..."
 
 if kubectl get namespace "$REGISTRY_NAMESPACE" &>/dev/null; then
-  warn "Namespace '$REGISTRY_NAMESPACE' ya existe, omitiendo."
+  warn "Namespace '$REGISTRY_NAMESPACE' already exists, skipping."
 else
   kubectl create namespace "$REGISTRY_NAMESPACE"
-  ok "Namespace creado"
+  ok "Namespace created"
 fi
 
 # -----------------------------------------------------------------------------
-# 3. Manifiesto
+# 3. Manifest
 # -----------------------------------------------------------------------------
-step "Desplegando registry en k3s..."
+step "Deploying the registry to k3s..."
 
 kubectl apply -f - <<EOF
 apiVersion: apps/v1
@@ -100,12 +100,12 @@ spec:
       nodePort: ${REGISTRY_PORT}
 EOF
 
-ok "Manifiesto aplicado"
+ok "Manifest applied"
 
 # -----------------------------------------------------------------------------
-# 4. Configurar docker para registry inseguro
+# 4. Configure Docker for an insecure registry
 # -----------------------------------------------------------------------------
-step "Configurando Docker para registry inseguro..."
+step "Configuring Docker for an insecure registry..."
 
 daemon_json="${HOME}/.docker/daemon.json"
 mkdir -p "$(dirname "$daemon_json")"
@@ -119,39 +119,39 @@ if ! grep -q "localhost:${REGISTRY_PORT}" "$daemon_json"; then
   jq --arg r "localhost:${REGISTRY_PORT}" \
     '."insecure-registries" = (."insecure-registries" // [] | . + [$r] | unique)' \
     "$daemon_json" > "$tmp" && mv "$tmp" "$daemon_json"
-  ok "daemon.json actualizado"
+  ok "daemon.json updated"
 else
-  warn "Registry ya configurado como inseguro, omitiendo."
+  warn "Registry already configured as insecure, skipping."
 fi
 
 # -----------------------------------------------------------------------------
-# 5. Esperar y verificar
+# 5. Wait and verify
 # -----------------------------------------------------------------------------
-step "Esperando a que el registry esté listo..."
+step "Waiting for the registry to be ready..."
 
 kubectl rollout status deployment/registry -n "$REGISTRY_NAMESPACE" --timeout=120s
-ok "Registry listo"
+ok "Registry ready"
 
 sleep 2
 
 if curl -sf "http://localhost:${REGISTRY_PORT}/v2/" &>/dev/null; then
-  ok "Registry responde en http://localhost:${REGISTRY_PORT}/v2/"
+  ok "Registry answers at http://localhost:${REGISTRY_PORT}/v2/"
 else
-  warn "El registry aún no responde via HTTP. Prueba en unos segundos: curl http://localhost:${REGISTRY_PORT}/v2/"
+  warn "The registry does not answer over HTTP yet. Retry in a few seconds: curl http://localhost:${REGISTRY_PORT}/v2/"
 fi
 
 # -----------------------------------------------------------------------------
-# 6. Resumen
+# 6. Summary
 # -----------------------------------------------------------------------------
 cat <<EOF
 
-  Registry local desplegado.
+  Local registry deployed.
 
-  Uso:
-    docker tag  mi-imagen:tag  localhost:${REGISTRY_PORT}/mi-imagen:tag
-    docker push localhost:${REGISTRY_PORT}/mi-imagen:tag
+  Usage:
+    docker tag  my-image:tag  localhost:${REGISTRY_PORT}/my-image:tag
+    docker push localhost:${REGISTRY_PORT}/my-image:tag
 
-  Desde dentro del clúster:
-    image: registry.registry.svc.cluster.local:5000/mi-imagen:tag
+  From inside the cluster:
+    image: registry.registry.svc.cluster.local:5000/my-image:tag
 
 EOF

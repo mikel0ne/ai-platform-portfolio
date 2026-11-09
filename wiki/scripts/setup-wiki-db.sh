@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # =============================================================================
 # setup-wiki-db.sh
-# Crea la BD `wiki` (vacía) dentro del PostgreSQL compartido. A diferencia de
-# l1-copilot/scripts/setup-l1-copilot-db.sh, NO aplica ningún schema: Wiki.js
-# migra su propio esquema al arrancar contra una BD vacía (ver
-# infra/scripts/08-setup-wikijs.sh, que despliega el pod después de este script).
+# Creates the empty `wiki` database in the shared PostgreSQL. Unlike
+# l1-copilot/scripts/setup-l1-copilot-db.sh it applies no schema: Wiki.js
+# migrates its own schema on startup against an empty database (see
+# infra/scripts/08-setup-wikijs.sh, which deploys the pod after this script).
 #
-# Idempotente: la BD solo se crea si no existe.
+# Idempotent: the database is only created when missing.
 #
-# Requisitos:
-#   - Postgres compartido accesible desde el host (postgres.local:15432 por
-#     defecto, NodePort del Postgres del namespace `infra`).
-#   - psql en el PATH.
+# Requires:
+#   - The shared Postgres reachable from the host (postgres.local:15432 by
+#     default, NodePort of the Postgres in the `infra` namespace).
+#   - psql on PATH.
 #
-# Variables de entorno reconocidas (con fallbacks):
+# Environment variables (with defaults):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
 #   PGUSER      (default: POSTGRES_USER from infra/.env.local)
@@ -41,41 +41,41 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # -----------------------------------------------------------------------------
-# 0. Requisitos
+# 0. Requirements
 # -----------------------------------------------------------------------------
-step "Verificando requisitos..."
-command -v psql >/dev/null 2>&1 || fail "psql no encontrado en el PATH."
+step "Checking requirements..."
+command -v psql >/dev/null 2>&1 || fail "psql not found on PATH."
 
 if ! psql -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
-  fail "No se puede conectar a $PGHOST:$PGPORT como $PGUSER. ¿Está Rancher Desktop arrancado y el NodePort 15432 expuesto?"
+  fail "Cannot connect to $PGHOST:$PGPORT as $PGUSER. Is Rancher Desktop running and NodePort 15432 exposed?"
 fi
-ok "Conexión a Postgres OK ($PGHOST:$PGPORT como $PGUSER)"
+ok "Postgres connection OK ($PGHOST:$PGPORT as $PGUSER)"
 
 # -----------------------------------------------------------------------------
-# 1. Crear la BD (idempotente, sin schema: Wiki.js migra la suya al arrancar)
+# 1. Create the database (idempotent, no schema: Wiki.js migrates its own on startup)
 # -----------------------------------------------------------------------------
-step "Creando BD '$PROJECT_DB' (si no existe)..."
+step "Creating database '$PROJECT_DB' (if missing)..."
 
 DB_EXISTS=$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PROJECT_DB';")
 
 if [ "$DB_EXISTS" = "1" ]; then
-  warn "BD '$PROJECT_DB' ya existe."
+  warn "Database '$PROJECT_DB' already exists."
 else
   psql -d postgres -c "CREATE DATABASE $PROJECT_DB OWNER $PGUSER;"
-  ok "BD '$PROJECT_DB' creada"
+  ok "Database '$PROJECT_DB' created"
 fi
 
 cat <<EOF
 
 ============================================================
-  BD de Wiki.js lista
+  Wiki.js database ready
 ============================================================
-  Host externo (host)      : $PGHOST:$PGPORT
-  Host interno (en-cluster): postgres.infra.svc.cluster.local:5432
-  Base de datos            : $PROJECT_DB
-  Usuario                  : $PGUSER
+  External host (host)      : $PGHOST:$PGPORT
+  Internal host (in-cluster): postgres.infra.svc.cluster.local:5432
+  Database                  : $PROJECT_DB
+  User                      : $PGUSER
 ------------------------------------------------------------
-  Siguiente paso: infra/scripts/08-setup-wikijs.sh
-  (despliega el pod, que migra el esquema de Wiki.js al arrancar)
+  Next step: infra/scripts/08-setup-wikijs.sh
+  (deploys the pod, which migrates the Wiki.js schema on startup)
 ============================================================
 EOF

@@ -1,16 +1,15 @@
 # =============================================================================
 # create-secrets.ps1
 # =============================================================================
-# Crea Secrets de Kubernetes a partir de un fichero .env local.
-# El fichero .env NUNCA debe commitearse (está en .gitignore).
+# Creates a Kubernetes Secret from a local .env file.
+# The .env file must never be committed (it is gitignored).
 #
-# Uso:
-#   .\infra\scripts\create-secrets.ps1 -Namespace mi-namespace -SecretName mi-secret -EnvFile .env
+# Usage:
+#   .\infra\scripts\create-secrets.ps1 -Namespace my-namespace -SecretName my-secret -EnvFile .env
 #
-# Formato del fichero .env:
-#   DB_PASSWORD=mi-password-seguro
-#   API_KEY=abc123
-#   OTRO_SECRETO=valor
+# .env format:
+#   DB_PASSWORD=<value>
+#   API_KEY=<value>
 # =============================================================================
 [CmdletBinding()]
 param(
@@ -29,28 +28,30 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-# ── Validaciones ──────────────────────────────────────────────────────────────
+# ── Validation ────────────────────────────────────────────────────────────────
 if (-not (Test-Path $EnvFile)) {
-    Write-Error "No se encuentra el fichero '$EnvFile'. Créalo copiando .env.example y rellenando los valores."
+    Write-Error "File '$EnvFile' not found. Create it from infra/.env.local.example and fill in the values."
     exit 1
 }
 
 if (-not (Get-Command kubectl -ErrorAction SilentlyContinue)) {
-    Write-Error "kubectl no está disponible en el PATH."
+    Write-Error "kubectl is not on PATH."
     exit 1
 }
 
-# ── Leer .env ─────────────────────────────────────────────────────────────────
+# ── Read .env ─────────────────────────────────────────────────────────────────
 $literals = [System.Collections.Generic.List[string]]::new()
 
+$lineNumber = 0
 foreach ($line in Get-Content $EnvFile) {
-    # Ignorar líneas vacías y comentarios
+    $lineNumber++
+    # Skip blank lines and comments
     if ([string]::IsNullOrWhiteSpace($line) -or $line.TrimStart().StartsWith("#")) {
         continue
     }
 
     if ($line -notmatch "^([A-Za-z_][A-Za-z0-9_]*)=(.*)$") {
-        Write-Warning "Línea ignorada (formato inválido): $line"
+        Write-Warning "Line $lineNumber skipped (invalid format)"
         continue
     }
 
@@ -62,50 +63,51 @@ foreach ($line in Get-Content $EnvFile) {
 }
 
 if ($literals.Count -eq 0) {
-    Write-Error "El fichero '$EnvFile' no contiene ninguna variable válida."
+    Write-Error "File '$EnvFile' contains no valid variable."
     exit 1
 }
 
-# ── Asegurar que el namespace existe ─────────────────────────────────────────
+# ── Make sure the namespace exists ────────────────────────────────────────────
 $nsExists = kubectl get namespace $Namespace --ignore-not-found 2>$null
 if (-not $nsExists) {
-    Write-Host "Namespace '$Namespace' no existe, creándolo..." -ForegroundColor Yellow
+    Write-Host "Namespace '$Namespace' does not exist, creating it..." -ForegroundColor Yellow
     if (-not $DryRun) {
         kubectl create namespace $Namespace | Out-Null
     }
 }
 
-# ── Construir y ejecutar el comando kubectl ────────────────────────────────────
+# ── Build and run the kubectl command ─────────────────────────────────────────
 $kubectlArgs = @(
     "create", "secret", "generic", $SecretName,
     "-n", $Namespace,
     "--save-config",
-    "--dry-run=client",   # generamos el YAML
+    "--dry-run=client",   # renders the YAML only
     "-o", "yaml"
 ) + $literals
 
 Write-Host ""
-Write-Host "Creando/actualizando Secret '$SecretName' en namespace '$Namespace'..." -ForegroundColor Cyan
+Write-Host "Creating/updating Secret '$SecretName' in namespace '$Namespace'..." -ForegroundColor Cyan
 
 if ($DryRun) {
-    Write-Host "[DRY-RUN] Se habría ejecutado:" -ForegroundColor Yellow
-    Write-Host "  kubectl $($kubectlArgs -join ' ')" -ForegroundColor DarkGray
+    Write-Host "[DRY-RUN] Would have run:" -ForegroundColor Yellow
+    $masked = $kubectlArgs | ForEach-Object { $_ -replace '^(--from-literal=[^=]+)=.*$', '$1=***' }
+    Write-Host "  kubectl $($masked -join ' ')" -ForegroundColor DarkGray
 } else {
-    # Genera el YAML y lo aplica con kubectl apply (idempotente)
+    # Renders the YAML and pipes it to kubectl apply (idempotent)
     $yaml = kubectl @kubectlArgs
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Error generando el Secret."
+        Write-Error "Could not render the Secret."
         exit 1
     }
 
     $yaml | kubectl apply -f -
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Error aplicando el Secret."
+        Write-Error "Could not apply the Secret."
         exit 1
     }
 
-    Write-Host "✅ Secret '$SecretName' creado/actualizado correctamente." -ForegroundColor Green
+    Write-Host "[ok] Secret '$SecretName' created/updated." -ForegroundColor Green
 }
 
 Write-Host ""
-Write-Host "💡 Verifica con: kubectl get secret $SecretName -n $Namespace" -ForegroundColor DarkGray
+Write-Host "Check with: kubectl get secret $SecretName -n $Namespace" -ForegroundColor DarkGray

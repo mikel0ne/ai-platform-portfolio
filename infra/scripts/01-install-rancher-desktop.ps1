@@ -1,6 +1,6 @@
 # =============================================================================
 # 01-install-rancher-desktop.ps1
-# Instala Rancher Desktop con k3s en Windows via winget
+# Installs Rancher Desktop (k3s) on Windows through winget
 # =============================================================================
 
 Set-StrictMode -Version Latest
@@ -12,45 +12,45 @@ function Write-Warn { param($msg) Write-Host "    [!]  $msg" -ForegroundColor Ye
 function Write-Fail { param($msg) Write-Host "    [X]  $msg" -ForegroundColor Red }
 
 # -----------------------------------------------------------------------------
-# 1. Verificar requisitos
+# 1. Requirements
 # -----------------------------------------------------------------------------
-Write-Step "Verificando requisitos previos..."
+Write-Step "Checking requirements..."
 
 # winget
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Write-Fail "winget no encontrado. Instálalo desde https://aka.ms/getwinget"
+    Write-Fail "winget not found. Install it from https://aka.ms/getwinget"
     exit 1
 }
-Write-OK "winget disponible"
+Write-OK "winget available"
 
 # WSL2
 try {
     $wslStatus = (wsl --status 2>&1) -join ' '
-    Write-OK "WSL2 disponible"
+    Write-OK "WSL2 available"
 } catch {
-    Write-Warn "WSL2 no está instalado. Rancher Desktop lo instalará automáticamente durante su setup."
-    Write-Warn "Si la instalación falla, ejecuta manualmente: wsl --install"
+    Write-Warn "WSL2 is not installed. Rancher Desktop installs it during its setup."
+    Write-Warn "If the installation fails, run: wsl --install"
 }
 
-# RAM mínima (4 GB)
+# Minimum RAM (4 GB)
 $ramGB = [math]::Round((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB, 1)
 if ($ramGB -lt 4) {
-    Write-Fail "RAM insuficiente: ${ramGB} GB. Se requieren al menos 4 GB."
+    Write-Fail "Not enough RAM: ${ramGB} GB. At least 4 GB are required."
     exit 1
 }
-Write-OK "RAM disponible: ${ramGB} GB"
+Write-OK "Available RAM: ${ramGB} GB"
 
-# Comprobar si ya está instalado
+# Already installed?
 $existing = winget list --id SUSE.RancherDesktop 2>&1
 if ($existing -match "SUSE.RancherDesktop") {
-    Write-Warn "Rancher Desktop ya está instalado. Ejecuta winget upgrade SUSE.RancherDesktop para actualizar."
+    Write-Warn "Rancher Desktop is already installed. Run winget upgrade SUSE.RancherDesktop to upgrade."
     exit 0
 }
 
 # -----------------------------------------------------------------------------
-# 2. Instalar Rancher Desktop
+# 2. Install Rancher Desktop
 # -----------------------------------------------------------------------------
-Write-Step "Instalando Rancher Desktop..."
+Write-Step "Installing Rancher Desktop..."
 
 winget install --id SUSE.RancherDesktop `
     --accept-package-agreements `
@@ -58,30 +58,30 @@ winget install --id SUSE.RancherDesktop `
     --silent
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Fail "Error durante la instalación. Revisa los logs de winget."
+    Write-Fail "Installation failed. Check the winget logs."
     exit 1
 }
 
-Write-OK "Rancher Desktop instalado correctamente"
+Write-OK "Rancher Desktop installed"
 
 # -----------------------------------------------------------------------------
-# 3. Instrucciones post-instalación
+# 3. Post-install instructions
 # -----------------------------------------------------------------------------
-Write-Step "Pasos post-instalación (manuales)..."
+Write-Step "Post-install steps (manual)..."
 
 Write-Host @"
 
-    Rancher Desktop se ha instalado. La primera vez que lo abras:
+    Rancher Desktop is installed. The first time you open it:
 
-    1. Selecciona 'dockerd (moby)' como runtime de contenedores
-       (para compatibilidad con comandos docker)
-    2. Deja k3s activado (viene por defecto)
-    3. Espera a que el clúster arranque (~2 minutos la primera vez)
+    1. Choose 'dockerd (moby)' as container runtime
+       (for docker CLI compatibility)
+    2. Keep k3s enabled (the default)
+    3. Wait for the cluster to start (~2 minutes the first time)
 
-    Cuando esté listo, ejecuta el siguiente script (Git Bash):
+    Once it is ready, run the next script (Git Bash):
         ./infra/scripts/02-setup-registry.sh
 
 "@ -ForegroundColor White
 
-Write-Step "Verificando comandos disponibles tras reinicio de sesión..."
-Write-Warn "Puede ser necesario reiniciar el terminal para que kubectl, helm y docker estén en el PATH."
+Write-Step "Checking the available commands after a session restart..."
+Write-Warn "You may need to restart the terminal for kubectl, helm and docker to be on PATH."

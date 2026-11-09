@@ -1,23 +1,22 @@
 #!/usr/bin/env bash
 # =============================================================================
 # seed-l1-copilot-db.sh
-# Limpia (TRUNCATE) y recarga el seed de demo de la BD `l1_copilot`.
+# Truncates and reloads the demo seed of the `l1_copilot` database.
 #
-# El SQL en backend/src/main/resources/data-postgresql.sql ya hace
-# TRUNCATE tickets, TRUNCATE orders, DELETE users y luego INSERT — es
-# idempotente: se puede ejecutar tantas veces como haga falta.
+# backend/src/main/resources/data-postgresql.sql already truncates tickets and
+# orders, deletes users and inserts again, so it is idempotent and can be run
+# as often as needed.
 #
-# Requisitos:
-#   - Postgres compartido accesible desde el host (postgres.local:15432 por
-#     defecto, NodePort del Postgres del namespace `infra`).
-#   - psql en el PATH (instalación de PostgreSQL en Windows o paquete en WSL).
+# Requires:
+#   - The shared Postgres reachable from the host (postgres.local:15432 by
+#     default, NodePort of the Postgres in the `infra` namespace).
+#   - psql on PATH (PostgreSQL for Windows or the WSL package).
 #
-# Credenciales: el script carga `infra/.env.local` si existe
-# si existen (mismo patrón que las Run Configurations de IntelliJ con el plugin
-# EnvFile). El .env trae POSTGRES_USER/POSTGRES_PASSWORD (nombres Spring/K8s);
-# aquí se mapean a PGUSER/PGPASSWORD que es lo que entiende psql/libpq.
+# Credentials come from infra/.env.local when present: POSTGRES_USER and
+# POSTGRES_PASSWORD (the Spring/Kubernetes names) are mapped to PGUSER and
+# PGPASSWORD, which is what psql/libpq understands.
 #
-# Variables de entorno reconocidas (con fallbacks):
+# Environment variables (with defaults):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
 #   PGUSER      (default: POSTGRES_USER from infra/.env.local)
@@ -32,16 +31,15 @@ if [ -f "$ENV_FILE" ]; then
   set -a; source "$ENV_FILE"; set +a
 fi
 
-# Mapear nombres POSTGRES_* (Spring/K8s) → PG* (psql) si no se definieron PG* directamente
+# Map POSTGRES_* (Spring/Kubernetes) to PG* (psql) unless PG* are already set
 : "${PGUSER:=${POSTGRES_USER:?Define POSTGRES_USER in infra/.env.local}}"
 : "${PGPASSWORD:=${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in infra/.env.local}}"
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
 : "${PGDATABASE:=l1_copilot}"
-# psql nativo de Windows toma el client_encoding del codepage ANSI del sistema
-# si no se fija explícitamente, y reinterpreta el UTF-8 del .sql como Latin1
-# al insertar (mojibake: "García" -> "GarcÃ­a"). Forzar UTF8 evita el problema
-# sea cual sea el codepage de la consola desde la que se invoque el script.
+# Native Windows psql takes client_encoding from the ANSI codepage unless it is set,
+# and reads the UTF-8 SQL as Latin1 ("García" -> "GarcÃ­a"). Forcing UTF8 avoids it
+# whatever the codepage of the calling console.
 PGCLIENTENCODING=UTF8
 export PGHOST PGPORT PGUSER PGDATABASE PGPASSWORD PGCLIENTENCODING
 
@@ -51,11 +49,11 @@ step()  { echo -e "\n==> $*"; }
 ok()    { echo "    [ok] $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
-command -v psql >/dev/null 2>&1 || fail "psql no encontrado en el PATH."
-[ -f "$SEED_FILE" ] || fail "No se encuentra $SEED_FILE (¿estás en la raíz del repo?)."
+command -v psql >/dev/null 2>&1 || fail "psql not found on PATH."
+[ -f "$SEED_FILE" ] || fail "$SEED_FILE not found (are you at the repo root?)."
 
-step "Recargando seed en $PGDATABASE@$PGHOST:$PGPORT"
+step "Reloading the seed into $PGDATABASE@$PGHOST:$PGPORT"
 psql -v ON_ERROR_STOP=1 -f "$SEED_FILE"
 
 ROWS=$(psql -tAc "SELECT COUNT(*) FROM orders;")
-ok "Seed cargado — $ROWS pedidos en la tabla orders"
+ok "Seed loaded: $ROWS orders in table orders"
