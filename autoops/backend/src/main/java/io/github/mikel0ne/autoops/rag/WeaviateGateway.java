@@ -87,6 +87,8 @@ public class WeaviateGateway implements DocRetriever {
 
     private static final Duration RATE_LIMIT_PAUSE = Duration.ofSeconds(60);
 
+    private static final int MAX_RATE_LIMIT_RETRIES = 10;
+
     public int ingest(List<Chunk> chunks) {
         if (chunks.isEmpty()) {
             return 0;
@@ -96,7 +98,7 @@ public class WeaviateGateway implements DocRetriever {
 
         for (Chunk c : chunks) {
             Embedding embedding = embedWithRetry(embedder, c.text());
-            insertWithRetry(c, embedding);
+            insert(c, embedding);
             ingested++;
         }
 
@@ -105,58 +107,46 @@ public class WeaviateGateway implements DocRetriever {
     }
 
     private Embedding embedWithRetry(EmbeddingModel embedder, String text) {
-        while (true) {
+        for (int attempt = 1; ; attempt++) {
             try {
                 return embedder.embed(TextSegment.from(text)).content();
-            } catch (Exception e) {
-                if (isRateLimited(e)) {
-                    log.warn("429 on embedding (Gemini rate limit), retrying in 60s");
-                    sleepSeconds(RATE_LIMIT_PAUSE.getSeconds());
-                } else {
+            } catch (RuntimeException e) {
+                if (!isRateLimited(e) || attempt > MAX_RATE_LIMIT_RETRIES) {
                     throw e;
                 }
+                log.warn("429 on embedding (Gemini rate limit), retry {}/{} in {}s",
+                        attempt, MAX_RATE_LIMIT_RETRIES, RATE_LIMIT_PAUSE.getSeconds());
+                sleepSeconds(RATE_LIMIT_PAUSE.getSeconds());
             }
         }
     }
 
-    private void insertWithRetry(Chunk c, Embedding embedding) {
-        while (true) {
-            try {
-                Map<String, Object> properties = new LinkedHashMap<>();
-                properties.put("text", c.text());
-                properties.put("title", c.title());
-                properties.put("source", c.source());
-                properties.put("section", c.section());
-                properties.put("url", c.url());
-                properties.put("origin", c.origin());
-                properties.put("docId", c.docId());
-                properties.put("hash", c.hash());
-                properties.put("order", c.order());
-                properties.put("sectionChars", c.sectionChars());
+    private void insert(Chunk c, Embedding embedding) {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("text", c.text());
+        properties.put("title", c.title());
+        properties.put("source", c.source());
+        properties.put("section", c.section());
+        properties.put("url", c.url());
+        properties.put("origin", c.origin());
+        properties.put("docId", c.docId());
+        properties.put("hash", c.hash());
+        properties.put("order", c.order());
+        properties.put("sectionChars", c.sectionChars());
 
-                WeaviateObject obj = WeaviateObject.builder()
-                        .className(props.className())
-                        .properties(properties)
-                        .vector(toFloatArray(embedding))
-                        .build();
+        WeaviateObject obj = WeaviateObject.builder()
+                .className(props.className())
+                .properties(properties)
+                .vector(toFloatArray(embedding))
+                .build();
 
-                Result<?> result = client.batch().objectsBatcher()
-                        .withObjects(obj)
-                        .run();
-                failOnError("insertando chunk " + c.docId(), result);
-                return;
-            } catch (Exception e) {
-                if (isRateLimited(e)) {
-                    log.warn("429 on insert (Gemini rate limit), retrying in 60s");
-                    sleepSeconds(RATE_LIMIT_PAUSE.getSeconds());
-                } else {
-                    throw e;
-                }
-            }
-        }
+        Result<?> result = client.batch().objectsBatcher()
+                .withObjects(obj)
+                .run();
+        failOnError("inserting chunk " + c.docId(), result);
     }
 
-    private static boolean isRateLimited(Exception e) {
+    private static boolean isRateLimited(RuntimeException e) {
         String msg = e.getMessage();
         return msg != null && (msg.contains("429") || msg.contains("RESOURCE_EXHAUSTED") || msg.contains("rate limit"));
     }

@@ -73,6 +73,9 @@ secretEnv:
   - name: WIKIJS_API_KEY
     secretName: wikijs-ingestion-secret
     secretKey: WIKIJS_API_KEY
+  - name: AUTOOPS_ADMIN_TOKEN
+    secretName: autoops-admin-secret
+    secretKey: AUTOOPS_ADMIN_TOKEN
 
 # ServiceAccount de SOLO LECTURA para las tools K8s (lo crea infra/rbac-autoops.yaml,
 # aplicado por deploy.sh junto al ClusterRole/ClusterRoleBinding). create:false porque

@@ -20,7 +20,12 @@ set -euo pipefail
 NS="autoops"
 SVC="autoops-backend-generic-app"
 LOCAL_PORT="18080"
-GIT_REPO_URL="https://github.com/mikel0ne/langchain.git"
+GIT_REPO_URL="${GIT_REPO_URL:-https://github.com/mikel0ne/ai-platform-portfolio.git}"
+ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env.local"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a; source "$ENV_FILE"; set +a
+fi
+: "${AUTOOPS_ADMIN_TOKEN:?Define AUTOOPS_ADMIN_TOKEN in infra/.env.local (see infra/.env.local.example)}"
 RESET="false"
 [[ "${1:-}" == "--reset" ]] && RESET="true"
 
@@ -40,12 +45,12 @@ sleep 3
 
 if [[ "$RESET" == "true" ]]; then
   step "Vaciando la base vectorial..."
-  curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/vectorstore/drop" && echo
+  curl -fsS -X POST -H "X-Admin-Token: ${AUTOOPS_ADMIN_TOKEN}" "http://localhost:${LOCAL_PORT}/admin/vectorstore/drop" && echo
   ok "Base vectorial vaciada"
 fi
 
 step "Ingestando repo Git (${GIT_REPO_URL}, rama por defecto)..."
-curl -fsS -X POST "http://localhost:${LOCAL_PORT}/admin/ingest/git?url=${GIT_REPO_URL}" \
+curl -fsS -X POST -H "X-Admin-Token: ${AUTOOPS_ADMIN_TOKEN}" "http://localhost:${LOCAL_PORT}/admin/ingest/git?url=${GIT_REPO_URL}" \
   -H 'Content-Type: application/json' \
   && echo
 ok "Repo Git ingestado"

@@ -60,7 +60,7 @@ kubectl port-forward svc/autoops-backend-generic-app 8080:8080 -n autoops
 # En otra terminal:
 curl -X POST "http://localhost:8080/admin/vectorstore/drop"          # solo si quieres partir de cero
 curl -X POST "http://localhost:8080/admin/ingest"                    # corpus local (+ Wiki.js si está activo)
-curl -X POST "http://localhost:8080/admin/ingest/git?url=https://github.com/mikel0ne/langchain.git"
+curl -X POST -H "X-Admin-Token: $AUTOOPS_ADMIN_TOKEN" "http://localhost:8080/admin/ingest/git?url=https://github.com/mikel0ne/ai-platform-portfolio.git"
 # → { "url": "...", "branch": "main", "chunks": 142 }   (la rama se detecta sola si no se indica)
 ```
 
