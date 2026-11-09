@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [autoops, l1-copilot]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - run: ./mvnw -B verify
+      - if: matrix.project == 'l1-copilot'
+        run: ./mvnw -B test -Psecurity
+
+  frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [autoops, l1-copilot]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}/frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npx ng test --watch=false --browsers=ChromeHeadless
