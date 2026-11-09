@@ -4,7 +4,7 @@
 /dist
 /tmp
 
-# Copiado por infra/scripts/deploy.sh antes del docker build (fuente: docker/frontend-nginx.conf)
+# Copied by infra/scripts/deploy.sh before docker build (source: docker/frontend-nginx.conf)
 /nginx.conf
 /out-tsc
 /bazel-out
