@@ -1,22 +1,22 @@
 # =============================================================================
-# values-frontend.yaml — Plantilla para frontends Angular / React servidos por nginx
+# values-frontend.yaml: template for Angular / React frontends served by nginx
 # =============================================================================
-# Uso:
+# Usage:
 #   helm upgrade --install my-frontend infra/charts/generic-app \
 #     -f infra/charts/generic-app/values-examples/values-frontend.yaml \
 #     --set image.repository=my-frontend \
 #     --set image.tag=1.0.0
 # =============================================================================
-# Diferencias respecto al backend Java:
-#   - Sin ConfigMap ni Secrets (los frontends no deben tener variables sensibles;
-#     la config se embebe en build-time o se sirve desde /assets/config.json)
-#   - Puerto 80 (nginx) — o 8080 con nginxinc/nginx-unprivileged para runAsNonRoot
-#   - Probes apuntan a "/" (página raíz)
-#   - Recursos mucho más bajos
-#   - RollingUpdate siempre (sin estado en memoria)
+# Differences from the Java backend:
+#   - No ConfigMap or Secrets (frontends must not hold sensitive values;
+#     config is baked in at build time or served from /assets/config.json)
+#   - Port 80 (nginx), or 8080 with nginxinc/nginx-unprivileged for runAsNonRoot
+#   - Probes hit "/" (the root page)
+#   - Much lower resources
+#   - Always RollingUpdate (no in-memory state)
 # =============================================================================
 
-namespace: default   # cambiar por el namespace de tu proyecto
+namespace: default   # your project's namespace
 
 image:
   repository: my-frontend
@@ -29,7 +29,7 @@ strategy:
   type: RollingUpdate
 
 container:
-  port: 80      # usa 8080 si la imagen es nginxinc/nginx-unprivileged (recomendado para runAsNonRoot)
+  port: 80      # 8080 with nginxinc/nginx-unprivileged (recommended for runAsNonRoot)
   portName: http
 
 service:
@@ -37,9 +37,9 @@ service:
   port: 80
 
 configmap:
-  enabled: false   # frontends no tienen config en servidor; la config va embebida en el build
+  enabled: false   # no server-side config: it is baked into the build
 
-secretEnv: []      # los frontends no deben manejar secretos en runtime
+secretEnv: []      # frontends must not handle secrets at runtime
 
 probes:
   readiness:
@@ -69,11 +69,11 @@ resources:
 
 securityContext:
   allowPrivilegeEscalation: false
-  runAsNonRoot: false   # nginx:alpine corre como root; usa nginx-unprivileged para true
+  runAsNonRoot: false   # nginx:alpine runs as root; use nginx-unprivileged to set true
 
-# Ingress: el frontend normalmente sirve "/" y el backend sirve "/api"
-# Ambos pueden compartir el mismo host en el Ingress del backend usando ingressExtraPaths,
-# o puedes activar el Ingress aquí solo para el frontend.
+# Ingress: the frontend usually serves "/" and the backend "/api". Both can share
+# the backend's Ingress host through ingressExtraPaths, or the frontend can enable
+# its own Ingress here.
 # ingress:
 #   enabled: true
 #   className: nginx

@@ -1,17 +1,17 @@
 # =============================================================================
-# loki-stack-values.yaml — valores del chart grafana/loki-stack
+# loki-stack-values.yaml: values for the grafana/loki-stack chart
 # =============================================================================
-# Stack de logs COMPARTIDO del clúster (ns `observability`). Recoge los logs de
-# TODOS los namespaces (autoops, l1-copilot, infra…) vía Promtail (DaemonSet).
-# Ligero, pensado para Rancher Desktop local.
+# SHARED log stack of the cluster (ns `observability`). It collects the logs of
+# ALL namespaces (autoops, l1-copilot, infra...) through Promtail (DaemonSet).
+# Lightweight, sized for a local Rancher Desktop.
 #
-# Lo instala infra/scripts/07-setup-observability.sh:
-#   helm upgrade --install loki grafana/loki-stack -n observability -f <este fichero>
+# Installed by infra/scripts/07-setup-observability.sh:
+#   helm upgrade --install loki grafana/loki-stack -n observability -f <this file>
 #
-# Componentes:
-#   loki      — almacén de logs (single-binary)
-#   promtail  — DaemonSet que tailea /var/log/pods de cada nodo → loki
-#   grafana   — UI + datasource Loki ya preconfigurado
+# Components:
+#   loki      - log store (single binary)
+#   promtail  - DaemonSet tailing /var/log/pods on each node -> loki
+#   grafana   - UI with the Loki datasource preconfigured
 # =============================================================================
 
 loki:
@@ -19,11 +19,11 @@ loki:
   persistence:
     enabled: true
     size: 5Gi
-  # Retención corta: es un entorno local de portfolio.
+  # Short retention: a local portfolio environment.
   config:
     table_manager:
       retention_deletes_enabled: true
-      retention_period: 168h   # 7 días
+      retention_period: 168h   # 7 days
   resources:
     requests: { cpu: 100m, memory: 256Mi }
     limits:   { memory: 512Mi }
@@ -34,34 +34,33 @@ promtail:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { memory: 256Mi }
 
-  # Pipeline adicional para los namespaces de las aplicaciones.
-  # Se ejecuta DESPUÉS de la etapa CRI (que extrae el log crudo del pod).
-  # Solo los pods de autoops y l1-copilot emiten JSON; el resto del clúster
-  # sigue con texto plano sin que esta config les afecte (el match actúa de guarda).
+  # Extra pipeline for the application namespaces, run AFTER the CRI stage (which
+  # extracts the raw pod log). Only the autoops and l1-copilot pods emit JSON; the
+  # match acts as a guard so the rest of the cluster keeps plain text.
   config:
     snippets:
       pipelineStages:
-        # 1. Parsear el formato de log de contenedor (CRI/Docker) → campo 'log'
+        # 1. Parse the container log format (CRI/Docker) -> field 'log'
         - cri: {}
 
-        # 2. Solo para nuestros namespaces: parsear el JSON que emiten los pods
-        #    de backend (logstash-logback-encoder) y frontend (nginx json_access).
+        # 2. Our namespaces only: parse the JSON emitted by the backend pods
+        #    (logstash-logback-encoder) and frontend pods (nginx json_access).
         - match:
             selector: '{namespace=~"autoops|l1-copilot"}'
             stages:
-              # Extraer campos del JSON al mapa de datos del pipeline
+              # Extract the JSON fields into the pipeline data map
               - json:
                   expressions:
                     level:   level
                     service: service
                     message: message
-              # Promover level y service a etiquetas Loki para poder filtrar
-              # en Grafana con: {namespace="autoops", level="ERROR"}
+              # Promote level and service to Loki labels so Grafana can filter
+              # with: {namespace="autoops", level="ERROR"}
               - labels:
                   level:
                   service:
-              # Usar el campo 'message' como contenido del log si existe
-              # (evita que Grafana muestre el JSON crudo completo en el listado)
+              # Use 'message' as the log line when present
+              # (so Grafana does not list the whole raw JSON)
               - output:
                   source: message
 
@@ -69,7 +68,7 @@ grafana:
   enabled: true
   # adminPassword is passed by 07-setup-observability.sh from GRAFANA_ADMIN_PASSWORD (infra/.env.local).
   adminUser: admin
-  # El Ingress lo monta infra/observability/grafana-ingress.yaml (Traefik).
+  # The Ingress comes from infra/observability/grafana-ingress.yaml (Traefik).
   ingress:
     enabled: false
   persistence:
@@ -78,8 +77,8 @@ grafana:
   resources:
     requests: { cpu: 50m, memory: 128Mi }
     limits:   { memory: 256Mi }
-  # loki-stack añade automáticamente el datasource Loki apuntando al Service interno.
+  # loki-stack adds the Loki datasource pointing at the internal Service.
 
-# Prometheus va aparte; aquí solo logs.
+# Prometheus is out of scope here: logs only.
 prometheus:
   enabled: false

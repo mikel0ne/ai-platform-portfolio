@@ -1,25 +1,25 @@
 # =============================================================================
-# values-java.yaml — Plantilla para backends Java / Spring Boot
+# values-java.yaml: template for Java / Spring Boot backends
 # =============================================================================
-# Uso:
+# Usage:
 #   helm upgrade --install my-backend infra/charts/generic-app \
 #     -f infra/charts/generic-app/values-examples/values-java.yaml \
 #     --set image.repository=my-backend \
 #     --set image.tag=1.0.0
 # =============================================================================
 
-namespace: default   # cambiar por el namespace de tu proyecto
+namespace: default   # your project's namespace
 
 image:
-  repository: my-backend   # imagen construida localmente o en registry
+  repository: my-backend   # image built locally or pushed to a registry
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 
 replicaCount: 1
 
 strategy:
-  # RollingUpdate: K8s arranca el nuevo pod, espera readiness, luego mata el viejo.
-  # Cambia a Recreate SOLO si la app guarda estado conversacional en memoria (ej: LangGraph MemorySaver).
+  # RollingUpdate: Kubernetes starts the new pod, waits for readiness, then stops the old one.
+  # Switch to Recreate ONLY when the app keeps conversation state in memory (e.g. a LangGraph MemorySaver).
   type: RollingUpdate
 
 container:
@@ -30,7 +30,7 @@ service:
   type: ClusterIP
   port: 8080
 
-# Variables de entorno no sensibles (irán en un ConfigMap)
+# Non-sensitive environment variables (go into a ConfigMap)
 configmap:
   enabled: true
   data:
@@ -38,8 +38,8 @@ configmap:
     SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/mydb"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
-# Variables sensibles — el chart las referencia pero NO crea los Secrets.
-# Créalos antes con: .\scripts\create-secrets.ps1  o con kubectl directamente.
+# Sensitive variables: the chart references the Secrets but never creates them.
+# Create them first with infra/scripts/create-secrets.ps1 or kubectl.
 secretEnv:
   - name: DB_PASSWORD
     secretName: my-backend-secrets
@@ -78,7 +78,7 @@ securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
 
-# Ingress: descomenta y ajusta si necesitas acceso externo
+# Ingress: uncomment and adjust when external access is needed
 # ingress:
 #   enabled: true
 #   className: nginx
@@ -89,7 +89,7 @@ securityContext:
 #     - path: /actuator/health
 #       pathType: Prefix
 
-# HPA: descomenta cuando la app sea stateless y pueda escalar
+# HPA: uncomment once the app is stateless and can scale
 # hpa:
 #   enabled: true
 #   minReplicas: 1

@@ -401,7 +401,7 @@ Un único script bash **genérico** orquesta el ciclo completo (namespace → RB
 Run configs equivalentes en IntelliJ (`.run/`), todas vía `run-sh-gitbash.cmd`:
 - **autoops · Deploy Backend / Frontend / All** → `deploy.sh --project autoops --component …`
 - **autoops · Setup Ingress** → `setup-app-ingress.sh --project autoops`
-- **autoops · Ingesta corpus** → `ingest-autoops.sh`
+- **autoops · RAG ingestion** → `ingest-autoops.sh`
 - **l1-copilot · Deploy Backend / Frontend** → `deploy.sh --project l1-copilot --component …`
 - **infra · Setup Weaviate / Setup Observability** → `06-…` / `07-…`
 - **autoops · Backend / Frontend** y **l1-copilot · Backend / Frontend / …** → run de desarrollo local (mvn/ng).

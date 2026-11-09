@@ -1,12 +1,12 @@
 # =============================================================================
-# reranker.yaml — módulo reranker-transformers de Weaviate (namespace `infra`)
+# reranker.yaml: Weaviate reranker-transformers module (namespace `infra`)
 # =============================================================================
-# Cross-encoder que reordena por relevancia los resultados de la búsqueda híbrida.
-# El código de AutoOps (WeaviateGateway) usa rerank de forma nativa en la query
-# (_additional { rerank ... }), así que ESTE módulo es necesario para el /search.
+# Cross-encoder that reorders hybrid search results by relevance. AutoOps
+# (WeaviateGateway) asks for the rerank natively in the query
+# (_additional { rerank ... }), so this module is required by search.
 #
-# Lo aplica infra/scripts/06-setup-weaviate.sh junto con weaviate.yaml.
-# Weaviate lo descubre vía RERANKER_INFERENCE_API (ver weaviate.yaml).
+# Applied by infra/scripts/06-setup-weaviate.sh together with weaviate.yaml;
+# Weaviate finds it through RERANKER_INFERENCE_API (see weaviate.yaml).
 # =============================================================================
 apiVersion: apps/v1
 kind: Deployment
@@ -36,8 +36,8 @@ spec:
             - { name: ENABLE_CUDA, value: "0" }
           resources:
             requests: { cpu: 250m, memory: 768Mi }
-            # 1Gi se quedaba corto al reordenar resultados del corpus ampliado (557 chunks,
-            # ventanas de texto más largas): OOMKilled en la primera búsqueda real tras el reindex.
+            # 1Gi was too little for reranking the larger corpus (557 chunks, longer
+            # texts): OOMKilled on the first real search after reindexing.
             limits:   { memory: 2Gi }
           readinessProbe:
             httpGet: { path: /.well-known/ready, port: 8080 }

@@ -1,58 +1,44 @@
 # =============================================================================
-# generic-app — values.yaml
+# generic-app: default values (the full contract of the chart)
 # =============================================================================
-# Copia este fichero a tu proyecto como values-<nombre>.yaml y sobreescribe
-# solo lo que necesites. Ver values-examples/ para plantillas listas para usar.
+# Each app keeps its own infra/values-<project>-<component>.yaml and overrides
+# only what it needs. See values-examples/ for ready-made templates.
 # =============================================================================
 
-# -- Sobreescribe el nombre del chart (afecta a los labels y nombres de recurso)
+# -- Overrides the chart name (affects labels and resource names)
 nameOverride: ""
-# -- Sobreescribe el nombre completo (release-name + chart). Úsalo para nombres exactos.
+# -- Overrides the full name (release name + chart) when an exact name is needed
 fullnameOverride: ""
 
-# -- Namespace donde se despliega la aplicación
 namespace: default
 
-# -----------------------------------------------------------------------------
-# Imagen
-# -----------------------------------------------------------------------------
 image:
   repository: my-app
   tag: latest
   pullPolicy: IfNotPresent
 
-# -----------------------------------------------------------------------------
-# Réplicas y estrategia de despliegue
-# -----------------------------------------------------------------------------
 replicaCount: 1
 
 strategy:
-  # RollingUpdate (por defecto) o Recreate.
-  # Usa Recreate si la app tiene estado conversacional en memoria (ej: LangGraph MemorySaver).
+  # RollingUpdate (default) or Recreate. Use Recreate when the app keeps conversation
+  # state in memory (e.g. a LangGraph MemorySaver), so two pods never coexist.
   type: RollingUpdate
-  # rollingUpdate:       # opcional, solo aplica si type=RollingUpdate
+  # rollingUpdate:       # only applies to RollingUpdate
   #   maxSurge: 1
   #   maxUnavailable: 0
 
-# -----------------------------------------------------------------------------
-# Puerto del contenedor
-# -----------------------------------------------------------------------------
 container:
   port: 8080
   portName: http
 
-# -----------------------------------------------------------------------------
-# Service
-# -----------------------------------------------------------------------------
 service:
   type: ClusterIP
   port: 8080
-  # targetPort usa el portName del contenedor por defecto ("http")
+  # targetPort defaults to the container portName ("http")
 
 # -----------------------------------------------------------------------------
-# ConfigMap propio del chart (variables de entorno no sensibles)
-# Si enabled=true, se crea un ConfigMap con el nombre del release y se monta
-# automáticamente como envFrom en el Deployment.
+# Chart-owned ConfigMap (non-sensitive env vars). When enabled it is named after
+# the release and mounted as envFrom in the Deployment.
 # -----------------------------------------------------------------------------
 configmap:
   enabled: false
@@ -62,29 +48,23 @@ configmap:
   #   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/mydb"
   #   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
-# -- ConfigMaps externos ya existentes en el cluster para montar como envFrom
+# -- Existing ConfigMaps in the cluster to mount as envFrom
 envFrom:
   configMaps: []
   # - name: shared-config
 
-# -----------------------------------------------------------------------------
-# Variables de entorno
-# -----------------------------------------------------------------------------
-# -- Vars planas no sensibles (env[].name + env[].value)
+# -- Plain, non-sensitive env vars
 env: []
 # - name: TZ
 #   value: "Europe/Madrid"
 
-# -- Vars desde Secrets externos (creados con kubectl o script, NUNCA en el chart).
-# El chart referencia los Secrets pero NO los crea. Ver NOTES.txt y infra/scripts/create-secrets.ps1.
+# -- Env vars from external Secrets. The chart references Secrets but never creates
+# them (deploy.sh syncs them from infra/.env.local; see NOTES.txt).
 secretEnv: []
-# - name: MY_API_KEY          # nombre de la env var en el contenedor
-#   secretName: my-secret     # nombre del Secret en K8s
-#   secretKey: MY_API_KEY     # clave dentro del Secret
+# - name: MY_API_KEY          # env var name in the container
+#   secretName: my-secret     # Kubernetes Secret name
+#   secretKey: MY_API_KEY     # key inside the Secret
 
-# -----------------------------------------------------------------------------
-# Probes
-# -----------------------------------------------------------------------------
 probes:
   readiness:
     enabled: true
@@ -103,9 +83,6 @@ probes:
     periodSeconds: 15
     failureThreshold: 3
 
-# -----------------------------------------------------------------------------
-# Recursos
-# -----------------------------------------------------------------------------
 resources:
   requests:
     memory: 64Mi
@@ -114,22 +91,15 @@ resources:
     memory: 128Mi
     cpu: 200m
 
-# -----------------------------------------------------------------------------
-# Security context del contenedor
-# -----------------------------------------------------------------------------
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
 
-# Security context del pod (opcional)
 podSecurityContext: {}
 # podSecurityContext:
 #   fsGroup: 1000
 #   runAsUser: 1000
 
-# -----------------------------------------------------------------------------
-# Ingress (desactivado por defecto)
-# -----------------------------------------------------------------------------
 ingress:
   enabled: false
   className: nginx
@@ -137,24 +107,21 @@ ingress:
   tls:
     enabled: false
     secretName: ""
-  # Rutas hacia este servicio. Si vacío, se genera una ruta "/" automáticamente.
+  # Paths routed to this service; empty means a single "/" path.
   paths: []
   # - path: /api
   #   pathType: Prefix
   # - path: /actuator/health
   #   pathType: Prefix
 
-# -- Rutas extra hacia otros servicios (para Ingress compartidos entre apps)
+# -- Extra paths to other services (for an Ingress shared between apps)
 ingressExtraPaths: []
 # - path: /
 #   pathType: Prefix
 #   serviceName: frontend
 #   servicePort: http
 
-# -----------------------------------------------------------------------------
-# HorizontalPodAutoscaler (desactivado por defecto)
-# IMPORTANTE: no uses HPA con strategy.type=Recreate ni con estado en memoria.
-# -----------------------------------------------------------------------------
+# Never combine the HPA with strategy.type=Recreate or with in-memory state.
 hpa:
   enabled: false
   minReplicas: 1
@@ -162,17 +129,11 @@ hpa:
   targetCPUUtilizationPercentage: 70
   # targetMemoryUtilizationPercentage: 80
 
-# -----------------------------------------------------------------------------
-# ServiceAccount (desactivado por defecto)
-# -----------------------------------------------------------------------------
 serviceAccount:
   create: false
   name: ""
   annotations: {}
 
-# -----------------------------------------------------------------------------
-# Anotaciones y labels extra
-# -----------------------------------------------------------------------------
 podAnnotations: {}
 podLabels: {}
 deploymentAnnotations: {}

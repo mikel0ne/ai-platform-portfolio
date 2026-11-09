@@ -1,10 +1,10 @@
 # =============================================================================
-# values-autoops-frontend.yaml — Frontend Angular del AutoOps MCP
+# values-autoops-frontend.yaml: AutoOps Angular frontend
 # Chart: infra/charts/generic-app
 # =============================================================================
-# SPA Angular servida por nginx. Llama a POST /search del backend; el routing
-# /search · /mcp · /actuator → backend lo hace el Ingress (setup-app-ingress.sh).
-# Despliegue:
+# Angular SPA served by nginx. It calls POST /search; the Ingress routes
+# /search, /mcp and /actuator to the backend (setup-app-ingress.sh).
+# Deploy:
 #   ./infra/scripts/deploy.sh --project autoops --component frontend --tag 0.1.0
 # =============================================================================
 
@@ -21,14 +21,14 @@ strategy:
   type: RollingUpdate
 
 container:
-  port: 80           # nginx:alpine; usar 8080 con nginx-unprivileged para runAsNonRoot
+  port: 80           # nginx:alpine; 8080 with nginx-unprivileged for runAsNonRoot
   portName: http
 
 service:
   type: ClusterIP
   port: 80
 
-# Config embebida en el build Angular: sin ConfigMap ni Secrets.
+# Config is baked into the Angular build: no ConfigMap or Secrets.
 configmap:
   enabled: false
 secretEnv: []
@@ -61,8 +61,8 @@ resources:
 
 securityContext:
   allowPrivilegeEscalation: false
-  runAsNonRoot: false   # nginx:alpine corre como root; usar nginx-unprivileged para true
+  runAsNonRoot: false   # nginx:alpine runs as root; use nginx-unprivileged to set true
 
-# El Ingress lo monta setup-app-ingress.sh --project autoops (ruta "/" → este Service).
+# The Ingress is created by setup-app-ingress.sh --project autoops ("/" -> this Service).
 ingress:
   enabled: false

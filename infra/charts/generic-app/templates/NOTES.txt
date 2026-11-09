@@ -1,37 +1,37 @@
-✅ {{ include "generic-app.fullname" . }} desplegado en namespace "{{ .Values.namespace }}"
+{{ include "generic-app.fullname" . }} deployed to namespace "{{ .Values.namespace }}"
 
 Deployment:  {{ include "generic-app.fullname" . }}
 Service:     {{ include "generic-app.fullname" . }}:{{ .Values.service.port }}
 {{- if .Values.ingress.enabled }}
 Ingress:     http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
 {{- else }}
-Ingress:     desactivado (ingress.enabled=false)
+Ingress:     disabled (ingress.enabled=false)
 {{- end }}
 {{- if .Values.hpa.enabled }}
-HPA:         {{ .Values.hpa.minReplicas }}–{{ .Values.hpa.maxReplicas }} réplicas (CPU {{ .Values.hpa.targetCPUUtilizationPercentage }}%)
+HPA:         {{ .Values.hpa.minReplicas }}-{{ .Values.hpa.maxReplicas }} replicas (CPU {{ .Values.hpa.targetCPUUtilizationPercentage }}%)
 {{- end }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠  SECRETS — el chart NO los crea, debes crearlos antes
+SECRETS: the chart does not create them, they must exist beforehand
 
 {{- range .Values.secretEnv }}
   kubectl create secret generic {{ .secretName }} -n {{ $.Values.namespace }} \
     --from-literal={{ .secretKey }}=CHANGE_ME
 {{- else }}
-  (ningún secretEnv configurado en este release)
+  (no secretEnv configured in this release)
 {{- end }}
 
-O usa el script incluido en infra/scripts/:
+Or use the script in infra/scripts/:
   .\infra\scripts\create-secrets.ps1 -Namespace {{ .Values.namespace }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Comandos útiles:
+Useful commands:
 
-  # Ver pods
+  # Pods
   kubectl get pods -n {{ .Values.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
 
   # Logs
   kubectl logs -n {{ .Values.namespace }} -l app.kubernetes.io/instance={{ .Release.Name }} -f
 
-  # Port-forward local (sin Ingress)
+  # Local port-forward (without Ingress)
   kubectl port-forward -n {{ .Values.namespace }} svc/{{ include "generic-app.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}

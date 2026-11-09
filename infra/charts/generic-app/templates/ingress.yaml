@@ -18,7 +18,7 @@ spec:
     - host: {{ .Values.ingress.host | quote }}
       http:
         paths:
-          {{- /* Rutas de este servicio */}}
+          {{- /* Paths of this service */}}
           {{- if .Values.ingress.paths }}
           {{- range .Values.ingress.paths }}
           - path: {{ .path }}
@@ -30,7 +30,7 @@ spec:
                   name: {{ $.Values.container.portName }}
           {{- end }}
           {{- else }}
-          {{- /* Ruta "/" por defecto si no se especifican rutas */}}
+          {{- /* Default "/" path when no paths are given */}}
           - path: /
             pathType: Prefix
             backend:
@@ -39,7 +39,7 @@ spec:
                 port:
                   name: {{ .Values.container.portName }}
           {{- end }}
-          {{- /* Rutas extra hacia otros servicios (p.ej. frontend en mismo Ingress) */}}
+          {{- /* Extra paths to other services (e.g. a frontend on the same Ingress) */}}
           {{- range .Values.ingressExtraPaths }}
           - path: {{ .path }}
             pathType: {{ .pathType | default "Prefix" }}

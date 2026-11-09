@@ -1,17 +1,13 @@
 # =============================================================================
-# values-l1-copilot-frontend.yaml — Frontend Angular del L1 Support Copilot
+# values-l1-copilot-frontend.yaml: L1 Support Copilot Angular frontend
 # Chart: infra/charts/generic-app
 # =============================================================================
-# Despliegue:
-#   docker build -t registry.local/l1-copilot-frontend:1.0.0 -f docker/frontend.Dockerfile ./l1-copilot/frontend
-#   docker push registry.local/l1-copilot-frontend:1.0.0
+# Deploy:
+#   ./infra/scripts/deploy.sh --project l1-copilot --component frontend
 #
-#   helm upgrade --install l1-copilot-frontend infra/charts/generic-app \
-#     -f infra/values-l1-copilot-frontend.yaml
-#
-# El Ingress lo gestiona infra/scripts/setup-app-ingress.sh --project l1-copilot
-# directamente con kubectl (no el chart); aquí Ingress queda desactivado para
-# evitar conflictos con el recurso manual.
+# The Ingress is managed by infra/scripts/setup-app-ingress.sh --project l1-copilot
+# with kubectl (not by the chart), so it stays disabled here to avoid clashing with
+# that resource.
 # =============================================================================
 
 namespace: l1-copilot
@@ -27,14 +23,14 @@ strategy:
   type: RollingUpdate
 
 container:
-  port: 80         # cambiar a 8080 si se usa nginxinc/nginx-unprivileged
+  port: 80         # 8080 with nginxinc/nginx-unprivileged
   portName: http
 
 service:
   type: ClusterIP
   port: 80
 
-# Frontend Angular: la config va embebida en el build, no hay ConfigMap/Secrets
+# Config is baked into the Angular build: no ConfigMap or Secrets
 configmap:
   enabled: false
 secretEnv: []
@@ -67,8 +63,8 @@ resources:
 
 securityContext:
   allowPrivilegeEscalation: false
-  runAsNonRoot: false   # nginx:alpine corre como root; usar nginx-unprivileged para true
+  runAsNonRoot: false   # nginx:alpine runs as root; use nginx-unprivileged to set true
 
-# Ingress lo gestiona infra/scripts/setup-app-ingress.sh --project l1-copilot
+# The Ingress is managed by infra/scripts/setup-app-ingress.sh --project l1-copilot
 ingress:
   enabled: false
