@@ -37,16 +37,15 @@ El contenedor es el mismo para cualquier entorno; todo lo variable entra por ent
 |---|---|---|
 | `SPRING_PROFILES_ACTIVE` | ConfigMap (del chart) | `prod` |
 | `SPRING_DATASOURCE_URL` | ConfigMap | `jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot` |
-| `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | Secret `postgres-credentials` (ns `l1-copilot`) | `appuser` / `change-me` |
+| `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | Secret `postgres-credentials` (ns `l1-copilot`) | `appuser` / `<POSTGRES_PASSWORD>` |
 | `GEMINI_API_KEY` | Secret `gemini-api-key` | — |
 | `langchain4j.gemini.model-name` | `application.yml` (no se sobrescribe en prod) | `gemini-3.1-flash-lite` |
 | `JAVA_TOOL_OPTIONS` | ConfigMap | `-XX:MaxRAMPercentage=75` |
 
-Los Secrets los sincroniza `deploy.sh` automáticamente desde `infra/.env.l1-copilot` +
-`infra/.env.local` (git-ignored, compartida por todos los proyectos del portfolio),
+Los Secrets los sincroniza `deploy.sh` automáticamente desde `infra/.env.local`
+(git-ignored, compartido por todos los proyectos del portfolio),
 según el mapeo `SECRETS_BACKEND` de `infra/projects/l1-copilot.env` (`gemini-api-key` ←
-`GEMINI_API_KEY`, `postgres-credentials` ← `POSTGRES_USER`/`POSTGRES_PASSWORD`, ya
-públicos en `infra/.env.l1-copilot`). Solo hay que rellenar el `.env.local` una vez
+`GEMINI_API_KEY`, `postgres-credentials` ← `POSTGRES_USER`/`POSTGRES_PASSWORD`). Solo hay que rellenar el `.env.local` una vez
 (key gratuita de Gemini en
 [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)). Ver guía 07.
 
@@ -60,11 +59,11 @@ kubectl create secret generic gemini-api-key -n l1-copilot \
 
 kubectl create secret generic postgres-credentials -n l1-copilot \
   --from-literal=POSTGRES_USER=appuser \
-  --from-literal=POSTGRES_PASSWORD=change-me
+  --from-literal=POSTGRES_PASSWORD=<POSTGRES_PASSWORD>
 ```
 
 > El password debe coincidir con el del Postgres compartido (lo fija
-> `03-setup-postgres.sh`; valor por defecto `change-me`).
+> `03-setup-postgres.sh`; valor por defecto `<POSTGRES_PASSWORD>`).
 
 ## 3. Desplegar
 

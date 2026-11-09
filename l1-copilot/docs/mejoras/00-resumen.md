@@ -88,12 +88,12 @@ Cada punto lleva dos etiquetas:
 **Estado:** COMPLETO. La contraseña se lee de variable de entorno con default explícito
 en `application-local.yml`.
 
-- **Qué era:** la contraseña de Postgres local (`change-me`) estaba escrita en un fichero
+- **Qué era:** la contraseña de Postgres local (`<POSTGRES_PASSWORD>`) estaba escrita en un fichero
   versionado.
 - **Por qué no estaba bien:** quedaba para siempre en el historial de git; rotarla obligaba a un
   commit; cualquiera que clone la veía. Era mala práctica aunque fuera solo "local".
 - **Cómo se solucionó:** se lee de variable de entorno con un default explícito
-  (`${SPRING_DATASOURCE_PASSWORD:change-me}` en `application-local.yml`; el perfil base
+  (`${SPRING_DATASOURCE_PASSWORD}` en `application-local.yml`; el perfil base
   `application.yml` usa `${SPRING_DATASOURCE_PASSWORD}` sin default).
 
 ### 2. Eliminar o sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅

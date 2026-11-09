@@ -38,11 +38,11 @@ ficha N. Cada ficha es autocontenida.
 
 ## #1 — Password local fuera del YAML 🟠 ⭐⭐⭐ · riesgo ~0 (config) ✅ DONE
 
-**Estado:** COMPLETADO. La contraseña se lee de `${SPRING_DATASOURCE_PASSWORD:change-me}`
+**Estado:** COMPLETADO. La contraseña se lee de `${SPRING_DATASOURCE_PASSWORD}`
 en `application-local.yml`.
 
-- **Qué se hizo**: se sustituyó el literal `password: change-me` por
-  `${SPRING_DATASOURCE_PASSWORD:change-me}` en
+- **Qué se hizo**: se sustituyó el literal `password: <POSTGRES_PASSWORD>` por
+  `${SPRING_DATASOURCE_PASSWORD}` en
   `backend/src/main/resources/application-local.yml` (el perfil base `application.yml` usa
   `${SPRING_DATASOURCE_PASSWORD}` sin default).
 - **Verificación**: `cd backend && mvn test` (no afecta a los tests: perfil `local` se usa solo

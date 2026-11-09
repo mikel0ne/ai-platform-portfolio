@@ -9,7 +9,7 @@
 #
 #   infra/values-<project>-backend.yaml      infra/values-<project>-frontend.yaml
 #   infra/namespace-<project>.yaml           infra/rbac-<project>.yaml (opcional)
-#   infra/.env.<project>  (+ .env.<project>.local, gitignored)
+#   infra/.env.local  (+ .env.<project>.local, both gitignored)
 #
 # Usa el chart genérico infra/charts/generic-app. Crea el namespace, aplica el
 # RBAC si existe, sincroniza los Secrets desde el .env y hace helm upgrade
@@ -94,7 +94,6 @@ readonly VALUES_BACKEND="${INFRA_DIR}/values-${PROJECT}-backend.yaml"
 readonly VALUES_FRONTEND="${INFRA_DIR}/values-${PROJECT}-frontend.yaml"
 readonly NAMESPACE_MANIFEST="${INFRA_DIR}/namespace-${PROJECT}.yaml"
 readonly RBAC_MANIFEST="${INFRA_DIR}/rbac-${PROJECT}.yaml"
-readonly ENV_SHARED="${INFRA_DIR}/.env.${PROJECT}"
 readonly ENV_LOCAL="${INFRA_DIR}/.env.${PROJECT}.local"
 
 # ── Validaciones previas ─────────────────────────────────────────────────────
@@ -113,28 +112,20 @@ if [[ "${UNINSTALL}" != "true" && ! "${COMPONENT}" =~ ^(backend|frontend|all)$ ]
 fi
 
 # ── Carga de variables de entorno ────────────────────────────────────────────
-# Orden (cada uno sobreescribe al anterior):
-#   1) .env.<project>        compartido versionado (placeholders, no sensible)
-#   2) .env.local            secretos COMPARTIDOS por todos los proyectos (gitignored)
-#                            → p.ej. una única GEMINI_API_KEY para todo el portfolio
-#   3) .env.<project>.local  overrides locales del proyecto (gitignored), opcional
+#   1) infra/.env.local            local secrets shared by every project (gitignored)
+#   2) infra/.env.<project>.local  optional per-project overrides (gitignored)
 readonly ENV_SHARED_LOCAL="${INFRA_DIR}/.env.local"
 load_env() {
-  [[ -f "${ENV_SHARED}" ]] || { err "No se encuentra ${ENV_SHARED}"; exit 1; }
+  if [[ ! -f "${ENV_SHARED_LOCAL}" ]]; then
+    err "Missing ${ENV_SHARED_LOCAL}: cp infra/.env.local.example infra/.env.local and fill it in"
+    exit 1
+  fi
   set -a
   # shellcheck disable=SC1090
-  source "${ENV_SHARED}"
-  if [[ -f "${ENV_SHARED_LOCAL}" ]]; then
-    # shellcheck disable=SC1090
-    source "${ENV_SHARED_LOCAL}"
-  fi
+  source "${ENV_SHARED_LOCAL}"
   if [[ -f "${ENV_LOCAL}" ]]; then
     # shellcheck disable=SC1090
     source "${ENV_LOCAL}"
-  fi
-  if [[ ! -f "${ENV_SHARED_LOCAL}" && ! -f "${ENV_LOCAL}" ]]; then
-    warn "No hay ${ENV_SHARED_LOCAL} ni ${ENV_LOCAL} — usando solo valores compartidos."
-    warn "Crea infra/.env.local con tu GEMINI_API_KEY (compartida por todos los proyectos)."
   fi
   set +a
 }
@@ -239,7 +230,7 @@ sync_one_secret() {
     literals+=("--from-literal=${key}=${value}")
   done
   if [[ ${missing} -eq 1 ]]; then
-    warn "  → Aplico el Secret con valores vacíos; rellénalos en .env.${PROJECT}.local"
+    warn "  → Aplico el Secret con valores vacíos; rellénalos en infra/.env.local"
   fi
 
   kubectl create secret generic "${secret_name}" \

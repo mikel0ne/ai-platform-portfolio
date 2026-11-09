@@ -17,15 +17,15 @@
 #     defecto, NodePort del Postgres del namespace `infra`).
 #   - psql en el PATH.
 #
-# Credenciales: el script carga `infra/.env.l1-copilot` + `infra/.env.l1-copilot.local`
+# Credenciales: el script carga `infra/.env.local` si existe
 # si existen (mismo patrón que las Run Configurations de IntelliJ con el plugin
 # EnvFile). POSTGRES_USER/POSTGRES_PASSWORD del .env se mapean a PGUSER/PGPASSWORD.
 #
 # Variables de entorno reconocidas (con fallbacks):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
-#   PGUSER      (default: POSTGRES_USER del .env, o appuser)
-#   PGPASSWORD  (default: POSTGRES_PASSWORD del .env, o change-me)
+#   PGUSER      (default: POSTGRES_USER from infra/.env.local)
+#   PGPASSWORD  (default: POSTGRES_PASSWORD from infra/.env.local, required)
 #   PROJECT_DB  (default: l1_copilot)
 #
 # Flags:
@@ -34,16 +34,14 @@
 
 set -euo pipefail
 
-# Cargar .env.l1-copilot (commiteado) y .env.l1-copilot.local (overrides) si existen
-for env_file in infra/.env.l1-copilot infra/.env.l1-copilot.local; do
-  if [ -f "$env_file" ]; then
-    set -a; source "$env_file"; set +a
-  fi
-done
+ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/infra/.env.local"
+if [ -f "$ENV_FILE" ]; then
+  set -a; source "$ENV_FILE"; set +a
+fi
 
 # Mapear nombres POSTGRES_* (Spring/K8s) → PG* (psql) si no se definieron PG* directamente
-: "${PGUSER:=${POSTGRES_USER:-appuser}}"
-: "${PGPASSWORD:=${POSTGRES_PASSWORD:-change-me}}"
+: "${PGUSER:=${POSTGRES_USER:?Define POSTGRES_USER in infra/.env.local}}"
+: "${PGPASSWORD:=${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in infra/.env.local}}"
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
 : "${PROJECT_DB:=l1_copilot}"

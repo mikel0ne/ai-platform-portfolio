@@ -9,7 +9,7 @@
 #     --from-literal=GEMINI_API_KEY=<tu-api-key>
 #   kubectl create secret generic postgres-credentials -n l1-copilot \
 #     --from-literal=POSTGRES_USER=appuser \
-#     --from-literal=POSTGRES_PASSWORD=change-me
+#     --from-literal=POSTGRES_PASSWORD=<password>
 #
 #   # 2) Build + push de la imagen al registry local (ver infra/INFRA.md):
 #   docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./l1-copilot/backend

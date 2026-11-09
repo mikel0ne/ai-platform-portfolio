@@ -47,7 +47,7 @@ graph TB
 | PostgreSQL 16 | [`infra/scripts/03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh) | namespace `infra`, NodePort `15432`. Opcional: `04-setup-postgres-ingress.sh` lo expone en `localhost:5432` |
 | BD del proyecto | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | crea `l1_copilot` dentro del Postgres compartido y aplica `schema-postgresql.sql` + `data-postgresql.sql` |
 | Backend / Frontend | [`infra/scripts/deploy.sh --project l1-copilot --component <c>`](../../infra/scripts/deploy.sh) (chart [`infra/charts/generic-app`](../../infra/charts/generic-app) + values en [`infra/values-l1-copilot-*.yaml`](../../infra)) | un único script + chart parametrizable; cada release es una app |
-| Secretos | `infra/.env.l1-copilot` + `.env.local` (los sincroniza `deploy.sh`); ver guía 07 | nunca en valores versionados |
+| Secretos | `infra/.env.local` (lo sincroniza `deploy.sh`); ver guía 07 | nunca en valores versionados |
 
 > **Réplicas del backend:** 1 réplica y `strategy: Recreate` mientras el checkpointer
 > del grafo sea `MemorySaver` (estado conversacional en memoria del pod). Documentado

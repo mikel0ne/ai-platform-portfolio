@@ -6,11 +6,7 @@
       <ENTRIES>
         <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
         <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
-               PATH="$PROJECT_DIR$/infra/.env.l1-copilot" />
-        <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
                PATH="$PROJECT_DIR$/infra/.env.local" />
-        <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false"
-               PATH="$PROJECT_DIR$/infra/.env.l1-copilot.local" />
       </ENTRIES>
     </extension>
     <envs>

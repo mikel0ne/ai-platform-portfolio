@@ -7,7 +7,7 @@ el repo jamás.**
 
 | Dato | Sensible | Dónde vive | Quién lo consume |
 |---|---|---|---|
-| `GEMINI_API_KEY` | 🔴 sí | Secret `gemini-api-key` en `l1-copilot` (lo sincroniza `deploy.sh` desde `.env.l1-copilot` + `.env.local`) | backend |
+| `GEMINI_API_KEY` | 🔴 sí | Secret `gemini-api-key` en `l1-copilot` (lo sincroniza `deploy.sh` desde `infra/.env.local`) | backend |
 | Password de Postgres compartido | 🔴 sí | Secret `postgres-credentials` en `infra` (lo crea [`03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh)) + Secret `postgres-credentials` en `l1-copilot` (lo sincroniza `deploy.sh`) | postgres / backend |
 | Perfil Spring, URL JDBC, opciones JVM | no | ConfigMap (lo crea el chart a partir de `configmap.data` en `values-l1-copilot-backend.yaml`) | backend |
 | Esquema + seed SQL del proyecto | no | `l1-copilot/backend/src/main/resources/schema-postgresql.sql` y `data-postgresql.sql` (en repo) | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) |
@@ -50,18 +50,16 @@ values/ConfigMap/yml.**
    kubectl get secret gemini-api-key -n l1-copilot -o jsonpath="{.data}" | jq 'keys'
    ```
 
-## Camino recomendado: `.env.l1-copilot` + `.env.local` sincronizado por `deploy.sh`
+## Camino recomendado: `infra/.env.local` sincronizado por `deploy.sh`
 
 Fuente de verdad única de los Secrets (centralizada, cross-project — ver
 [`infra/INFRA.md`](../../infra/INFRA.md)):
 
-- `infra/.env.l1-copilot` — claves del proyecto con **placeholders** (el `POSTGRES_USER`/
-  `POSTGRES_PASSWORD` ya van con su valor real aquí: son públicos en este POC, ver
-  `infra/INFRA.md`), versionado.
-- `infra/.env.local` — la `GEMINI_API_KEY` **real**, git-ignored, **compartida por todos
-  los proyectos del portfolio** (plantilla: `infra/.env.local.example`).
+- `infra/.env.local` — `GEMINI_API_KEY` y `POSTGRES_USER`/`POSTGRES_PASSWORD` **reales**,
+  git-ignored, **compartidos por todos los proyectos del portfolio** (plantilla:
+  `infra/.env.local.example`).
 - `infra/.env.l1-copilot.local` — override puntual de ESTE proyecto (git-ignored,
-  opcional; plantilla: `infra/.env.l1-copilot.local.example`), p.ej. rotar Postgres
+  opcional; plantilla: `infra/.env.local.example`), p.ej. rotar Postgres
   solo en tu entorno. Normalmente no hace falta crearlo.
 
 ```env

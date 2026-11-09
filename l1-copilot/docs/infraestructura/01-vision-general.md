@@ -116,9 +116,8 @@ infra/                                      # FUENTE DE VERDAD de la infraestruc
 │   └── create-secrets.ps1                      # convierte un .env en Secret de K8s (uso puntual)
 ├── projects/
 │   └── l1-copilot.env                          # descriptor del proyecto (lo leen deploy.sh / setup-app-ingress.sh)
-├── .env.l1-copilot                          # claves del proyecto (placeholders, versionado)
-├── .env.local                               # GEMINI_API_KEY real, compartida por todos los proyectos del portfolio (git-ignored); ejemplo: .env.local.example
-├── .env.l1-copilot.local                    # override puntual de este proyecto, opcional (git-ignored); ejemplo: .env.l1-copilot.local.example
+├── .env.local                               # secretos locales reales, compartidos por todos los proyectos (git-ignored); ejemplo: .env.local.example
+├── .env.l1-copilot.local                    # override puntual de este proyecto, opcional (git-ignored); ejemplo: .env.local.example
 ├── charts/generic-app/                     # chart Helm reutilizable para apps stateless
 │   ├── Chart.yaml
 │   ├── values.yaml                             # contrato completo (todos los parámetros)

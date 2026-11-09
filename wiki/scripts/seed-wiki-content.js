@@ -14,7 +14,7 @@ const API_KEY = process.env.WIKIJS_API_KEY;
 const LOCALE = 'es';
 
 if (!API_KEY) {
-  console.error('[x] Falta WIKIJS_API_KEY (defínela en infra/.env.autoops.local).');
+  console.error('[x] Falta WIKIJS_API_KEY (defínela en infra/.env.local).');
   process.exit(1);
 }
 
