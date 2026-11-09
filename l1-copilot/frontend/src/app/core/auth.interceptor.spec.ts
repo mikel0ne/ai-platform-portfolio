@@ -27,7 +27,7 @@ describe('authInterceptor', () => {
     sessionStorage.clear();
   });
 
-  it('añade X-User-Id cuando hay usuario y la URL es /api/*', () => {
+  it('adds X-User-Id when a user is logged in and the URL is /api/*', () => {
     auth.login({ id: 'u-1', name: 'Ana', age: 28, formal: false });
     http.get('/api/copilot/users').subscribe();
     const req = httpMock.expectOne('/api/copilot/users');
@@ -35,14 +35,14 @@ describe('authInterceptor', () => {
     req.flush([]);
   });
 
-  it('no añade cabecera si no hay usuario logueado', () => {
+  it('adds no header without a logged-in user', () => {
     http.get('/api/copilot/users').subscribe();
     const req = httpMock.expectOne('/api/copilot/users');
     expect(req.request.headers.has('X-User-Id')).toBeFalse();
     req.flush([]);
   });
 
-  it('no añade cabecera a URLs ajenas a /api/', () => {
+  it('adds no header to URLs outside /api/', () => {
     auth.login({ id: 'u-1', name: 'Ana', age: 28, formal: false });
     http.get('/assets/foo.json').subscribe();
     const req = httpMock.expectOne('/assets/foo.json');
