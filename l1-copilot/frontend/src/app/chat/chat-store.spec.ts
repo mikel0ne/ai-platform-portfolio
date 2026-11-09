@@ -24,14 +24,14 @@ describe('ChatStore', () => {
 
   afterEach(() => httpMock.verify());
 
-  it('greet() añade un único mensaje del agente', () => {
+  it('greet() adds a single agent message', () => {
     store.greet('Ana');
     expect(store.messages().length).toBe(1);
     expect(store.messages()[0].from).toBe('agent');
     expect(store.messages()[0].text).toContain('Ana');
   });
 
-  it('send() añade el mensaje del usuario, bloquea el envío y añade la respuesta del agente', () => {
+  it('send() adds the user message, blocks sending and appends the agent reply', () => {
     store.send('¿dónde está mi pedido?');
 
     expect(store.sending()).toBeTrue();
@@ -63,7 +63,7 @@ describe('ChatStore', () => {
     }));
   });
 
-  it('send() en error muestra mensaje de respaldo y libera el bloqueo', () => {
+  it('send() on error shows a fallback message and releases the lock', () => {
     store.send('hola');
     const req = httpMock.expectOne('/api/copilot/chat');
     req.error(new ProgressEvent('error'), { status: 500, statusText: 'Server Error' });
@@ -74,7 +74,7 @@ describe('ChatStore', () => {
     expect(store.messages()[1].text).toContain('no puedo atenderte');
   });
 
-  it('send() con displayText muestra la etiqueta pero envía el payload del botón', () => {
+  it('send() with displayText shows the label but sends the button payload', () => {
     store.send('action:confirm-cancel:123', 'Sí, cancelar el pedido');
 
     expect(store.messages()[0]).toEqual(jasmine.objectContaining({
@@ -92,7 +92,7 @@ describe('ChatStore', () => {
     } as ChatResponse);
   });
 
-  it('send() retira los botones de confirmación pendientes de mensajes anteriores', () => {
+  it('send() removes pending confirmation buttons from earlier messages', () => {
     store.send('cancela el 123');
     httpMock.expectOne('/api/copilot/chat').flush({
       conversationId: store.conversationId,
@@ -119,14 +119,14 @@ describe('ChatStore', () => {
     } as ChatResponse);
   });
 
-  it('send() ignora texto vacío', () => {
+  it('send() ignores empty text', () => {
     store.send('   ');
     expect(store.messages().length).toBe(0);
     expect(store.sending()).toBeFalse();
     httpMock.expectNone('/api/copilot/chat');
   });
 
-  it('newConversation() regenera el threadId y limpia el historial salvo el saludo', () => {
+  it('newConversation() regenerates the threadId and clears the history except the greeting', () => {
     const original = store.conversationId;
     store.send('hola');
     httpMock.expectOne('/api/copilot/chat').flush({
