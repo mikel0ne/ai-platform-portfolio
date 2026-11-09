@@ -63,7 +63,7 @@ El MCP y el chat son **dos fronts sobre el mismo núcleo RAG**. Las tools de Kub
 
 1. [01-vision-alcance.md](01-vision-alcance.md) — Qué hace AutoOps, casos de uso y qué queda fuera.
 2. [02-arquitectura-sistema.md](02-arquitectura-sistema.md) — Componentes, responsabilidades y ADRs.
-3. [03-tools-mcp.md](03-tools-mcp.md) — **El corazón:** catálogo de tools MCP y el subgrafo CRAG de `buscar_docs`.
+3. [03-tools-mcp.md](03-tools-mcp.md) — **El corazón:** catálogo de tools MCP y el subgrafo CRAG de `search_docs`.
 4. [04-organizacion-codigo.md](04-organizacion-codigo.md) — Estructura del proyecto, paquetes Java y convenciones.
 5. [05-contratos-api-datos.md](05-contratos-api-datos.md) — Contratos de las tools MCP, endpoint del chat y esquema Weaviate.
 6. [06-abstraccion-llm.md](06-abstraccion-llm.md) — Abstracción de embeddings y LLM interno; cómo añadir proveedor.

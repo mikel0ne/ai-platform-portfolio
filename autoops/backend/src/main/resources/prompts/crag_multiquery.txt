@@ -8,6 +8,6 @@ los aspectos de una pregunta compuesta. No repitas la consulta original ni te re
 Devuelve EXACTAMENTE {{n}} líneas, una reformulación por línea, sin numerar, sin comillas ni
 explicaciones.
 
-Consulta: {{consulta}}
+Consulta: {{query}}
 
 Variantes (una por línea):

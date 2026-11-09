@@ -10,14 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Redacta la respuesta del chat con el LLM interno a partir de los fragmentos del RAG. Intenta responder
- * <b>siempre</b> que haya algo recuperado, matizando según {@link RagResult#confianza()}: sin aviso en
- * {@code alta}, con aviso de cobertura parcial o débil en {@code media}/{@code baja}, y en {@code nula}
- * usando los {@link RagResult#candidatosDescartados()} con un aviso explícito al principio y al final (doc
- * 03 §4). Solo se niega a responder cuando no hay absolutamente nada que ofrecer. Es el único punto con LLM
- * de redacción server-side; la tool MCP {@code buscar_docs} no pasa por aquí.
- */
 @Component
 public class AnswerComposer {
 
@@ -29,32 +21,32 @@ public class AnswerComposer {
         this.prompts = prompts;
     }
 
-    public String compose(String consulta, RagResult rag) {
-        List<DocChunk> base = rag.chunks().isEmpty() ? rag.candidatosDescartados() : rag.chunks();
+    public String compose(String query, RagResult rag) {
+        List<DocChunk> base = rag.chunks().isEmpty() ? rag.discardedCandidates() : rag.chunks();
         if (base.isEmpty()) {
             return "No he encontrado documentación interna que responda a esa consulta.";
         }
-        String contexto = base.stream().map(AnswerComposer::formatChunk).collect(Collectors.joining("\n\n"));
+        String context = base.stream().map(AnswerComposer::formatChunk).collect(Collectors.joining("\n\n"));
         String prompt = prompts.load("chat_answer.txt")
-                .replace("{{aviso}}", aviso(rag.confianza()))
-                .replace("{{consulta}}", consulta)
-                .replace("{{contexto}}", contexto);
+                .replace("{{warning}}", warning(rag.confidence()))
+                .replace("{{query}}", query)
+                .replace("{{context}}", context);
         return chatModel.getObject().chat(prompt).trim();
     }
 
-    private static String aviso(String confianza) {
-        return switch (confianza) {
-            case RagResult.MEDIA -> """
+    private static String warning(String confidence) {
+        return switch (confidence) {
+            case RagResult.MEDIUM -> """
                     - AVISO: la información recuperada solo cubre una parte de la pregunta. Responde con lo \
                     que sí está cubierto y señala explícitamente qué parte no has podido confirmar con la \
                     documentación.
                     """;
-            case RagResult.BAJA -> """
+            case RagResult.LOW -> """
                     - AVISO: la información recuperada es solo tangencial, no se ha confirmado como respuesta \
                     directa. Indica claramente, al PRINCIPIO y al FINAL de tu respuesta, que la información \
                     no se ha catalogado como buena y debe tomarse con cautela.
                     """;
-            case RagResult.NULA -> """
+            case RagResult.NONE -> """
                     - AVISO IMPORTANTE: estos fragmentos fueron evaluados como NO relevantes para esta \
                     pregunta. Respóndelos solo si la conexión es clara e indudable; si no la encuentras, \
                     dilo. Indica EXPLÍCITAMENTE al PRINCIPIO y al FINAL de tu respuesta que no se ha \
@@ -65,11 +57,11 @@ public class AnswerComposer {
     }
 
     private static String formatChunk(DocChunk c) {
-        String titulo = c.titulo() == null || c.titulo().isBlank() ? c.fuente() : c.titulo();
-        String cabecera = "[" + titulo + " · " + c.seccion() + "]";
+        String title = c.title() == null || c.title().isBlank() ? c.source() : c.title();
+        String header = "[" + title + " · " + c.section() + "]";
         if (c.url() != null && !c.url().isBlank()) {
-            cabecera += " (" + c.url() + ")";
+            header += " (" + c.url() + ")";
         }
-        return cabecera + "\n" + c.texto();
+        return header + "\n" + c.text();
     }
 }

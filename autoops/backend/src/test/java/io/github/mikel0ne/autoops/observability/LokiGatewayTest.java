@@ -17,88 +17,78 @@ import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-/**
- * Construcción de LogQL, resolución de la ventana de tiempo y aplanado de la respuesta de Loki, con
- * fixtures (sin Loki real, mismo criterio que {@code K8sInspectionMappingTest}).
- */
 class LokiGatewayTest {
 
     @Test
-    void buildLogQl_solo_namespace() {
+    void buildLogQl_namespace_only() {
         assertThat(LokiGateway.buildLogQl("autoops", null, null, null))
                 .isEqualTo("{namespace=\"autoops\"}");
     }
 
     @Test
-    void buildLogQl_con_pod_contenedor_y_texto() {
+    void buildLogQl_with_pod_container_and_text() {
         assertThat(LokiGateway.buildLogQl("autoops", "autoops-backend-abc", "app", "ERROR"))
                 .isEqualTo("{namespace=\"autoops\",pod=\"autoops-backend-abc\",container=\"app\"} |= \"ERROR\"");
     }
 
     @Test
-    void buildLogQl_escapa_comillas_en_el_texto() {
+    void buildLogQl_escapes_quotes_in_the_text() {
         assertThat(LokiGateway.buildLogQl("autoops", null, null, "dijo \"hola\""))
                 .isEqualTo("{namespace=\"autoops\"} |= \"dijo \\\"hola\\\"\"");
     }
 
     @Test
-    void resolveVentana_sin_nada_son_los_ultimos_15_minutos_hasta_ahora() {
-        LokiGateway.Ventana v = LokiGateway.resolveVentana(null, null, null);
+    void resolveWindow_defaults_to_the_last_15_minutes() {
+        LokiGateway.TimeWindow v = LokiGateway.resolveWindow(null, null, null);
 
-        assertThat(Duration.between(v.desde(), v.hasta())).isCloseTo(Duration.ofMinutes(15), Duration.ofSeconds(2));
-        assertThat(Duration.between(v.hasta(), Instant.now())).isLessThan(Duration.ofSeconds(2));
+        assertThat(Duration.between(v.from(), v.to())).isCloseTo(Duration.ofMinutes(15), Duration.ofSeconds(2));
+        assertThat(Duration.between(v.to(), Instant.now())).isLessThan(Duration.ofSeconds(2));
     }
 
     @Test
-    void resolveVentana_respeta_ventanaMinutos_personalizada() {
-        LokiGateway.Ventana v = LokiGateway.resolveVentana(null, null, 5);
+    void resolveWindow_honours_custom_window_minutes() {
+        LokiGateway.TimeWindow v = LokiGateway.resolveWindow(null, null, 5);
 
-        assertThat(Duration.between(v.desde(), v.hasta())).isCloseTo(Duration.ofMinutes(5), Duration.ofSeconds(2));
+        assertThat(Duration.between(v.from(), v.to())).isCloseTo(Duration.ofMinutes(5), Duration.ofSeconds(2));
     }
 
     @Test
-    void resolveVentana_con_desde_y_hasta_explicitos_admite_milisegundos() {
-        LokiGateway.Ventana v = LokiGateway.resolveVentana(
+    void resolveWindow_with_explicit_from_and_to_accepts_milliseconds() {
+        LokiGateway.TimeWindow v = LokiGateway.resolveWindow(
                 "2026-06-26T14:32:07.100Z", "2026-06-26T14:32:07.900Z", null);
 
-        assertThat(v.desde()).isEqualTo(Instant.parse("2026-06-26T14:32:07.100Z"));
-        assertThat(v.hasta()).isEqualTo(Instant.parse("2026-06-26T14:32:07.900Z"));
+        assertThat(v.from()).isEqualTo(Instant.parse("2026-06-26T14:32:07.100Z"));
+        assertThat(v.to()).isEqualTo(Instant.parse("2026-06-26T14:32:07.900Z"));
     }
 
     @Test
-    void flatten_aplana_y_ordena_cronologicamente_varios_streams() {
+    void flatten_merges_and_sorts_several_streams_chronologically() {
         var streamA = new LokiGateway.LokiStream(
                 Map.of("namespace", "autoops", "pod", "p1", "container", "app"),
                 List.of(List.of("1750949000000000000", "segunda linea")));
         var streamB = new LokiGateway.LokiStream(
                 Map.of("namespace", "autoops", "pod", "p2", "container", "app"),
                 List.of(List.of("1750948999000000000", "primera linea")));
-        var respuesta = new LokiGateway.LokiResponse("success",
+        var answer = new LokiGateway.LokiResponse("success",
                 new LokiGateway.LokiData("streams", List.of(streamA, streamB)));
 
-        List<LogEntry> entradas = LokiGateway.flatten(respuesta);
+        List<LogEntry> entries = LokiGateway.flatten(answer);
 
-        assertThat(entradas).hasSize(2);
-        assertThat(entradas.get(0).linea()).isEqualTo("primera linea");
-        assertThat(entradas.get(0).pod()).isEqualTo("p2");
-        assertThat(entradas.get(1).linea()).isEqualTo("segunda linea");
-        assertThat(entradas.get(0).timestamp()).isBefore(entradas.get(1).timestamp());
+        assertThat(entries).hasSize(2);
+        assertThat(entries.get(0).line()).isEqualTo("primera linea");
+        assertThat(entries.get(0).pod()).isEqualTo("p2");
+        assertThat(entries.get(1).line()).isEqualTo("segunda linea");
+        assertThat(entries.get(0).timestamp()).isBefore(entries.get(1).timestamp());
     }
 
     @Test
-    void flatten_respuesta_vacia_no_revienta() {
+    void flatten_handles_an_empty_response() {
         assertThat(LokiGateway.flatten(null)).isEmpty();
         assertThat(LokiGateway.flatten(new LokiGateway.LokiResponse("success", null))).isEmpty();
     }
 
-    /**
-     * Regresión: la query LogQL trae llaves literales ({@code {namespace="autoops"}}). Si se pasan ya
-     * resueltas a {@code UriBuilder.build()}, Spring las reinterpreta como variables de plantilla sin
-     * valor y revienta con "Not enough variable values available to expand" antes de llegar a hacer la
-     * petición HTTP.
-     */
     @Test
-    void queryRange_no_revienta_por_las_llaves_literales_del_logql() {
+    void queryRange_handles_literal_braces_in_logql() {
         RestClient.Builder builder = RestClient.builder();
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
         server.expect(requestTo(allOf(

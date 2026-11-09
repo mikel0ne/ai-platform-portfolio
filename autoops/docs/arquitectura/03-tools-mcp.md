@@ -1,7 +1,7 @@
 # 03 — Tools MCP y el bucle correctivo (corazón del sistema)
 
 Catálogo de las herramientas que AutoOps publica por MCP y diseño del **núcleo RAG correctivo** (CRAG) que hay
-detrás de `buscar_docs`. El protocolo MCP lo gestiona **Spring AI MCP Server**: basta anotar métodos con
+detrás de `search_docs`. El protocolo MCP lo gestiona **Spring AI MCP Server**: basta anotar métodos con
 `@Tool` y registrarlos. El razonamiento sobre las salidas lo hace el **cliente MCP** (Claude Code/Copilot); las
 tools devuelven **datos estructurados y deterministas**.
 
@@ -10,18 +10,18 @@ tools devuelven **datos estructurados y deterministas**.
 ```mermaid
 flowchart LR
     subgraph Docs
-        BD[buscar_docs<br/>RAG avanzado / CRAG]
+        BD[search_docs<br/>RAG avanzado / CRAG]
     end
     subgraph Kubernetes["Kubernetes (read-only)"]
-        DP[diagnosticar_pod<br/>dossier compuesto]
-        EP[estado_pods]
-        LW[listar_workloads]
-        DE[describir_pod]
+        DP[diagnose_pod<br/>dossier compuesto]
+        EP[list_pods]
+        LW[list_workloads]
+        DE[describe_pod]
         EV[eventos]
-        LP[logs_pod]
+        LP[pod_logs]
     end
     subgraph Observabilidad
-        CL[consultar_logs<br/>histórico cross-pod]
+        CL[query_logs<br/>histórico cross-pod]
     end
     BD --> WV[(Weaviate)]
     DP & EP & LW & DE & EV & LP --> K[API Kubernetes]
@@ -32,29 +32,29 @@ flowchart LR
 
 | Tool | Parámetros | Devuelve |
 |---|---|---|
-| `buscar_docs` | `consulta: String`, `k: int = 5` | Lista de fragmentos relevantes con su fuente y score, tras híbrido + reranking + bucle CRAG. |
+| `search_docs` | `consulta: String`, `k: int = 5` | Lista de fragmentos relevantes con su fuente y score, tras híbrido + reranking + bucle CRAG. |
 
 ### 1.2 Kubernetes (todas de solo lectura)
 
 | Tool | Parámetros | Devuelve |
 |---|---|---|
-| `diagnosticar_pod` | `namespace`, `nombre` | Dossier: fase, condiciones, motivo de no-Ready, eventos recientes, reinicios por contenedor y cola de logs. **Una llamada, todo el contexto.** |
-| `estado_pods` | `namespace`, `selector? ` | Pods con fase, READY, reinicios y antigüedad. |
-| `listar_workloads` | `namespace?` | Deployments/StatefulSets/DaemonSets con réplicas deseadas vs disponibles. |
-| `describir_pod` | `namespace`, `nombre` | Detalle tipo `kubectl describe` (contenedores, imágenes, requests/limits, condiciones). |
-| `eventos` | `namespace`, `objeto?` | Eventos recientes del namespace u objeto. |
-| `logs_pod` | `namespace`, `nombre`, `contenedor?`, `lineas=200`, `previous=false` | Cola de logs (o del arranque anterior si `previous`). |
+| `diagnose_pod` | `namespace`, `nombre` | Dossier: fase, condiciones, motivo de no-Ready, eventos recientes, reinicios por contenedor y cola de logs. **Una llamada, todo el contexto.** |
+| `list_pods` | `namespace`, `selector? ` | Pods con fase, READY, reinicios y antigüedad. |
+| `list_workloads` | `namespace?` | Deployments/StatefulSets/DaemonSets con réplicas deseadas vs disponibles. |
+| `describe_pod` | `namespace`, `nombre` | Detalle tipo `kubectl describe` (contenedores, imágenes, requests/limits, condiciones). |
+| `list_events` | `namespace`, `objeto?` | Eventos recientes del namespace u objeto. |
+| `pod_logs` | `namespace`, `nombre`, `contenedor?`, `lineas=200`, `previous=false` | Cola de logs (o del arranque anterior si `previous`). |
 
-> **`diagnosticar_pod` es la tool estrella**: encapsula el "dossier" que antes era un nodo del grafo. El cliente
-> suele empezar por ella y, si necesita más, pide piezas sueltas (`logs_pod`, `eventos`).
+> **`diagnose_pod` es la tool estrella**: encapsula el "dossier" que antes era un nodo del grafo. El cliente
+> suele empezar por ella y, si necesita más, pide piezas sueltas (`pod_logs`, `list_events`).
 
 ### 1.3 Observabilidad (Loki)
 
 | Tool | Parámetros | Devuelve |
 |---|---|---|
-| `consultar_logs` | `namespace`, `pod?`, `contenedor?`, `texto?`, `desde?`, `hasta?`, `ventanaMinutos=15`, `lineas=200` | Lista de líneas de log (Loki), aplanadas y ordenadas cronológicamente, de **varios pods/namespaces a la vez** en una ventana de tiempo. |
+| `query_logs` | `namespace`, `pod?`, `contenedor?`, `texto?`, `desde?`, `hasta?`, `ventanaMinutos=15`, `lineas=200` | Lista de líneas de log (Loki), aplanadas y ordenadas cronológicamente, de **varios pods/namespaces a la vez** en una ventana de tiempo. |
 
-`logs_pod` solo ve el pod actual (equivalente a `kubectl logs`); `consultar_logs` complementa eso con histórico
+`pod_logs` solo ve el pod actual (equivalente a `kubectl logs`); `query_logs` complementa eso con histórico
 agregado y correlación entre pods. Sin `desde`/`hasta`, consulta los últimos `ventanaMinutos` hasta ahora. Para
 acotar a un instante muy concreto (p. ej. correlacionar con un timestamp ya visto en otro log al encadenar
 llamadas entre servicios), `desde`/`hasta` aceptan ISO-8601 con milisegundos
@@ -85,7 +85,7 @@ public class KubernetesTools {
 
     public KubernetesTools(K8sInspectionService k8s) { this.k8s = k8s; }
 
-    @Tool(name = "diagnosticar_pod",
+    @Tool(name = "diagnose_pod",
           description = "Dossier de diagnóstico de un pod: fase, condiciones, eventos, reinicios y cola de logs.")
     public PodDiagnosis diagnosticarPod(
             @ToolParam(description = "Namespace del pod") String namespace,
@@ -93,7 +93,7 @@ public class KubernetesTools {
         return k8s.diagnose(namespace, nombre);   // objeto estructurado → MCP lo serializa a JSON
     }
 
-    @Tool(name = "logs_pod", description = "Cola de logs de un pod (read-only).")
+    @Tool(name = "pod_logs", description = "Cola de logs de un pod (read-only).")
     public String logsPod(String namespace, String nombre,
                           @ToolParam(required = false) String contenedor,
                           @ToolParam(required = false) Integer lineas,
@@ -138,7 +138,7 @@ y en la guía de infraestructura `02-topologia-kubernetes.md` (RBAC).
 
 ## 3. El núcleo: RAG correctivo (CRAG) con LangGraph4j
 
-`buscar_docs` no es una búsqueda simple: corre un **bucle que valida la calidad y reacciona**. Es un flujo
+`search_docs` no es una búsqueda simple: corre un **bucle que valida la calidad y reacciona**. Es un flujo
 **cíclico**, así que se implementa con **LangGraph4j** (regla del repo para grafos de estado).
 
 ```mermaid
@@ -309,14 +309,14 @@ Puntos finos:
 
 El endpoint `POST /search` (front secundario) llama al **mismo** `RagService` y añade un paso de redacción con
 el LLM interno (instrucción anti-alucinación: "si los documentos no contienen la respuesta, dilo"). La tool MCP
-`buscar_docs`, en cambio, **no redacta**: devuelve los chunks y deja que el cliente MCP redacte.
+`search_docs`, en cambio, **no redacta**: devuelve los chunks y deja que el cliente MCP redacte.
 
 ## 5. Testing
 
 | Nivel | Qué se prueba | Cómo |
 |---|---|---|
 | Unitario (mapeo K8s) | `K8sInspectionService.toDiagnosis`/`toPodStatus`/`toDescription`/`hace` (estáticos, puros) | Objetos `Pod` de fixture construidos a mano con el builder de fabric8 (`PodBuilder`); sin cliente ni clúster real (`K8sInspectionMappingTest`). |
-| Unitario (`consultar_logs`) | Construcción de LogQL, resolución de la ventana de tiempo, aplanado de la respuesta de Loki, escapado/variables de la URI | Métodos `static` puros de `LokiGateway` + `MockRestServiceServer` para el caso de regresión de la URI (sin Loki real, `LokiGatewayTest`). |
+| Unitario (`query_logs`) | Construcción de LogQL, resolución de la ventana de tiempo, aplanado de la respuesta de Loki, escapado/variables de la URI | Métodos `static` puros de `LokiGateway` + `MockRestServiceServer` para el caso de regresión de la URI (sin Loki real, `LokiGatewayTest`). |
 | Unitario (nodos CRAG) | `multiQuery`/`retrieve`/`rerank`/`grade`/`expand`/`rewrite` aislados | `DocRetriever` y `ChatModel` falsos (`TestSupport.ScriptedChatModel`/`FakeRetriever`/`MultiChunkRetriever`, con cola de respuestas propia para el prompt de `multiQuery`); aserciones sobre el delta de estado. |
 | Integración (CRAG) | El bucle converge, escala `k` y termina; filtra por fragmento sin perder los buenos entre reintentos; auto-merging de sección en `expand`; el abanico `multiQuery` fusiona con RRF y no se reabre en reintentos | `FakeRetriever`/`MultiChunkRetriever` programados con lotes de relevancia mixta; aserciones: filtra los no relevantes del lote, un fragmento bueno de la 1ª iteración sobrevive al retry aunque la 2ª no lo recupere de nuevo, auto-merging por sección (Caso A ≥2 hits, Caso B sección pequeña, Caso C hit suelto con vecinos ±1 acotados a la sección, techo de sección grande sin consultar); con `multiQueryN>1`, recuperó una vez por variante y recortó a `k` tras la fusión; con `multiQueryN<=1`, una sola recuperación sin llamar al LLM de variantes (`CragLoopTest`, incluye el test de regresión "score alto pero irrelevante no evita la evaluación del LLM"). |
 | Unitario (ingesta) | `Chunker` (heading+recursivo; almacena el núcleo + `seccionChars`), `GitMarkdownSource` (permalink/webBase sin red) | Fixtures de markdown en memoria; sin Git real ni Weaviate (`IngestionChunkingTest`, `GitMarkdownSourceTest`). |

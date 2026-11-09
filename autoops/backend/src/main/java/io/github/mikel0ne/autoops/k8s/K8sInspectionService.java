@@ -25,19 +25,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * Inspección read-only del clúster (fabric8): produce los "dossiers" estructurados que consumen las tools
- * de Kubernetes (doc 03 §2, doc 05 §1). La lógica de mapeo (modelo K8s → DTO) es {@code static} y pura para
- * poder testearla con objetos de fixture sin clúster real.
- *
- * <p>El cliente se inyecta de forma perezosa: el servidor MCP arranca aunque no haya clúster; el fallo (si
- * lo hay) ocurre al invocar una tool y se traduce a un mensaje accionable.
- */
 @Service
 public class K8sInspectionService {
 
     private static final Logger log = LoggerFactory.getLogger(K8sInspectionService.class);
-    private static final int LOG_LINES_EN_DOSSIER = 50;
+    private static final int DOSSIER_LOG_LINES = 50;
 
     private final ObjectProvider<KubernetesClient> clientProvider;
 
@@ -49,42 +41,38 @@ public class K8sInspectionService {
         return clientProvider.getObject();
     }
 
-    // ------------------------------------------------------------ diagnosticar_pod
-
-    public PodDiagnosis diagnose(String namespace, String nombre) {
-        Pod pod = client().pods().inNamespace(namespace).withName(nombre).get();
+    public PodDiagnosis diagnose(String namespace, String name) {
+        Pod pod = client().pods().inNamespace(namespace).withName(name).get();
         if (pod == null) {
-            throw new IllegalArgumentException("Pod no encontrado: " + namespace + "/" + nombre);
+            throw new IllegalArgumentException("Pod not found: " + namespace + "/" + name);
         }
-        List<PodDiagnosis.Evento> eventos = events(namespace, nombre);
-        String logs = safeLogs(namespace, nombre, null, LOG_LINES_EN_DOSSIER, false);
-        return toDiagnosis(pod, eventos, logs);
+        List<PodDiagnosis.EventInfo> events = events(namespace, name);
+        String logs = safeLogs(namespace, name, null, DOSSIER_LOG_LINES, false);
+        return toDiagnosis(pod, events, logs);
     }
 
-    static PodDiagnosis toDiagnosis(Pod pod, List<PodDiagnosis.Evento> eventos, String logs) {
-        String fase = fase(pod);
+    static PodDiagnosis toDiagnosis(Pod pod, List<PodDiagnosis.EventInfo> events, String logs) {
+        String phase = phase(pod);
         boolean ready = isReady(pod);
 
-        List<PodDiagnosis.Condicion> condiciones = new ArrayList<>();
+        List<PodDiagnosis.ConditionInfo> conditions = new ArrayList<>();
         for (PodCondition c : conditions(pod)) {
-            condiciones.add(new PodDiagnosis.Condicion(c.getType(), c.getStatus(), c.getReason()));
+            conditions.add(new PodDiagnosis.ConditionInfo(c.getType(), c.getStatus(), c.getReason()));
         }
 
-        List<PodDiagnosis.Contenedor> contenedores = new ArrayList<>();
+        List<PodDiagnosis.ContainerInfo> containers = new ArrayList<>();
         for (ContainerStatus cs : containerStatuses(pod)) {
-            String estado = estadoContenedor(cs);
-            contenedores.add(new PodDiagnosis.Contenedor(
+            String state = containerState(cs);
+            containers.add(new PodDiagnosis.ContainerInfo(
                     cs.getName(),
                     cs.getImage(),
                     cs.getRestartCount() == null ? 0 : cs.getRestartCount(),
-                    estado,
-                    motivoEstado(cs)));
+                    state,
+                    stateReason(cs)));
         }
 
-        return new PodDiagnosis(fase, ready, motivoNoReady(pod), condiciones, contenedores, eventos, logs);
+        return new PodDiagnosis(phase, ready, notReadyReason(pod), conditions, containers, events, logs);
     }
-
-    // ------------------------------------------------------------ estado_pods
 
     public List<PodStatus> pods(String namespace, String selector) {
         var ops = client().pods().inNamespace(namespace);
@@ -95,13 +83,11 @@ public class K8sInspectionService {
     }
 
     static PodStatus toPodStatus(Pod pod) {
-        int reinicios = containerStatuses(pod).stream()
+        int restarts = containerStatuses(pod).stream()
                 .mapToInt(cs -> cs.getRestartCount() == null ? 0 : cs.getRestartCount())
                 .sum();
-        return new PodStatus(name(pod), fase(pod), isReady(pod), reinicios, edad(pod));
+        return new PodStatus(name(pod), phase(pod), isReady(pod), restarts, age(pod));
     }
-
-    // ------------------------------------------------------------ listar_workloads
 
     public List<WorkloadStatus> workloads(String namespace) {
         List<WorkloadStatus> out = new ArrayList<>();
@@ -134,69 +120,61 @@ public class K8sInspectionService {
         return out;
     }
 
-    // ------------------------------------------------------------ describir_pod
-
-    public PodDescription describe(String namespace, String nombre) {
-        Pod pod = client().pods().inNamespace(namespace).withName(nombre).get();
+    public PodDescription describe(String namespace, String name) {
+        Pod pod = client().pods().inNamespace(namespace).withName(name).get();
         if (pod == null) {
-            throw new IllegalArgumentException("Pod no encontrado: " + namespace + "/" + nombre);
+            throw new IllegalArgumentException("Pod not found: " + namespace + "/" + name);
         }
         return toDescription(pod);
     }
 
     static PodDescription toDescription(Pod pod) {
-        List<PodDescription.ContenedorSpec> contenedores = new ArrayList<>();
+        List<PodDescription.ContainerSpecInfo> containers = new ArrayList<>();
         if (pod.getSpec() != null && pod.getSpec().getContainers() != null) {
             for (Container c : pod.getSpec().getContainers()) {
-                Map<String, String> requests = recursos(c, true);
-                Map<String, String> limits = recursos(c, false);
-                contenedores.add(new PodDescription.ContenedorSpec(c.getName(), c.getImage(), requests, limits));
+                Map<String, String> requests = resources(c, true);
+                Map<String, String> limits = resources(c, false);
+                containers.add(new PodDescription.ContainerSpecInfo(c.getName(), c.getImage(), requests, limits));
             }
         }
-        List<PodDiagnosis.Condicion> condiciones = conditions(pod).stream()
-                .map(c -> new PodDiagnosis.Condicion(c.getType(), c.getStatus(), c.getReason()))
+        List<PodDiagnosis.ConditionInfo> conditions = conditions(pod).stream()
+                .map(c -> new PodDiagnosis.ConditionInfo(c.getType(), c.getStatus(), c.getReason()))
                 .toList();
-        String nodo = pod.getSpec() == null ? null : pod.getSpec().getNodeName();
-        return new PodDescription(name(pod), namespace(pod), fase(pod), nodo, contenedores, condiciones);
+        String node = pod.getSpec() == null ? null : pod.getSpec().getNodeName();
+        return new PodDescription(name(pod), namespace(pod), phase(pod), node, containers, conditions);
     }
 
-    // ------------------------------------------------------------ eventos
-
-    public List<PodDiagnosis.Evento> events(String namespace, String objeto) {
+    public List<PodDiagnosis.EventInfo> events(String namespace, String object) {
         List<Event> events = client().v1().events().inNamespace(namespace).list().getItems();
         return events.stream()
-                .filter(e -> objeto == null || objeto.isBlank()
-                        || (e.getInvolvedObject() != null && objeto.equals(e.getInvolvedObject().getName())))
+                .filter(e -> object == null || object.isBlank()
+                        || (e.getInvolvedObject() != null && object.equals(e.getInvolvedObject().getName())))
                 .sorted(Comparator.comparing(K8sInspectionService::eventInstant,
                         Comparator.nullsFirst(Comparator.naturalOrder())))
-                .map(K8sInspectionService::toEvento)
+                .map(K8sInspectionService::toEventInfo)
                 .toList();
     }
 
-    static PodDiagnosis.Evento toEvento(Event e) {
-        return new PodDiagnosis.Evento(e.getType(), e.getReason(), e.getMessage(), hace(eventInstant(e)));
+    static PodDiagnosis.EventInfo toEventInfo(Event e) {
+        return new PodDiagnosis.EventInfo(e.getType(), e.getReason(), e.getMessage(), ago(eventInstant(e)));
     }
 
-    // ------------------------------------------------------------ logs_pod
-
-    public String logs(String namespace, String nombre, String contenedor, int lineas, boolean previous) {
-        return safeLogs(namespace, nombre, contenedor, lineas, previous);
+    public String logs(String namespace, String name, String container, int lines, boolean previous) {
+        return safeLogs(namespace, name, container, lines, previous);
     }
 
-    private String safeLogs(String namespace, String nombre, String contenedor, int lineas, boolean previous) {
+    private String safeLogs(String namespace, String name, String container, int lines, boolean previous) {
         try {
-            var pod = client().pods().inNamespace(namespace).withName(nombre);
-            var base = (contenedor == null || contenedor.isBlank()) ? pod : pod.inContainer(contenedor);
+            var pod = client().pods().inNamespace(namespace).withName(name);
+            var base = (container == null || container.isBlank()) ? pod : pod.inContainer(container);
             return previous
-                    ? base.terminated().tailingLines(lineas).getLog()
-                    : base.tailingLines(lineas).getLog();
+                    ? base.terminated().tailingLines(lines).getLog()
+                    : base.tailingLines(lines).getLog();
         } catch (RuntimeException ex) {
-            log.debug("No se pudieron obtener logs de {}/{}: {}", namespace, nombre, ex.getMessage());
-            return "(sin logs disponibles: " + ex.getMessage() + ")";
+            log.debug("Could not fetch logs for {}/{}: {}", namespace, name, ex.getMessage());
+            return "(no logs available: " + ex.getMessage() + ")";
         }
     }
-
-    // ------------------------------------------------------------ helpers de mapeo
 
     private static String name(Pod pod) {
         return pod.getMetadata() == null ? null : pod.getMetadata().getName();
@@ -206,7 +184,7 @@ public class K8sInspectionService {
         return pod.getMetadata() == null ? null : pod.getMetadata().getNamespace();
     }
 
-    private static String fase(Pod pod) {
+    private static String phase(Pod pod) {
         return pod.getStatus() == null ? "Unknown" : pod.getStatus().getPhase();
     }
 
@@ -230,8 +208,7 @@ public class K8sInspectionService {
                 .anyMatch(c -> "True".equals(c.getStatus()));
     }
 
-    /** Motivo accionable de por qué un pod no está Ready: reason de un contenedor en espera, o de la condición Ready. */
-    private static String motivoNoReady(Pod pod) {
+    private static String notReadyReason(Pod pod) {
         if (isReady(pod)) {
             return null;
         }
@@ -248,10 +225,10 @@ public class K8sInspectionService {
                 .map(PodCondition::getReason)
                 .filter(r -> r != null && !r.isBlank())
                 .findFirst()
-                .orElse(fase(pod));
+                .orElse(phase(pod));
     }
 
-    private static String estadoContenedor(ContainerStatus cs) {
+    private static String containerState(ContainerStatus cs) {
         if (cs.getState() == null) {
             return "Unknown";
         }
@@ -267,7 +244,7 @@ public class K8sInspectionService {
         return "Unknown";
     }
 
-    private static String motivoEstado(ContainerStatus cs) {
+    private static String stateReason(ContainerStatus cs) {
         if (cs.getState() == null) {
             return null;
         }
@@ -280,7 +257,7 @@ public class K8sInspectionService {
         return null;
     }
 
-    private static Map<String, String> recursos(Container c, boolean requests) {
+    private static Map<String, String> resources(Container c, boolean requests) {
         Map<String, String> out = new LinkedHashMap<>();
         if (c.getResources() == null) {
             return out;
@@ -296,11 +273,11 @@ public class K8sInspectionService {
         return v == null ? 0 : v;
     }
 
-    private static String edad(Pod pod) {
+    private static String age(Pod pod) {
         if (pod.getMetadata() == null || pod.getMetadata().getCreationTimestamp() == null) {
             return "?";
         }
-        return hace(parseInstant(pod.getMetadata().getCreationTimestamp()));
+        return ago(parseInstant(pod.getMetadata().getCreationTimestamp()));
     }
 
     private static Instant eventInstant(Event e) {
@@ -321,21 +298,20 @@ public class K8sInspectionService {
         }
     }
 
-    /** Antigüedad legible desde un instante hasta ahora (p. ej. {@code 30s}, {@code 5m}, {@code 3h}, {@code 2d}). */
-    static String hace(Instant instant) {
+    static String ago(Instant instant) {
         if (instant == null) {
             return "?";
         }
-        long segundos = Math.max(0, Duration.between(instant, Instant.now()).getSeconds());
-        if (segundos < 60) {
-            return segundos + "s";
+        long seconds = Math.max(0, Duration.between(instant, Instant.now()).getSeconds());
+        if (seconds < 60) {
+            return seconds + "s";
         }
-        if (segundos < 3600) {
-            return (segundos / 60) + "m";
+        if (seconds < 3600) {
+            return (seconds / 60) + "m";
         }
-        if (segundos < 86400) {
-            return (segundos / 3600) + "h";
+        if (seconds < 86400) {
+            return (seconds / 3600) + "h";
         }
-        return (segundos / 86400) + "d";
+        return (seconds / 86400) + "d";
     }
 }

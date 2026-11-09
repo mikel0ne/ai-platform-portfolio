@@ -30,7 +30,7 @@ flowchart LR
 
 ## F1 — Núcleo RAG con bucle correctivo (CRAG)
 
-**Objetivo:** la tool `buscar_docs` completa (doc 03 §3).
+**Objetivo:** la tool `search_docs` completa (doc 03 §3).
 
 - [x] Weaviate local (docker compose o el manifiesto de la guía de infra + port-forward).
 - [x] `WeaviateGateway` (cliente raw `io.weaviate:client`, no `WeaviateEmbeddingStore` — ver ADR-005; clase
@@ -44,10 +44,10 @@ flowchart LR
 - [x] `CragGraph` (LangGraph4j): nodos `retrieve`/`rerank`/`grade`/`rewrite`. El edge ya no usa umbral de score
       (eliminado, ver doc 02 ADR-007): `grade` llama siempre al LLM (`crag_grade.txt`); `rewrite` además
       reformula con `crag_rewrite.txt` y amplía `k` (`kStep`/`kMax`).
-- [x] `RagService.buscar(consulta, k)` + tool `buscar_docs`.
+- [x] `RagService.buscar(consulta, k)` + tool `search_docs`.
 - [x] Tests del bucle con store y `ChatModel` falsos (converge, reformula, termina).
 
-**Verificación:** desde Claude Code, `buscar_docs("estándar de probes")` devuelve chunks del corpus; con una
+**Verificación:** desde Claude Code, `search_docs("estándar de probes")` devuelve chunks del corpus; con una
 consulta mal formulada se observa que **el bucle reformula y mejora** (`iteraciones >= 1`).
 
 ## F1b — Chat de búsqueda (front secundario)
@@ -66,24 +66,24 @@ consulta mal formulada se observa que **el bucle reformula y mejora** (`iteracio
 **Objetivo:** el diagnóstico de runtime.
 
 - [x] `K8sClientConfig` (fabric8: kubeconfig en local, ServiceAccount in-cluster).
-- [x] `K8sInspectionService` (dossiers) + tools `estado_pods`, `listar_workloads`, `describir_pod`, `eventos` y
-      la compuesta `diagnosticar_pod`.
+- [x] `K8sInspectionService` (dossiers) + tools `list_pods`, `list_workloads`, `describe_pod`, `list_events` y
+      la compuesta `diagnose_pod`.
 - [x] Tests con `KubernetesServer` mock de fabric8 (fixtures de pod sano / `ErrImagePull` / `CrashLoopBackOff`).
 
 **Verificación:** con un pod roto a propósito (imagen inexistente), desde Claude Code "¿por qué falla el pod X?"
-hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull` real.
+hace que el cliente llame a `diagnose_pod` y razone citando el `ErrImagePull` real.
 
 ## F3 — Tool de logs
 
 **Objetivo:** logs de aplicaciones en ejecución.
 
-- [x] `logs_pod` (cola de logs, `previous`, selección de contenedor) sobre `pods/log`.
-- [x] Backend **Loki** como fuente de logs agregados, vía la tool `consultar_logs` con LogQL — complementa
-      `logs_pod` con histórico correlacionable entre varios pods/namespaces en una ventana de tiempo
+- [x] `pod_logs` (cola de logs, `previous`, selección de contenedor) sobre `pods/log`.
+- [x] Backend **Loki** como fuente de logs agregados, vía la tool `query_logs` con LogQL — complementa
+      `pod_logs` con histórico correlacionable entre varios pods/namespaces en una ventana de tiempo
       (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `ObservabilityTools`).
 
-**Verificación:** `logs_pod` devuelve la cola real de un pod; con `previous=true`, los del arranque anterior.
-`consultar_logs` correlaciona logs de varios pods en una ventana de tiempo (o un instante muy concreto con
+**Verificación:** `pod_logs` devuelve la cola real de un pod; con `previous=true`, los del arranque anterior.
+`query_logs` correlaciona logs de varios pods en una ventana de tiempo (o un instante muy concreto con
 `desde`/`hasta` en milisegundos).
 
 ## F4 — Despliegue en Kubernetes + integración con el cliente
@@ -111,7 +111,7 @@ diagnostica un pod roto del clúster.
 
 1. **Reranking afinado / evaluación del RAG**: métricas de calidad de recuperación (hit-rate, MRR) sobre un set
    de preguntas de prueba.
-2. ~~Tool `consultar_logs` con Loki~~ — hecho en F3 (ver arriba).
+2. ~~Tool `query_logs` con Loki~~ — hecho en F3 (ver arriba).
 3. **Tool secundaria `validar_manifiesto`** (sin estado): la única reminiscencia útil del diseño anterior.
 4. **CI con GitHub Actions**: build + tests + imagen.
 5. **Observabilidad**: histograma de iteraciones del bucle CRAG, latencia por tool (Micrometer).

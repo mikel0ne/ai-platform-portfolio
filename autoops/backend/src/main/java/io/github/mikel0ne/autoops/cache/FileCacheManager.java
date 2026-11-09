@@ -17,14 +17,6 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
-/**
- * Caché de respuestas del LLM para desarrollo (scaffolding reutilizado, doc 04 §1): evita quemar la cuota
- * gratuita de Gemini repitiendo llamadas idénticas. Vive en memoria; la persistencia en fichero es opcional
- * y se desactiva en entornos efímeros como Kubernetes (doc {@link CacheProperties}).
- *
- * <p>Desactivada por defecto ({@code cache.enabled=false}): cuando lo está, {@link #get} siempre falla y
- * {@link #put} es no-op, de modo que el {@code ChatModel} se usa directamente.
- */
 @Component
 public class FileCacheManager {
 
@@ -43,7 +35,6 @@ public class FileCacheManager {
         }
     }
 
-    /** Carga la caché persistida (si procede). Lo invoca {@code CacheInitializer} en el arranque. */
     public void init() {
         if (!props.isCacheEnabled() || !Boolean.TRUE.equals(props.file().enabled())) {
             return;
@@ -63,16 +54,14 @@ public class FileCacheManager {
                         memory.put(key, new Entry(value, expires));
                     }
                 } catch (IOException ignored) {
-                    // entrada corrupta: se ignora
                 }
             });
-            log.info("Caché LLM cargada: {} entradas desde {}", memory.size(), dir.toAbsolutePath());
+            log.info("LLM cache loaded: {} entries from {}", memory.size(), dir.toAbsolutePath());
         } catch (IOException e) {
-            log.warn("No se pudo cargar la caché LLM de {}: {}", dir, e.getMessage());
+            log.warn("Could not load the LLM cache from {}: {}", dir, e.getMessage());
         }
     }
 
-    /** Respuesta cacheada para la clave, si existe y no ha expirado. */
     public Optional<String> get(String key) {
         if (!props.isCacheEnabled()) {
             return Optional.empty();
@@ -84,7 +73,6 @@ public class FileCacheManager {
         return Optional.of(entry.value());
     }
 
-    /** Guarda una respuesta en memoria (y en disco si está habilitado). No-op si la caché está desactivada. */
     public void put(String key, String value) {
         if (!props.isCacheEnabled() || value == null) {
             return;
@@ -95,7 +83,6 @@ public class FileCacheManager {
         }
     }
 
-    /** Construye una clave de caché estable a partir de un texto (hash SHA-256). */
     public static String key(String content) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -112,7 +99,7 @@ public class FileCacheManager {
             Files.createDirectories(dir);
             Files.writeString(dir.resolve(key + ".txt"), value, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("No se pudo persistir la caché LLM", e);
+            throw new UncheckedIOException("Could not persist the LLM cache", e);
         }
     }
 }

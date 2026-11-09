@@ -8,13 +8,6 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Cliente de la API GraphQL de Wiki.js (solo lectura: la escritura/siembra del contenido versionado en
- * {@code wiki/content/} va por {@code wiki/scripts/seed-wiki-content.sh}, no por este Gateway). Wiki.js
- * devuelve HTTP 200 con un array {@code errors} incluso en fallos de autenticación; este Gateway lo
- * inspecciona y degrada a una respuesta vacía en vez de propagar la excepción, para no romper la ingesta
- * global si la fuente está mal configurada (mismo criterio que las demás fuentes opcionales).
- */
 @Service
 public class WikiJsGateway {
 
@@ -58,8 +51,7 @@ public class WikiJsGateway {
         this.client = wikiJsClient;
     }
 
-    /** Todas las páginas (resumen, sin contenido) de la wiki, en el locale por defecto del servidor. */
-    public List<PaginaResumen> listarPaginas() {
+    public List<PageSummary> listPages() {
         ListResponse resp = client.post()
                 .uri("/graphql")
                 .body(Map.of("query", QUERY_LIST))
@@ -68,7 +60,7 @@ public class WikiJsGateway {
         if (resp == null) {
             return List.of();
         }
-        if (tieneErrores(resp.errors())) {
+        if (hasErrors(resp.errors())) {
             return List.of();
         }
         if (resp.data() == null || resp.data().pages() == null || resp.data().pages().list() == null) {
@@ -77,31 +69,30 @@ public class WikiJsGateway {
         return resp.data().pages().list();
     }
 
-    /** Contenido completo de una página por id; {@code null} si no existe o la llamada falla. */
-    public PaginaDetalle obtenerPagina(int id) {
+    public PageDetail fetchPage(int id) {
         SingleResponse resp = client.post()
                 .uri("/graphql")
                 .body(Map.of("query", QUERY_SINGLE, "variables", Map.of("id", id)))
                 .retrieve()
                 .body(SingleResponse.class);
-        if (resp == null || tieneErrores(resp.errors())) {
+        if (resp == null || hasErrors(resp.errors())) {
             return null;
         }
         return resp.data() == null || resp.data().pages() == null ? null : resp.data().pages().single();
     }
 
-    private boolean tieneErrores(List<GraphQlError> errores) {
-        if (errores == null || errores.isEmpty()) {
+    private boolean hasErrors(List<GraphQlError> errors) {
+        if (errors == null || errors.isEmpty()) {
             return false;
         }
-        log.warn("Wiki.js devolvió errores GraphQL: {}", errores);
+        log.warn("Wiki.js returned GraphQL errors: {}", errors);
         return true;
     }
 
-    public record PaginaResumen(int id, String path, String locale, String title, String contentType,
+    public record PageSummary(int id, String path, String locale, String title, String contentType,
                                  boolean isPublished, boolean isPrivate) {}
 
-    public record PaginaDetalle(int id, String path, String title, String description, String content,
+    public record PageDetail(int id, String path, String title, String description, String content,
                                  String contentType, String locale) {}
 
     record GraphQlError(String message) {}
@@ -110,11 +101,11 @@ public class WikiJsGateway {
 
     record ListData(PageQueryList pages) {}
 
-    record PageQueryList(List<PaginaResumen> list) {}
+    record PageQueryList(List<PageSummary> list) {}
 
     record SingleResponse(SingleData data, List<GraphQlError> errors) {}
 
     record SingleData(PageQuerySingle pages) {}
 
-    record PageQuerySingle(PaginaDetalle single) {}
+    record PageQuerySingle(PageDetail single) {}
 }

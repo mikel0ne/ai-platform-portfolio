@@ -12,26 +12,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
 
-/**
- * Implementación por defecto del proveedor: Google AI Studio (Gemini, capa gratuita).
- *
- * <p>Es la ÚNICA clase que importa tipos de un proveedor concreto (regla de oro del doc 06).
- * Para añadir otro proveedor, crear una clase análoga con
- * {@code @ConditionalOnProperty(name = "autoops.llm.provider", havingValue = "<otro>")}.
- *
- * <p>La API key se inyecta por entorno ({@code GEMINI_API_KEY}); si falta, los beans se construyen
- * igualmente y el fallo se produce en la primera llamada, no al arrancar (no bloquea el health).
- */
 @Configuration
 @ConditionalOnProperty(name = "autoops.llm.provider", havingValue = "gemini", matchIfMissing = true)
 public class GeminiModelConfig {
 
-    /**
-     * Embeddings para <b>indexar</b> el corpus ({@code taskType=RETRIEVAL_DOCUMENT}). Es el bean primario:
-     * cualquier inyección de {@code EmbeddingModel} sin cualificar recibe este.
-     * {@code @Lazy}: el cliente del proveedor se construye en el primer uso (RAG, F1), no al arrancar,
-     * para que el contexto (servidor MCP + health) levante aunque aún no haya consumidores ni API key.
-     */
     @Bean
     @Lazy
     @Primary
@@ -44,11 +28,6 @@ public class GeminiModelConfig {
                 .build();
     }
 
-    /**
-     * Embeddings para <b>consultar</b> ({@code taskType=RETRIEVAL_QUERY}). Google asimetriza documento vs
-     * consulta: usar el taskType correcto en cada lado mejora la recuperación sin coste. Lo usa
-     * {@code WeaviateGateway.retrieve}; el de indexado, {@code WeaviateGateway.ingest}.
-     */
     @Bean("queryEmbeddingModel")
     @Lazy
     public EmbeddingModel queryEmbeddingModel(LlmProperties props,
@@ -60,7 +39,6 @@ public class GeminiModelConfig {
                 .build();
     }
 
-    /** LLM interno: reformular en el RAG correctivo (CRAG) y redactar la respuesta del chat. {@code @Lazy}: se construye en el primer uso. */
     @Bean
     @Lazy
     public ChatModel chatModel(LlmProperties props,

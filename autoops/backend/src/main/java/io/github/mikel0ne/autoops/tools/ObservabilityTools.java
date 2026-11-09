@@ -8,11 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Tool MCP de logs agregados (Loki), <b>de solo lectura</b> — complementa a {@code logs_pod} (que solo ve
- * el pod actual) con histórico correlacionable entre varios pods/namespaces en una ventana de tiempo
- * (doc 05 §1, roadmap F3/F5).
- */
 @Component
 public class ObservabilityTools {
 
@@ -22,21 +17,20 @@ public class ObservabilityTools {
         this.loki = loki;
     }
 
-    @Tool(name = "consultar_logs",
-          description = "Logs agregados desde Loki (histórico, varios pods/namespaces a la vez), a diferencia de "
-                  + "logs_pod que solo ve el pod actual. Sin 'desde'/'hasta', usa los últimos 'ventanaMinutos' "
-                  + "(por defecto 15) hasta ahora. Para acotar a un instante muy concreto (p. ej. correlacionar "
-                  + "con un timestamp ya visto en otro log), pasa 'desde'/'hasta' en ISO-8601 con milisegundos, "
-                  + "p. ej. 2026-06-26T14:32:07.123Z.")
-    public List<LogEntry> consultarLogs(
-            @ToolParam(description = "Namespace a consultar") String namespace,
-            @ToolParam(required = false, description = "Nombre del pod (opcional, filtra)") String pod,
-            @ToolParam(required = false, description = "Contenedor (opcional, filtra)") String contenedor,
-            @ToolParam(required = false, description = "Texto que debe contener la línea (opcional)") String texto,
-            @ToolParam(required = false, description = "Instante inicial ISO-8601, admite milisegundos (opcional)") String desde,
-            @ToolParam(required = false, description = "Instante final ISO-8601, admite milisegundos (opcional, por defecto ahora)") String hasta,
-            @ToolParam(required = false, description = "Si no se indica 'desde': minutos hacia atrás desde 'hasta' (por defecto 15)") Integer ventanaMinutos,
-            @ToolParam(required = false, description = "Máximo de líneas a devolver (por defecto 200)") Integer lineas) {
-        return loki.queryRange(namespace, pod, contenedor, texto, desde, hasta, ventanaMinutos, lineas);
+    @Tool(name = "query_logs",
+          description = "Aggregated logs from Loki (history across several pods/namespaces), unlike pod_logs which only "
+                  + "sees the current pod. Without 'from'/'to' it returns the last 'windowMinutes' (default 15) up to now. "
+                  + "To narrow down to a precise instant (e.g. to correlate with a timestamp seen in another log), pass "
+                  + "'from'/'to' as ISO-8601 with milliseconds, e.g. 2026-06-26T14:32:07.123Z.")
+    public List<LogEntry> queryLogs(
+            @ToolParam(description = "Namespace to query") String namespace,
+            @ToolParam(required = false, description = "Pod name (optional filter)") String pod,
+            @ToolParam(required = false, description = "Container (optional filter)") String container,
+            @ToolParam(required = false, description = "Text the line must contain (optional)") String text,
+            @ToolParam(required = false, description = "Start instant, ISO-8601, milliseconds allowed (optional)") String from,
+            @ToolParam(required = false, description = "End instant, ISO-8601, milliseconds allowed (optional, default now)") String to,
+            @ToolParam(required = false, description = "Without 'from': minutes back from 'to' (default 15)") Integer windowMinutes,
+            @ToolParam(required = false, description = "Maximum number of lines (default 200)") Integer lines) {
+        return loki.queryRange(namespace, pod, container, text, from, to, windowMinutes, lines);
     }
 }

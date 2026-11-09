@@ -5,11 +5,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.client.RestClient;
 
-/**
- * Cliente HTTP de la API REST de GitHub. Construirlo no abre conexión (mismo criterio que
- * {@code WeaviateConfig}/{@code LokiConfig}). Sin {@code GITHUB_TOKEN} funciona igual pero limitado a la
- * cuota anónima (60 req/h) y solo sirve para repos públicos.
- */
 @Configuration
 public class GitHubConfig {
 

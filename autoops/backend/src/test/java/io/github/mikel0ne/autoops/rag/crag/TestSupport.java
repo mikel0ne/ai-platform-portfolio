@@ -15,109 +15,97 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 
-/** Dobles de prueba para el bucle CRAG: ni LLM real ni Weaviate ni clúster (doc 03 §5, doc 06 §5). */
 final class TestSupport {
 
     private TestSupport() {}
 
-    /** Recuperador con score programado por llamada; repite el último si se agotan. Registra k y consulta recibidos. */
     static final class FakeRetriever implements DocRetriever {
         private final double[] scoresPerCall;
         int calls = 0;
-        final List<Integer> kRecibidos = new ArrayList<>();
-        final List<String> consultasRecibidas = new ArrayList<>();
+        final List<Integer> receivedKs = new ArrayList<>();
+        final List<String> receivedQueries = new ArrayList<>();
 
         FakeRetriever(double... scoresPerCall) {
             this.scoresPerCall = scoresPerCall;
         }
 
         @Override
-        public List<DocChunk> retrieve(String consulta, int k) {
-            kRecibidos.add(k);
-            consultasRecibidas.add(consulta);
+        public List<DocChunk> retrieve(String query, int k) {
+            receivedKs.add(k);
+            receivedQueries.add(query);
             double score = scoresPerCall[Math.min(calls, scoresPerCall.length - 1)];
             calls++;
-            return List.of(new DocChunk("texto para: " + consulta, "Título", "fuente.md", "seccion", "", "test", score, "", 0, 0));
+            return List.of(new DocChunk("texto para: " + query, "Título", "fuente.md", "section", "", "test", score, "", 0, 0));
         }
 
         @Override
-        public List<DocChunk> seccionCompleta(String docId, String seccion) {
+        public List<DocChunk> fullSection(String docId, String section) {
             return List.of();
         }
 
         @Override
-        public List<DocChunk> vecinosEnSeccion(String docId, String seccion, int orden, int radio) {
+        public List<DocChunk> neighboursInSection(String docId, String section, int order, int radius) {
             return List.of();
         }
     }
 
-    /** Recuperador con lotes de chunks fijados por llamada (para lotes con relevancia mixta) y secciones
-     * completas fijadas por docId (para probar la expansión/auto-merge de {@code expand}). */
     static final class MultiChunkRetriever implements DocRetriever {
         private final List<List<DocChunk>> chunksPerCall;
-        private final Map<String, List<DocChunk>> secciones;
+        private final Map<String, List<DocChunk>> sections;
         int calls = 0;
-        int seccionCalls = 0;
-        int vecinosCalls = 0;
-        final List<Integer> kRecibidos = new ArrayList<>();
+        int sectionCalls = 0;
+        int neighbourCalls = 0;
+        final List<Integer> receivedKs = new ArrayList<>();
 
         MultiChunkRetriever(List<List<DocChunk>> chunksPerCall) {
             this(chunksPerCall, Map.of());
         }
 
-        MultiChunkRetriever(List<List<DocChunk>> chunksPerCall, Map<String, List<DocChunk>> secciones) {
+        MultiChunkRetriever(List<List<DocChunk>> chunksPerCall, Map<String, List<DocChunk>> sections) {
             this.chunksPerCall = chunksPerCall;
-            this.secciones = secciones;
+            this.sections = sections;
         }
 
         @Override
-        public List<DocChunk> retrieve(String consulta, int k) {
-            kRecibidos.add(k);
-            List<DocChunk> resultado = chunksPerCall.get(Math.min(calls, chunksPerCall.size() - 1));
+        public List<DocChunk> retrieve(String query, int k) {
+            receivedKs.add(k);
+            List<DocChunk> result = chunksPerCall.get(Math.min(calls, chunksPerCall.size() - 1));
             calls++;
-            return resultado;
+            return result;
         }
 
         @Override
-        public List<DocChunk> seccionCompleta(String docId, String seccion) {
-            seccionCalls++;
-            return secciones.getOrDefault(docId, List.of()).stream()
-                    .filter(c -> c.seccion().equals(seccion))
+        public List<DocChunk> fullSection(String docId, String section) {
+            sectionCalls++;
+            return sections.getOrDefault(docId, List.of()).stream()
+                    .filter(c -> c.section().equals(section))
                     .toList();
         }
 
         @Override
-        public List<DocChunk> vecinosEnSeccion(String docId, String seccion, int orden, int radio) {
-            vecinosCalls++;
-            return secciones.getOrDefault(docId, List.of()).stream()
-                    .filter(c -> c.seccion().equals(seccion))
-                    .filter(c -> Math.abs(c.orden() - orden) <= radio)
+        public List<DocChunk> neighboursInSection(String docId, String section, int order, int radius) {
+            neighbourCalls++;
+            return sections.getOrDefault(docId, List.of()).stream()
+                    .filter(c -> c.section().equals(section))
+                    .filter(c -> Math.abs(c.order() - order) <= radius)
                     .toList();
         }
     }
 
-    /**
-     * ChatModel con respuestas fijas, sin red (doc 06 §5). Lo consultan TRES nodos del grafo en el mismo
-     * bean ({@code grade}, {@code rewrite} y {@code multiQuery}), así que distingue la petición por su
-     * contenido: el prompt de {@code grade} (plantilla {@code crag_grade.txt}) contiene "Veredictos"; el de
-     * {@code multiQuery} (plantilla {@code crag_multiquery.txt}) contiene "Variantes"; el de {@code rewrite}
-     * (plantilla {@code crag_rewrite.txt}, "reformulada:") es el resto. Cada cola tiene su propio valor por
-     * defecto si se agota (prudente para grade: ambiguo = insuficiente).
-     */
     static final class ScriptedChatModel implements ChatModel {
-        private final Deque<String> gradeRespuestas;
-        private final Deque<String> rewriteRespuestas;
-        private final Deque<String> multiQueryRespuestas;
+        private final Deque<String> gradeResponses;
+        private final Deque<String> rewriteResponses;
+        private final Deque<String> multiQueryResponses;
 
-        ScriptedChatModel(List<String> gradeRespuestas, List<String> rewriteRespuestas) {
-            this(gradeRespuestas, rewriteRespuestas, List.of());
+        ScriptedChatModel(List<String> gradeResponses, List<String> rewriteResponses) {
+            this(gradeResponses, rewriteResponses, List.of());
         }
 
-        ScriptedChatModel(List<String> gradeRespuestas, List<String> rewriteRespuestas,
-                          List<String> multiQueryRespuestas) {
-            this.gradeRespuestas = new ArrayDeque<>(gradeRespuestas);
-            this.rewriteRespuestas = new ArrayDeque<>(rewriteRespuestas);
-            this.multiQueryRespuestas = new ArrayDeque<>(multiQueryRespuestas);
+        ScriptedChatModel(List<String> gradeResponses, List<String> rewriteResponses,
+                          List<String> multiQueryResponses) {
+            this.gradeResponses = new ArrayDeque<>(gradeResponses);
+            this.rewriteResponses = new ArrayDeque<>(rewriteResponses);
+            this.multiQueryResponses = new ArrayDeque<>(multiQueryResponses);
         }
 
         @Override
@@ -127,17 +115,16 @@ final class TestSupport {
                     .orElse("");
             String next;
             if (prompt.contains("Veredictos")) {
-                next = gradeRespuestas.isEmpty() ? "1: INSUFICIENTE" : gradeRespuestas.poll();
+                next = gradeResponses.isEmpty() ? "1: INSUFICIENTE" : gradeResponses.poll();
             } else if (prompt.contains("Variantes")) {
-                next = multiQueryRespuestas.isEmpty() ? "" : multiQueryRespuestas.poll();
+                next = multiQueryResponses.isEmpty() ? "" : multiQueryResponses.poll();
             } else {
-                next = rewriteRespuestas.isEmpty() ? "consulta reformulada" : rewriteRespuestas.poll();
+                next = rewriteResponses.isEmpty() ? "consulta reformulada" : rewriteResponses.poll();
             }
             return ChatResponse.builder().aiMessage(AiMessage.from(next)).build();
         }
     }
 
-    /** ObjectProvider mínimo que siempre devuelve el mismo valor (para inyectar dobles sin contexto Spring). */
     static <T> ObjectProvider<T> provider(T value) {
         return new ObjectProvider<>() {
             @Override

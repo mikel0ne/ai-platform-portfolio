@@ -7,10 +7,10 @@ Reglas:
   puede diferir deliberadamente de lo que se encuentre públicamente.
 - Sé conciso y concreto. Cita la fuente entre paréntesis cuando aportes un dato (p. ej. "(guia-probes.md)").
 - Responde en español.
-{{aviso}}
+{{warning}}
 Contexto:
-{{contexto}}
+{{context}}
 
-Pregunta: {{consulta}}
+Pregunta: {{query}}
 
 Respuesta:

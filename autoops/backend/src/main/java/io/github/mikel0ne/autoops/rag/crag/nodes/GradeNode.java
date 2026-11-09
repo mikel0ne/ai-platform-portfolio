@@ -12,183 +12,153 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Nodo {@code grade}: <b>evalúa con el LLM interno, fragmento por fragmento,</b> si cada candidato aporta
- * información útil (doc 03 §3.2) y, en un segundo paso de la misma llamada, si cada una de las
- * {@link CragState#preguntas()} (la nº 1 es siempre la original; el resto, si las hay, el abanico de
- * {@code multiQuery}) queda cubierta por el conjunto.
- *
- * <p>Cada fragmento recibe uno de tres veredictos: {@code SUFICIENTE} (responde por sí solo), {@code AMBIGUO}
- * (toca el tema, sin resolverlo del todo) o {@code INSUFICIENTE} (sin relación). Deliberadamente NO se usa el
- * score crudo del reranker/híbrido como atajo: ese score puede ser alto con un fragmento que no viene a
- * cuento, así que el juicio de relevancia lo hace siempre el LLM.
- *
- * <p>La cobertura por pregunta NO se infiere fragmento a fragmento (un fragmento puede responder a varias
- * preguntas de la lista si son la misma cosa dicha de otra forma — el caso típico cuando {@code multiQuery}
- * genera paráfrasis en vez de aspectos distintos); se le pide directamente al LLM, que ve el cuadro completo.
- * Si para alguna pregunta el LLM no da veredicto de cobertura (formato roto, o prompts antiguos sin este
- * paso), se infiere de los veredictos por fragmento ya parseados: CUBIERTA si hay algún SUFICIENTE, PARCIAL
- * si solo hay AMBIGUO, SIN_CUBRIR si no hay nada — el mismo criterio que regía antes de tener preguntas.
- *
- * <p>{@code suficiente} (la señal que lee el edge para parar el bucle) exige que <b>todas</b> las preguntas
- * estén {@code CUBIERTA}: una pregunta compuesta no se da por resuelta con que se responda a una sola parte.
- *
- * <p>Mientras el bucle puede seguir reintentando (no es la última vuelta), el lote completo se conserva sin
- * filtrar en {@code candidatos}: un fragmento mal calificado de INSUFICIENTE en una vuelta vuelve a evaluarse
- * en la siguiente, por si el veredicto fue un error puntual del LLM. Solo en la <b>última</b> vuelta (éxito o
- * tope de iteraciones) se filtra de forma definitiva a SUFICIENTE∪AMBIGUO, descartando lo INSUFICIENTE: eso
- * es lo que llega al redactor ({@code AnswerComposer}).
- */
 public class GradeNode implements NodeAction<CragState> {
 
-    private static final String SUFICIENTE = "SUFICIENTE";
-    private static final String AMBIGUO = "AMBIGUO";
+    private static final String SUFFICIENT = "SUFICIENTE";
+    private static final String AMBIGUOUS = "AMBIGUO";
 
-    public static final String CUBIERTA = "CUBIERTA";
-    public static final String PARCIAL = "PARCIAL";
-    public static final String SIN_CUBRIR = "SIN_CUBRIR";
+    public static final String COVERED = "CUBIERTA";
+    public static final String PARTIAL = "PARCIAL";
+    public static final String NOT_COVERED = "SIN_CUBRIR";
 
-    /** Línea esperada: "[1] SUFICIENTE", "1: INSUFICIENTE"... el índice siempre va primero. */
-    private static final Pattern LINEA_FRAGMENTO = Pattern.compile("^\\s*\\[?(\\d+)]?\\s*[:.\\-]?\\s*(.*)$");
-    /** Línea esperada: "PREGUNTA 1: CUBIERTA", "Pregunta 2 - SIN_CUBRIR"... */
-    private static final Pattern LINEA_PREGUNTA =
+    private static final Pattern CHUNK_LINE = Pattern.compile("^\\s*\\[?(\\d+)]?\\s*[:.\\-]?\\s*(.*)$");
+
+    private static final Pattern QUESTION_LINE =
             Pattern.compile("(?i)^\\s*PREGUNTA\\s*(\\d+)\\s*[:.\\-]?\\s*(.*)$");
 
     private final ChatModel chatModel;
     private final String promptTemplate;
-    private final int maxIteraciones;
+    private final int maxIterations;
 
-    public GradeNode(ChatModel chatModel, String promptTemplate, int maxIteraciones) {
+    public GradeNode(ChatModel chatModel, String promptTemplate, int maxIterations) {
         this.chatModel = chatModel;
         this.promptTemplate = promptTemplate;
-        this.maxIteraciones = maxIteraciones;
+        this.maxIterations = maxIterations;
     }
 
     @Override
     public Map<String, Object> apply(CragState state) {
-        List<DocChunk> candidatos = state.candidatos();
-        List<String> preguntas = state.preguntas();
-        double mejor = candidatos.stream().mapToDouble(DocChunk::score).max().orElse(0.0);
+        List<DocChunk> candidates = state.candidates();
+        List<String> questions = state.questions();
+        double best = candidates.stream().mapToDouble(DocChunk::score).max().orElse(0.0);
 
-        if (candidatos.isEmpty()) {
-            return Map.of("mejorScore", mejor, "suficiente", false,
-                    "candidatos", List.of(),
-                    "coberturaPreguntas", preguntas.stream().map(p -> SIN_CUBRIR).toList());
+        if (candidates.isEmpty()) {
+            return Map.of("bestScore", best, "sufficient", false,
+                    "candidates", List.of(),
+                    "questionCoverage", questions.stream().map(p -> NOT_COVERED).toList());
         }
 
-        String respuesta = chatModel.chat(promptTemplate
-                .replace("{{preguntas}}", construirPreguntas(preguntas))
-                .replace("{{contexto}}", construirContexto(candidatos)));
+        // Relevance is always judged by the LLM: a high hybrid/rerank score is not a reliable proxy for it.
+        String answer = chatModel.chat(promptTemplate
+                .replace("{{questions}}", buildQuestions(questions))
+                .replace("{{context}}", buildContext(candidates)));
 
-        Map<Integer, String> veredictosFragmento = parseFragmentos(respuesta);
-        Map<Integer, String> coberturaExplicita = parsePreguntas(respuesta);
+        Map<Integer, String> chunkVerdicts = parseChunkVerdicts(answer);
+        Map<Integer, String> explicitCoverage = parseQuestionCoverage(answer);
 
-        List<DocChunk> conservados = new ArrayList<>();
-        boolean haySuficiente = false;
-        boolean hayAmbiguo = false;
-        for (int i = 0; i < candidatos.size(); i++) {
-            String v = veredictosFragmento.get(i + 1);
-            if (SUFICIENTE.equals(v)) {
-                conservados.add(candidatos.get(i));
-                haySuficiente = true;
-            } else if (AMBIGUO.equals(v)) {
-                conservados.add(candidatos.get(i));
-                hayAmbiguo = true;
+        List<DocChunk> kept = new ArrayList<>();
+        boolean hasSufficient = false;
+        boolean hasAmbiguous = false;
+        for (int i = 0; i < candidates.size(); i++) {
+            String v = chunkVerdicts.get(i + 1);
+            if (SUFFICIENT.equals(v)) {
+                kept.add(candidates.get(i));
+                hasSufficient = true;
+            } else if (AMBIGUOUS.equals(v)) {
+                kept.add(candidates.get(i));
+                hasAmbiguous = true;
             }
         }
-        String fallback = haySuficiente ? CUBIERTA : hayAmbiguo ? PARCIAL : SIN_CUBRIR;
+        String fallback = hasSufficient ? COVERED : hasAmbiguous ? PARTIAL : NOT_COVERED;
 
-        List<String> cobertura = new ArrayList<>(preguntas.size());
-        boolean suficiente = true;
-        for (int p = 1; p <= preguntas.size(); p++) {
-            String estado = coberturaExplicita.getOrDefault(p, fallback);
-            cobertura.add(estado);
-            if (!CUBIERTA.equals(estado)) {
-                suficiente = false;
+        List<String> coverage = new ArrayList<>(questions.size());
+        boolean sufficient = true;
+        for (int p = 1; p <= questions.size(); p++) {
+            String questionStatus = explicitCoverage.getOrDefault(p, fallback);
+            coverage.add(questionStatus);
+            if (!COVERED.equals(questionStatus)) {
+                sufficient = false;
             }
         }
 
-        boolean terminal = suficiente || state.iteraciones() >= maxIteraciones;
-        List<DocChunk> candidatosSalida = terminal ? conservados : candidatos;
+        // Only the last round filters for good: a chunk misgraded once gets re-evaluated on the next retry.
+        boolean terminal = sufficient || state.iterations() >= maxIterations;
+        List<DocChunk> outputCandidates = terminal ? kept : candidates;
 
-        return Map.of("mejorScore", mejor, "suficiente", suficiente,
-                "candidatos", candidatosSalida, "coberturaPreguntas", cobertura);
+        return Map.of("bestScore", best, "sufficient", sufficient,
+                "candidates", outputCandidates, "questionCoverage", coverage);
     }
 
-    private static String construirPreguntas(List<String> preguntas) {
+    private static String buildQuestions(List<String> questions) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < preguntas.size(); i++) {
+        for (int i = 0; i < questions.size(); i++) {
             if (i > 0) {
                 sb.append('\n');
             }
-            sb.append(i + 1).append(". ").append(preguntas.get(i));
+            sb.append(i + 1).append(". ").append(questions.get(i));
         }
         return sb.toString();
     }
 
-    private static String construirContexto(List<DocChunk> candidatos) {
+    private static String buildContext(List<DocChunk> candidates) {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < candidatos.size(); i++) {
+        for (int i = 0; i < candidates.size(); i++) {
             if (i > 0) {
                 sb.append("\n\n");
             }
-            DocChunk c = candidatos.get(i);
-            sb.append('[').append(i + 1).append("] [").append(c.fuente()).append(" · ").append(c.seccion())
-                    .append("]\n").append(c.texto());
+            DocChunk c = candidates.get(i);
+            sb.append('[').append(i + 1).append("] [").append(c.source()).append(" · ").append(c.section())
+                    .append("]\n").append(c.text());
         }
         return sb.toString();
     }
 
-    /** Ante una línea de fragmento que no encaja con el formato pedido, se ignora: ese índice queda sin
-     * veredicto y por tanto se trata como insuficiente (ver el filtro en {@link #apply}). */
-    private static Map<Integer, String> parseFragmentos(String respuesta) {
-        Map<Integer, String> veredictos = new LinkedHashMap<>();
-        for (String linea : respuesta.lines().toList()) {
-            if (LINEA_PREGUNTA.matcher(linea).matches()) {
-                continue; // las líneas "PREGUNTA n: ..." las procesa parsePreguntas
+    private static Map<Integer, String> parseChunkVerdicts(String answer) {
+        Map<Integer, String> verdicts = new LinkedHashMap<>();
+        for (String line : answer.lines().toList()) {
+            if (QUESTION_LINE.matcher(line).matches()) {
+                continue;
             }
-            Matcher m = LINEA_FRAGMENTO.matcher(linea);
+            Matcher m = CHUNK_LINE.matcher(line);
             if (!m.matches() || m.group(2).isBlank()) {
                 continue;
             }
-            int indice = Integer.parseInt(m.group(1));
-            String veredicto = m.group(2).trim().toUpperCase();
-            // "INSUFICIENTE" contiene "SUF", así que se descartan primero los otros casos.
-            String tipo;
-            if (veredicto.contains("AMBIG")) {
-                tipo = AMBIGUO;
-            } else if (veredicto.contains("INSUF")) {
-                continue; // insuficiente: sin entrada, se trata igual que un veredicto ausente
-            } else if (veredicto.contains("SUF")) {
-                tipo = SUFICIENTE;
+            int index = Integer.parseInt(m.group(1));
+            String verdict = m.group(2).trim().toUpperCase();
+
+            String type;
+            // "INSUFICIENTE" contains "SUF", so the other verdicts are checked first.
+            if (verdict.contains("AMBIG")) {
+                type = AMBIGUOUS;
+            } else if (verdict.contains("INSUF")) {
+                continue;
+            } else if (verdict.contains("SUF")) {
+                type = SUFFICIENT;
             } else {
-                continue; // irreconocible: se trata como insuficiente
+                continue;
             }
-            veredictos.put(indice, tipo);
+            verdicts.put(index, type);
         }
-        return veredictos;
+        return verdicts;
     }
 
-    /** Ante una línea de pregunta que no encaja o un estado irreconocible, esa pregunta queda sin entrada y
-     * cae al fallback inferido de los veredictos por fragmento (ver {@link #apply}). */
-    private static Map<Integer, String> parsePreguntas(String respuesta) {
-        Map<Integer, String> cobertura = new LinkedHashMap<>();
-        for (String linea : respuesta.lines().toList()) {
-            Matcher m = LINEA_PREGUNTA.matcher(linea);
+    private static Map<Integer, String> parseQuestionCoverage(String answer) {
+        Map<Integer, String> coverage = new LinkedHashMap<>();
+        for (String line : answer.lines().toList()) {
+            Matcher m = QUESTION_LINE.matcher(line);
             if (!m.matches() || m.group(2).isBlank()) {
                 continue;
             }
-            int indice = Integer.parseInt(m.group(1));
-            String estado = m.group(2).trim().toUpperCase();
-            if (estado.contains("SIN")) {
-                cobertura.put(indice, SIN_CUBRIR);
-            } else if (estado.contains("PARCIAL")) {
-                cobertura.put(indice, PARCIAL);
-            } else if (estado.contains("CUBIERTA")) {
-                cobertura.put(indice, CUBIERTA);
+            int index = Integer.parseInt(m.group(1));
+            String state = m.group(2).trim().toUpperCase();
+            if (state.contains("SIN")) {
+                coverage.put(index, NOT_COVERED);
+            } else if (state.contains("PARCIAL")) {
+                coverage.put(index, PARTIAL);
+            } else if (state.contains("CUBIERTA")) {
+                coverage.put(index, COVERED);
             }
-            // estado irreconocible: sin entrada, cae al fallback en apply()
         }
-        return cobertura;
+        return coverage;
     }
 }

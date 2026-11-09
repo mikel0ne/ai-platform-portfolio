@@ -6,11 +6,6 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
-/**
- * Tool MCP de documentación: {@code buscar_docs} (doc 03 §1.1, doc 05 §1). Devuelve fragmentos relevantes
- * con su fuente y score tras búsqueda híbrida + reranking + bucle correctivo (CRAG). <b>No redacta</b>: el
- * cliente MCP razona sobre los chunks (a diferencia del chat {@code /search}, que sí redacta).
- */
 @Component
 public class DocsTools {
 
@@ -20,13 +15,14 @@ public class DocsTools {
         this.ragService = ragService;
     }
 
-    @Tool(name = "buscar_docs",
-          description = "Busca en la documentación interna y devuelve los fragmentos más relevantes con su "
-                  + "fuente, sección y score. Úsala para responder dudas sobre estándares, políticas y guías "
-                  + "internas. Devuelve también las iteraciones del bucle correctivo y la confianza.")
-    public RagResult buscarDocs(
-            @ToolParam(description = "Consulta en lenguaje natural") String consulta,
-            @ToolParam(required = false, description = "Nº de fragmentos a devolver (por defecto 5)") Integer k) {
-        return ragService.buscar(consulta, k == null ? 0 : k);
+    // Returns raw chunks on purpose: the MCP client does the reasoning, unlike the /search chat.
+    @Tool(name = "search_docs",
+          description = "Searches the internal documentation and returns the most relevant chunks with their source, "
+                  + "section and score. Use it for questions about internal standards, policies and guides. Also "
+                  + "returns the corrective-loop iterations and a confidence level.")
+    public RagResult searchDocs(
+            @ToolParam(description = "Natural-language query") String query,
+            @ToolParam(required = false, description = "Number of chunks to return (default 5)") Integer k) {
+        return ragService.search(query, k == null ? 0 : k);
     }
 }

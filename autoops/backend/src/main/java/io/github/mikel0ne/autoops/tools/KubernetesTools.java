@@ -11,13 +11,10 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Tools MCP de Kubernetes, <b>todas de solo lectura</b> (doc 03 §1.2, doc 05 §1). Devuelven datos
- * estructurados y deterministas; el razonamiento (por qué falla un pod) lo hace el cliente MCP combinando
- * tools. La tool estrella es {@code diagnosticar_pod}: un dossier con todo el contexto en una sola llamada.
- */
 @Component
 public class KubernetesTools {
+
+    private static final int DEFAULT_LOG_LINES = 200;
 
     private final K8sInspectionService k8s;
 
@@ -25,59 +22,59 @@ public class KubernetesTools {
         this.k8s = k8s;
     }
 
-    @Tool(name = "diagnosticar_pod",
-          description = "Dossier de diagnóstico de un pod: fase, condiciones, motivo de no-Ready, contenedores "
-                  + "con reinicios, eventos recientes y cola de logs. Empieza por aquí para depurar un pod que falla.")
-    public PodDiagnosis diagnosticarPod(
-            @ToolParam(description = "Namespace del pod") String namespace,
-            @ToolParam(description = "Nombre del pod") String nombre) {
-        return k8s.diagnose(namespace, nombre);
+    @Tool(name = "diagnose_pod",
+          description = "Diagnostic dossier for a pod: phase, conditions, not-ready reason, containers with restarts, "
+                  + "recent events and log tail. Start here to debug a failing pod.")
+    public PodDiagnosis diagnosePod(
+            @ToolParam(description = "Pod namespace") String namespace,
+            @ToolParam(description = "Pod name") String name) {
+        return k8s.diagnose(namespace, name);
     }
 
-    @Tool(name = "estado_pods",
-          description = "Lista los pods de un namespace con su fase, READY, reinicios y antigüedad.")
-    public List<PodStatus> estadoPods(
+    @Tool(name = "list_pods",
+          description = "Lists the pods of a namespace with phase, READY, restarts and age.")
+    public List<PodStatus> listPods(
             @ToolParam(description = "Namespace") String namespace,
-            @ToolParam(required = false, description = "Selector de labels, p. ej. app.kubernetes.io/instance=autoops-backend "
-                    + "(los pods de este clúster vienen de un chart Helm genérico: 'app.kubernetes.io/name' vale "
-                    + "siempre 'generic-app' para todos los servicios, no distingue nada; usar 'instance')") String selector) {
+            @ToolParam(required = false, description = "Label selector, e.g. app.kubernetes.io/instance=autoops-backend. "
+                    + "Pods in this cluster come from a generic Helm chart, so 'app.kubernetes.io/name' is always "
+                    + "'generic-app'; filter by 'instance' instead") String selector) {
         return k8s.pods(namespace, selector);
     }
 
-    @Tool(name = "listar_workloads",
-          description = "Lista Deployments/StatefulSets/DaemonSets con réplicas deseadas vs disponibles. "
-                  + "Sin namespace, recorre todo el clúster.")
-    public List<WorkloadStatus> listarWorkloads(
-            @ToolParam(required = false, description = "Namespace (opcional)") String namespace) {
+    @Tool(name = "list_workloads",
+          description = "Lists Deployments, StatefulSets and DaemonSets with desired vs available replicas. "
+                  + "Without a namespace it scans the whole cluster.")
+    public List<WorkloadStatus> listWorkloads(
+            @ToolParam(required = false, description = "Namespace (optional)") String namespace) {
         return k8s.workloads(namespace);
     }
 
-    @Tool(name = "describir_pod",
-          description = "Detalle tipo 'kubectl describe' de un pod: contenedores, imágenes, requests/limits y condiciones.")
-    public PodDescription describirPod(
-            @ToolParam(description = "Namespace del pod") String namespace,
-            @ToolParam(description = "Nombre del pod") String nombre) {
-        return k8s.describe(namespace, nombre);
+    @Tool(name = "describe_pod",
+          description = "'kubectl describe'-like detail of a pod: containers, images, requests/limits and conditions.")
+    public PodDescription describePod(
+            @ToolParam(description = "Pod namespace") String namespace,
+            @ToolParam(description = "Pod name") String name) {
+        return k8s.describe(namespace, name);
     }
 
-    @Tool(name = "eventos",
-          description = "Eventos recientes de un namespace o de un objeto concreto (tipo, motivo, mensaje y antigüedad).")
-    public List<PodDiagnosis.Evento> eventos(
+    @Tool(name = "list_events",
+          description = "Recent events of a namespace or of a single object (type, reason, message and age).")
+    public List<PodDiagnosis.EventInfo> listEvents(
             @ToolParam(description = "Namespace") String namespace,
-            @ToolParam(required = false, description = "Nombre del objeto para filtrar (opcional)") String objeto) {
-        return k8s.events(namespace, objeto);
+            @ToolParam(required = false, description = "Object name to filter by (optional)") String object) {
+        return k8s.events(namespace, object);
     }
 
-    @Tool(name = "logs_pod",
-          description = "Cola de logs de un pod (read-only). Con previous=true, los del arranque anterior (útil tras un crash).")
-    public String logsPod(
-            @ToolParam(description = "Namespace del pod") String namespace,
-            @ToolParam(description = "Nombre del pod") String nombre,
-            @ToolParam(required = false, description = "Contenedor (si el pod tiene varios)") String contenedor,
-            @ToolParam(required = false, description = "Nº de líneas (por defecto 200)") Integer lineas,
-            @ToolParam(required = false, description = "Logs del arranque anterior") Boolean previous) {
-        return k8s.logs(namespace, nombre, contenedor,
-                lineas == null ? 200 : lineas,
+    @Tool(name = "pod_logs",
+          description = "Log tail of a pod (read-only). With previous=true, the logs of the previous start (useful after a crash).")
+    public String podLogs(
+            @ToolParam(description = "Pod namespace") String namespace,
+            @ToolParam(description = "Pod name") String name,
+            @ToolParam(required = false, description = "Container (when the pod has several)") String container,
+            @ToolParam(required = false, description = "Number of lines (default 200)") Integer lines,
+            @ToolParam(required = false, description = "Logs of the previous start") Boolean previous) {
+        return k8s.logs(namespace, name, container,
+                lines == null ? DEFAULT_LOG_LINES : lines,
                 Boolean.TRUE.equals(previous));
     }
 }

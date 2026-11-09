@@ -69,7 +69,7 @@ Para uso **local por stdio** (sin desplegar), el cliente arranca el jar:
 }
 ```
 
-Tras registrarlo, el cliente debe **listar** las tools (`buscar_docs`, `diagnosticar_pod`, `logs_pod`…).
+Tras registrarlo, el cliente debe **listar** las tools (`search_docs`, `diagnose_pod`, `pod_logs`…).
 
 ## 5. Verificación end-to-end
 
@@ -81,7 +81,7 @@ curl -X POST -H "Host: autoops.local" -H "Content-Type: application/json" \
   http://localhost/search --data-binary '{"consulta":"que probes debe exponer un microservicio"}'
 ```
 
-Y desde Claude Code: "lista las herramientas de autoops" o invocar `buscar_docs` debe funcionar contra la URL
+Y desde Claude Code: "lista las herramientas de autoops" o invocar `search_docs` debe funcionar contra la URL
 del Ingress.
 
 Continuar con [07-operacion-troubleshooting.md](07-operacion-troubleshooting.md).

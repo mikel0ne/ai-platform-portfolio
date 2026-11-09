@@ -8,24 +8,24 @@ Contratos estables de AutoOps: las **tools MCP** (lo que ve el cliente), el **en
 El cliente MCP descubre las tools por *introspección* (Spring AI publica nombre, descripción y esquema de
 parámetros). Forma canónica de cada una:
 
-### `buscar_docs`
+### `search_docs`
 
 ```jsonc
 // entrada
-{ "consulta": "estándar de probes para microservicios Java", "k": 5 }
+{ "query": "estándar de probes para microservicios Java", "k": 5 }
 // salida
 {
   "chunks": [
-    { "texto": "Las probes readiness deben…", "titulo": "Estándar de microservicios",
-      "fuente": "estandar-microservicios.md", "seccion": "Estándar de microservicios > Probes",
-      "url": "", "origen": "markdown-local", "score": 0.83 }
+    { "text": "Las probes readiness deben…", "title": "Estándar de microservicios",
+      "source": "estandar-microservicios.md", "section": "Estándar de microservicios > Probes",
+      "url": "", "origin": "markdown-local", "score": 0.83 }
   ],
-  "iteraciones": 1,          // vueltas del bucle CRAG consumidas
-  "confianza": "alta"        // alta | baja (baja = el LLM evaluador no consideró los chunks suficientes)
+  "iterations": 1,          // vueltas del bucle CRAG consumidas
+  "confidence": "high"        // high | medium | low | none (cobertura de la pregunta según el LLM evaluador)
 }
 ```
 
-### `diagnosticar_pod`
+### `diagnose_pod`
 
 ```jsonc
 // entrada
@@ -47,17 +47,17 @@ parámetros). Forma canónica de cada una:
 
 | Tool | Entrada | Salida (resumen) |
 |---|---|---|
-| `estado_pods` | `{ namespace, selector? }` | `[{ nombre, fase, ready, reinicios, edad }]` |
-| `listar_workloads` | `{ namespace? }` | `[{ tipo, nombre, deseadas, disponibles }]` |
-| `describir_pod` | `{ namespace, nombre }` | Objeto tipo `describe` (contenedores, imágenes, requests/limits, condiciones) |
-| `eventos` | `{ namespace, objeto? }` | `[{ tipo, motivo, mensaje, hace }]` |
-| `logs_pod` | `{ namespace, nombre, contenedor?, lineas=200, previous=false }` | `String` (cola de logs) |
+| `list_pods` | `{ namespace, selector? }` | `[{ nombre, fase, ready, reinicios, edad }]` |
+| `list_workloads` | `{ namespace? }` | `[{ tipo, nombre, deseadas, disponibles }]` |
+| `describe_pod` | `{ namespace, nombre }` | Objeto tipo `describe` (contenedores, imágenes, requests/limits, condiciones) |
+| `list_events` | `{ namespace, objeto? }` | `[{ tipo, motivo, mensaje, hace }]` |
+| `pod_logs` | `{ namespace, nombre, contenedor?, lineas=200, previous=false }` | `String` (cola de logs) |
 
-### `consultar_logs`
+### `query_logs`
 
 ```jsonc
 // entrada — sin desde/hasta: últimos ventanaMinutos hasta ahora
-{ "namespace": "autoops", "pod": "autoops-backend-7d9f", "texto": "ERROR", "ventanaMinutos": 15 }
+{ "namespace": "autoops", "pod": "autoops-backend-7d9f", "text": "ERROR", "windowMinutes": 15 }
 // entrada — instante concreto (p. ej. correlacionar con un timestamp ya visto en otro log)
 { "namespace": "autoops", "desde": "2026-06-26T14:32:07.100Z", "hasta": "2026-06-26T14:32:07.900Z" }
 // salida (List<LogEntry>)
@@ -80,18 +80,18 @@ Sin autenticación en el MVP (solo lectura de documentación pública interna). 
 
 ```jsonc
 // request
-{ "consulta": "¿Cuál es nuestra política de recursos para un microservicio Java?" }
+{ "query": "¿Cuál es nuestra política de recursos para un microservicio Java?" }
 // response 200
 {
-  "respuesta": "Según la guía interna, todo contenedor declara requests y límite de memoria…",  // redactado
-  "citas": [ { "fuente": "politica-recursos.md", "titulo": "Política de recursos",
-               "seccion": "Política de recursos > Límites", "url": "", "origen": "markdown-local", "score": 0.81 } ],
-  "confianza": "alta"
+  "answer": "Según la guía interna, todo contenedor declara requests y límite de memoria…",  // redactado
+  "citations": [ { "source": "politica-recursos.md", "title": "Política de recursos",
+               "section": "Política de recursos > Límites", "url": "", "origin": "markdown-local", "score": 0.81 } ],
+  "confidence": "high"
 }
 ```
 
 La SPA Angular (`frontend/`, sección `search/`) consume este endpoint. Es el **único** componente con LLM de
-redacción server-side; la tool MCP equivalente (`buscar_docs`) no redacta.
+redacción server-side; la tool MCP equivalente (`search_docs`) no redacta.
 
 ### GET `/actuator/health`
 
@@ -150,16 +150,16 @@ infraestructura `03-weaviate.md`):
   "class": "AutoopsDocChunk",           // el nombre real es prefijado: Weaviate es compartido (ver doc 03 de infra)
   "vectorizer": "none",                 // los embeddings los calcula AutoOps (LangChain4j), no Weaviate
   "properties": [
-    { "name": "texto",   "dataType": ["text"] },
-    { "name": "titulo",  "dataType": ["text"] },
-    { "name": "fuente",  "dataType": ["text"], "tokenization": "field" },
-    { "name": "seccion", "dataType": ["text"] },
+    { "name": "text",   "dataType": ["text"] },
+    { "name": "title",  "dataType": ["text"] },
+    { "name": "source",  "dataType": ["text"], "tokenization": "field" },
+    { "name": "section", "dataType": ["text"] },
     { "name": "url",     "dataType": ["text"], "tokenization": "field" },
-    { "name": "origen",  "dataType": ["text"], "tokenization": "field" },
+    { "name": "origin",  "dataType": ["text"], "tokenization": "field" },
     { "name": "docId",   "dataType": ["text"], "tokenization": "field" },
     { "name": "hash",    "dataType": ["text"], "tokenization": "field" },
-    { "name": "orden",   "dataType": ["int"] },
-    { "name": "seccionChars", "dataType": ["int"] }
+    { "name": "order",   "dataType": ["int"] },
+    { "name": "sectionChars", "dataType": ["int"] }
   ],
   "moduleConfig": { "reranker-transformers": {} }   // reranking nativo
 }

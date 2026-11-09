@@ -8,14 +8,6 @@ import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.stereotype.Component;
 
-/**
- * Envuelve transparentemente el bean {@link ChatModel} con {@link CachingChatModel} cuando la caché está
- * activada ({@code cache.enabled=true}). Así el RAG y el chat usan el modelo cacheado sin saberlo y sin
- * tocar el código del proveedor (doc 06: la abstracción no cambia).
- *
- * <p>Las dependencias se resuelven de forma perezosa desde el {@link BeanFactory} para no forzar la
- * creación temprana de beans (los {@code BeanPostProcessor} se instancian muy pronto en el ciclo de vida).
- */
 @Component
 public class ChatModelCachePostProcessor implements BeanPostProcessor, BeanFactoryAware {
 
@@ -27,6 +19,7 @@ public class ChatModelCachePostProcessor implements BeanPostProcessor, BeanFacto
     }
 
     @Override
+    // Dependencies are looked up lazily: BeanPostProcessors are created before regular beans.
     public Object postProcessAfterInitialization(Object bean, String beanName) throws BeansException {
         if (bean instanceof ChatModel chatModel && !(bean instanceof CachingChatModel)) {
             CacheProperties props = beanFactory.getBean(CacheProperties.class);

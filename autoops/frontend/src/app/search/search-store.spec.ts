@@ -21,26 +21,25 @@ describe('SearchStore', () => {
   it('posts the query and appends question + answer with citations', () => {
     store.search('  estándar de probes  ');
 
-    // La pregunta del usuario aparece de inmediato y se marca como buscando.
     expect(store.messages().length).toBe(1);
     expect(store.messages()[0]).toEqual(jasmine.objectContaining({ from: 'user', text: 'estándar de probes' }));
     expect(store.searching()).toBeTrue();
 
     const req = httpMock.expectOne('/search');
     expect(req.request.method).toBe('POST');
-    expect(req.request.body).toEqual({ consulta: 'estándar de probes' });
+    expect(req.request.body).toEqual({ query: 'estándar de probes' });
 
     const body: SearchResponse = {
-      respuesta: 'Las probes readiness deben…',
-      citas: [{
-        fuente: 'estandar-microservicios.md',
-        titulo: 'Estándar de microservicios',
-        seccion: 'Probes',
+      answer: 'Las probes readiness deben…',
+      citations: [{
+        source: 'estandar-microservicios.md',
+        title: 'Estándar de microservicios',
+        section: 'Probes',
         url: '',
-        origen: 'markdown-local',
+        origin: 'markdown-local',
         score: 0.83,
       }],
-      confianza: 'alta',
+      confidence: 'high',
     };
     req.flush(body);
 
@@ -49,8 +48,8 @@ describe('SearchStore', () => {
     const answer = store.messages()[1];
     expect(answer.from).toBe('agent');
     expect(answer.text).toBe('Las probes readiness deben…');
-    expect(answer.confianza).toBe('alta');
-    expect(answer.citas?.[0].fuente).toBe('estandar-microservicios.md');
+    expect(answer.confidence).toBe('high');
+    expect(answer.citations?.[0].source).toBe('estandar-microservicios.md');
   });
 
   it('ignores empty queries', () => {
