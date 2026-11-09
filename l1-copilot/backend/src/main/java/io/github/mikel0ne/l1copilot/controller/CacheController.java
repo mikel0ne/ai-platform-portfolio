@@ -5,11 +5,13 @@ import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 @Tag(name = "Caché", description = "Endpoints para gestionar la caché de respuestas")
+@ConditionalOnProperty(name = "cache.enabled", havingValue = "true")
 @RestController
 @RequestMapping("/cache")
 @RequiredArgsConstructor

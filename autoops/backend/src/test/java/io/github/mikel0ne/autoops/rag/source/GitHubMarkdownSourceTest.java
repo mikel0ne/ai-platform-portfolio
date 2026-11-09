@@ -39,8 +39,8 @@ class GitHubMarkdownSourceTest {
 
     @Test
     void extracts_owner_and_repo_from_url() {
-        assertThat(GitHubMarkdownSource.ownerRepo("https://github.com/mikel0ne/langchain.git"))
-                .containsExactly("mikel0ne", "langchain");
+        assertThat(GitHubMarkdownSource.ownerRepo("https://github.com/acme/handbook.git"))
+                .containsExactly("acme", "handbook");
     }
 
     @Test

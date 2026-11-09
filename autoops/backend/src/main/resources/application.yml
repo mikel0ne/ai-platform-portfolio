@@ -55,6 +55,9 @@ autoops:
   # Without a url (local runs) the Wiki.js source disables itself; Kubernetes sets AUTOOPS_WIKIJS_URL.
   wikijs:
     locale: es
+  # /admin/* requires the X-Admin-Token header; without a token the endpoints stay closed.
+  admin:
+    token: ${AUTOOPS_ADMIN_TOKEN:}
 
 springdoc:
   show-actuator: true
@@ -67,7 +70,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,env,mappings
+        include: health,info
   endpoint:
     health:
       show-details: always
