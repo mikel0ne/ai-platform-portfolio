@@ -1,7 +1,7 @@
 # =============================================================================
 # rbac-autoops.yaml — ServiceAccount + RBAC de SOLO LECTURA para AutoOps MCP
 # =============================================================================
-# Las tools de diagnóstico (diagnosticar_pod, logs_pod, eventos…) consultan la
+# Las tools de diagnóstico (diagnose_pod, pod_logs, eventos…) consultan la
 # API de Kubernetes desde dentro del clúster. El pod corre con este SA, con
 # permisos estrictamente de lectura. Principio de mínimo privilegio: AutoOps
 # NUNCA modifica el clúster ni lee Secrets.

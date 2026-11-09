@@ -21,20 +21,6 @@ import static org.bsc.langgraph4j.GraphDefinition.START;
 import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
 import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
-/**
- * Construye el grafo del RAG correctivo (CRAG) con LangGraph4j: {@code multiQuery → rerank → grade} y, si la
- * recuperación es floja, {@code grade → rewrite → retrieve → rerank → grade} hasta que el LLM evalúe los
- * resultados como suficientes o se agoten las iteraciones (doc 03 §3.3). Cuando {@code grade} da el visto
- * bueno, {@code expand} amplía a documento completo los fragmentos relevantes pero cortos antes de terminar.
- *
- * <p>La primera vuelta la hace {@code multiQuery} (abanico de variantes + RRF, doc 03 §3.2bis); los
- * reintentos siguen el camino antiguo, {@code retrieve} con una única consulta reformulada por
- * {@code rewrite} — el abanico no se reabre en cada reintento, para no multiplicar el coste en llamadas.
- *
- * <p>Puntos finos del diseño: el tope de iteraciones vive en el <b>edge</b> (garantiza terminación) y la
- * decisión es <b>pura</b> (solo lee estado), trivial de testear. El grafo se compila una vez de forma
- * perezosa, para no construir el {@code ChatModel} al arrancar el servidor.
- */
 @Component
 public class CragGraph {
 
@@ -43,6 +29,7 @@ public class CragGraph {
     private final CragProperties props;
     private final PromptLoader prompts;
 
+    // Compiled lazily so the ChatModel (and its API key) is not needed at startup.
     private volatile CompiledGraph<CragState> compiled;
 
     public CragGraph(DocRetriever retriever,
@@ -55,7 +42,6 @@ public class CragGraph {
         this.prompts = prompts;
     }
 
-    /** Grafo compilado (construcción perezosa con doble comprobación). */
     public CompiledGraph<CragState> get() {
         CompiledGraph<CragState> local = compiled;
         if (local == null) {
@@ -75,7 +61,7 @@ public class CragGraph {
 
     private CompiledGraph<CragState> build() {
         ChatModel llm = chatModel.getObject();
-        GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"), props.maxIteraciones());
+        GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"), props.maxIterations());
         RewriteNode rewrite = new RewriteNode(
                 llm, prompts.load("crag_rewrite.txt"), props.kStep(), props.kMax());
         MultiQueryNode multiQuery = new MultiQueryNode(
@@ -94,11 +80,12 @@ public class CragGraph {
                     .addEdge("retrieve", "rerank")
                     .addEdge("rerank", "grade")
 
+                    // The iteration cap lives on the edge, which guarantees termination whatever the grader says.
                     .addConditionalEdges("grade",
                             edge_async(s -> {
-                                if (s.suficiente()) return "ok";                       // recuperación buena
-                                if (s.iteraciones() >= props.maxIteraciones()) return "ok"; // tope: lo mejor obtenido
-                                return "retry";                                        // amplía y reintenta
+                                if (s.sufficient()) return "ok";
+                                if (s.iterations() >= props.maxIterations()) return "ok";
+                                return "retry";
                             }),
                             EdgeMappings.builder()
                                     .to("expand", "ok")
@@ -109,7 +96,7 @@ public class CragGraph {
                     .addEdge("rewrite", "retrieve")
                     .compile();
         } catch (GraphStateException e) {
-            throw new IllegalStateException("No se pudo compilar el grafo CRAG", e);
+            throw new IllegalStateException("Could not compile the CRAG graph", e);
         }
     }
 }

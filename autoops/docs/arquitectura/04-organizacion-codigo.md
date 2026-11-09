@@ -96,9 +96,9 @@ io.github.mikel0ne.autoops
 ├── Application.java
 ├── tools/                     # ←— las tools que ve el cliente MCP (doc 03)
 │   ├── DiagnosticsTools.java        # @Tool ping
-│   ├── DocsTools.java               # @Tool buscar_docs
-│   ├── KubernetesTools.java         # @Tool diagnosticar_pod, estado_pods, listar_workloads, describir_pod, eventos, logs_pod
-│   ├── ObservabilityTools.java      # @Tool consultar_logs
+│   ├── DocsTools.java               # @Tool search_docs
+│   ├── KubernetesTools.java         # @Tool diagnose_pod, list_pods, list_workloads, describe_pod, eventos, pod_logs
+│   ├── ObservabilityTools.java      # @Tool query_logs
 │   └── McpConfig.java               # ToolCallbackProvider (registra las 4 anteriores)
 ├── rag/                       # núcleo RAG compartido (tool + chat)
 │   ├── RagService.java              # API interna: buscar(consulta, k)
@@ -125,7 +125,7 @@ io.github.mikel0ne.autoops
 │   ├── K8sClientConfig.java         # fabric8 (in-cluster / kubeconfig)
 │   ├── K8sInspectionService.java    # dossiers: diagnose(), logs(), events()...
 │   └── model/ (PodDiagnosis, PodStatus, WorkloadStatus, PodDescription)
-├── observability/             # logs agregados (Loki), complemento de logs_pod (doc 03 §1.3)
+├── observability/             # logs agregados (Loki), complemento de pod_logs (doc 03 §1.3)
 │   ├── LokiConfig.java              # bean RestClient
 │   ├── LokiGateway.java             # construye LogQL, resuelve ventana temporal, aplana la respuesta
 │   ├── LokiProperties.java
@@ -158,7 +158,7 @@ Las clases del bucle CRAG no conocen Spring (POJOs instanciados en config): se t
 ## 4. Convenciones transversales
 
 - **Idioma**: código e identificadores en inglés; nombres de tools y documentación de cara al usuario en
-  español (`buscar_docs`, `diagnosticar_pod`), por ser lo que ve quien usa el asistente.
+  español (`search_docs`, `diagnose_pod`), por ser lo que ve quien usa el asistente.
 - **DTOs como `record`**: `DocChunk`, `PodDiagnosis`, `SearchRequest`/`SearchResponse`.
 - **Configuración tipada**: `@ConfigurationProperties` con `record` + `@Validated`; nada de `@Value` suelto.
 - **Prompts en `resources/prompts/`**, uno por fichero, versionados con el código.

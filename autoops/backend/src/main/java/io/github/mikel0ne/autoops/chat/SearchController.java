@@ -12,10 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Front secundario de búsqueda (doc 05 §2): {@code POST /search} sobre el mismo núcleo RAG que la tool MCP,
- * más un paso de redacción con el LLM interno. Sin autenticación en el MVP.
- */
 @RestController
 public class SearchController {
 
@@ -29,26 +25,18 @@ public class SearchController {
 
     @PostMapping("/search")
     public SearchResponse search(@Valid @RequestBody SearchRequest request) {
-        RagResult rag = ragService.buscar(request.consulta(), 0);
-        // El redactor recibe TODOS los fragmentos (contexto completo, grounding); solo las citas que se
-        // muestran al usuario se agrupan por sección, para no enseñar tarjetas duplicadas de la misma fuente.
-        // En confianza nula, AnswerComposer recurre a candidatosDescartados; las citas mostradas usan la
-        // misma base para no dejar al usuario sin saber de dónde sale lo que se le acaba de contar.
-        String respuesta = answerComposer.compose(request.consulta(), rag);
-        List<DocChunk> base = rag.chunks().isEmpty() ? rag.candidatosDescartados() : rag.chunks();
-        return new SearchResponse(respuesta, agruparPorSeccion(base), rag.confianza());
+        RagResult rag = ragService.search(request.query(), 0);
+
+        String answer = answerComposer.compose(request.query(), rag);
+        List<DocChunk> base = rag.chunks().isEmpty() ? rag.discardedCandidates() : rag.chunks();
+        return new SearchResponse(answer, groupBySection(base), rag.confidence());
     }
 
-    /**
-     * Agrupa las citas por {@code (fuente, seccion)} quedándose con la de mayor score y preservando el orden
-     * de aparición. Evita mostrar dos tarjetas de la misma sección (p. ej. dos núcleos que pasaron grade). El
-     * auto-merge del CRAG ya colapsa el caso común; esto es un backstop idempotente (doc 05 §2).
-     */
-    static List<DocChunk> agruparPorSeccion(List<DocChunk> chunks) {
-        Map<String, DocChunk> porClave = new LinkedHashMap<>();
+    static List<DocChunk> groupBySection(List<DocChunk> chunks) {
+        Map<String, DocChunk> byKey = new LinkedHashMap<>();
         for (DocChunk c : chunks) {
-            porClave.merge(c.fuente() + " | " + c.seccion(), c, (a, b) -> b.score() > a.score() ? b : a);
+            byKey.merge(c.source() + " | " + c.section(), c, (a, b) -> b.score() > a.score() ? b : a);
         }
-        return List.copyOf(porClave.values());
+        return List.copyOf(byKey.values());
     }
 }

@@ -6,7 +6,7 @@ mejorar la recuperación: incorpora sinónimos del dominio, desambigua términos
 pregunta compuesta, céntrala en el aspecto principal. Devuelve SOLO la consulta reformulada,
 en una sola línea, sin comillas ni explicaciones.
 
-Consulta original: {{consulta_original}}
-Consulta actual (a mejorar): {{consulta_actual}}
+Consulta original: {{original_query}}
+Consulta actual (a mejorar): {{current_query}}
 
 Consulta reformulada:

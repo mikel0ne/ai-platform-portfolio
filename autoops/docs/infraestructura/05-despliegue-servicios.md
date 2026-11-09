@@ -91,6 +91,6 @@ curl http://localhost:8080/actuator/health      # UP
 - **Labels de Helm, no `app=`**: el chart genérico fija `app.kubernetes.io/name` al nombre del *chart*
   (`generic-app`) para **todos** los servicios que lo usan — no distingue backend de frontend. Lo que sí
   distingue cada release es `app.kubernetes.io/instance` (`autoops-backend` / `autoops-frontend`); los
-  selectores de las tools K8s (`estado_pods`) deben usar ese label, no `app=` ni `app.kubernetes.io/name=`.
+  selectores de las tools K8s (`list_pods`) deben usar ese label, no `app=` ni `app.kubernetes.io/name=`.
 
 Continuar con [06-ingress-acceso.md](06-ingress-acceso.md).

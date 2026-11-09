@@ -43,7 +43,7 @@ proyectos del portfolio) o en `infra/.env.local` (específica, gitignored). Si l
 
 ## 3. RBAC de AutoOps (lectura del clúster)
 
-Las tools de diagnóstico (`diagnosticar_pod`, `logs_pod`, `eventos`…) consultan la API de Kubernetes desde
+Las tools de diagnóstico (`diagnose_pod`, `pod_logs`, `list_events`…) consultan la API de Kubernetes desde
 dentro del clúster. El pod corre con un `ServiceAccount` propio con permisos **estrictamente de lectura**.
 Principio de mínimo privilegio: AutoOps **nunca** modifica el clúster ni lee Secrets.
 
@@ -119,6 +119,6 @@ Que las dos últimas devuelvan **no** es la garantía de seguridad del proyecto.
 > **Selectores de label:** los pods de AutoOps (y de cualquier otro proyecto que use el chart genérico) tienen
 > `app.kubernetes.io/name=generic-app` (constante, no distingue nada) y `app.kubernetes.io/instance=autoops-backend`
 > / `autoops-frontend` (lo que sí distingue cada release). Para filtrar con `-l`/`--selector` (a mano o desde la
-> tool `estado_pods`) usar `instance`, no `name` ni `app=`.
+> tool `list_pods`) usar `instance`, no `name` ni `app=`.
 
 Continuar con [03-weaviate.md](03-weaviate.md).

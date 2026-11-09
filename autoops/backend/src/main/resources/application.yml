@@ -1,7 +1,6 @@
 spring:
   application:
     name: autoops-mcp
-  # Servidor MCP (Spring AI). En local el cliente puede usar stdio; desplegado, Streamable HTTP (perfil k8s).
   ai:
     mcp:
       server:
@@ -11,69 +10,52 @@ spring:
         protocol: STREAMABLE
         streamable-http:
           mcp-endpoint: /mcp
-          # Ping periódico sobre la conexión para que no la mate un proxy/cliente por
-          # inactividad (p.ej. el body-timeout ~300s de Node/undici en Copilot/VS Code).
+          # Keeps idle connections alive past client body timeouts (~300s in Node/undici based clients).
           keep-alive-interval: 20s
 
 server:
   port: 8080
-  # Sin context-path: el endpoint MCP (SSE) vive en /sse, el chat en /search y la UI en /.
 
 logging:
   level:
     root: INFO
     io.github.mikel0ne.autoops: DEBUG
     dev.langchain4j: INFO
-  # El formato del appender se define en logback-spring.xml:
-  #   - perfil !k8s → texto plano (local/dev)
-  #   - perfil k8s  → JSON estructurado para Loki/Grafana
 
-# Proveedor LLM/embeddings abstraído (doc 06). API key por entorno: GEMINI_API_KEY.
-# El LLM es de uso interno (calificar/reformular en CRAG + redactar el chat); el cliente MCP razona.
+# The LLM is internal (grade/rewrite in CRAG, compose the chat answer); MCP clients do their own reasoning.
+# API key from the environment: GEMINI_API_KEY.
 autoops:
   llm:
     provider: gemini
-    chat-model-name: gemini-3.1-flash-lite       # CRAG avanzado: eval chunks, reformular, redactar
-    embedding-model-name: gemini-embedding-001   # solo para transformar a vectores; 100 RPM/1000 RPD
+    chat-model-name: gemini-3.1-flash-lite
+    embedding-model-name: gemini-embedding-2
     timeout: 30s
     temperature: 0.2
-  # Weaviate: en local, vía port-forward (kubectl port-forward svc/weaviate 8088:8080).
+  # Local runs reach the cluster services through port-forwards (see autoops/docs/infraestructura).
   weaviate:
     scheme: http
     host: localhost
     port: 8088
     grpc-port: 50051
     class-name: DocChunk
-  # Loki: en local, vía port-forward (kubectl port-forward svc/loki 3100:3100 -n observability).
   loki:
     scheme: http
     host: localhost
     port: 3100
-  # Bucle correctivo del RAG (CRAG). El tope de iteraciones garantiza la terminación (doc 03 §3).
-  # 'grade' evalúa con el LLM si los chunks responden a la pregunta (sin atajo por score: no es fiable).
   crag:
-    k: 5                   # nº de recuperaciones en la primera vuelta
-    max-iteraciones: 2     # reformulaciones antes de devolver lo mejor obtenido
-    alpha: 0.5             # peso vector vs BM25 en la búsqueda híbrida (1=vector, 0=BM25)
-    k-step: 3              # cuánto crece k en cada iteración correctiva (amplía las recuperaciones)
-    k-max: 12              # tope de k por mucho que itere el bucle
-    multi-query-n: 3       # variantes en el abanico inicial (incluida la original); <=1 lo desactiva.
-                           # Solo en la primera vuelta, nunca en reintentos: coste acotado a N-1
-                           # recuperaciones/embeddings de más por consulta de usuario, una sola vez.
-  # Ingesta del corpus (fuentes → chunks con ventana de vecinos → embeddings → Weaviate).
+    k: 5
+    max-iterations: 2
+    alpha: 0.5             # hybrid search weight: 1 = vector only, 0 = BM25 only
+    k-step: 3
+    k-max: 12
+    multi-query-n: 3       # query variants on the first pass only, so the extra cost is bounded; <= 1 disables it
   ingestion:
-    max-chars: 2000        # tamaño objetivo del núcleo (~500 tokens); la ventana almacenada es mayor
-    overlap-chars: 200     # solape al subdividir un párrafo más largo que max-chars
-    # La ingesta desde Git no va por aquí: el repo (y opcionalmente rama/subdir/webBase) se pasa por
-    # parámetro en POST /admin/ingest/git, para poder ir alimentando la wiki con varios repos a demanda.
-  # Wiki.js (wiki self-hosted, fuente RAG adicional, ver infra/INFRA.md §7): activa WikiJsSource. Sin
-  # 'url' configurada (caso local, sin Wiki.js desplegado) la fuente se autodesactiva sola. En K8s la
-  # rellena infra/values-autoops-backend.yaml vía AUTOOPS_WIKIJS_URL / AUTOOPS_WIKIJS_PUBLIC_URL (binding
-  # relajado de Spring); la API key va aparte, por WIKIJS_API_KEY (secreto, no config).
+    max-chars: 2000
+    overlap-chars: 200
+  # Without a url (local runs) the Wiki.js source disables itself; Kubernetes sets AUTOOPS_WIKIJS_URL.
   wikijs:
     locale: es
 
-# Swagger UI / OpenAPI (chat de búsqueda)
 springdoc:
   show-actuator: true
   paths-to-exclude: /actuator/health/**
@@ -81,7 +63,6 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: alpha
 
-# Actuator: health con probes para Kubernetes
 management:
   endpoints:
     web:
@@ -107,8 +88,7 @@ info:
     description: "@project.description@"
     version: "@project.version@"
 
-# Caché de respuestas LLM (reutilizada del scaffolding): desactivada por defecto.
-# Útil en desarrollo para no quemar cuota de Gemini. Activar solo aquí, nunca en perfiles.
+# LLM response cache for development, to save Gemini free-tier quota. Never enable it in a profile.
 cache:
   enabled: false
   file:

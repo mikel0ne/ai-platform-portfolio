@@ -13,17 +13,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * API interna del RAG, compartida por los dos fronts (tool MCP {@code buscar_docs} y chat {@code /search}).
- * Ejecuta el grafo correctivo (CRAG) y mapea el estado final al contrato {@link RagResult} (doc 03 §4).
- */
 @Service
 public class RagService {
 
     private static final Logger log = LoggerFactory.getLogger(RagService.class);
 
-    /** Tope de candidatos descartados que se ofrecen como último recurso en confianza {@code nula}. */
-    private static final int TOPE_DESCARTADOS = 3;
+    private static final int MAX_DISCARDED = 3;
 
     private final CragGraph cragGraph;
 
@@ -31,45 +26,39 @@ public class RagService {
         this.cragGraph = cragGraph;
     }
 
-    /**
-     * Recupera fragmentos relevantes con búsqueda híbrida + reranking + bucle correctivo.
-     *
-     * @param consulta consulta del usuario
-     * @param k        nº de fragmentos deseado (si {@code <= 0}, el valor por defecto del CRAG)
-     */
-    public RagResult buscar(String consulta, int k) {
-        int kEfectivo = k > 0 ? k : cragGraph.props().k();
+    public RagResult search(String query, int k) {
+        int effectiveK = k > 0 ? k : cragGraph.props().k();
         Map<String, Object> input = new HashMap<>();
-        input.put("consulta", consulta);
-        input.put("consultaActual", consulta);
-        input.put("k", kEfectivo);
+        input.put("query", query);
+        input.put("currentQuery", query);
+        input.put("k", effectiveK);
 
-        CragState estado = cragGraph.get()
+        CragState state = cragGraph.get()
                 .invoke(input, RunnableConfig.empty())
-                .orElseThrow(() -> new IllegalStateException("El grafo CRAG no devolvió estado final"));
+                .orElseThrow(() -> new IllegalStateException("The CRAG graph returned no final state"));
 
-        List<DocChunk> chunks = estado.candidatos();
-        int iteraciones = estado.iteraciones();
-        List<String> cobertura = estado.coberturaPreguntas();
+        List<DocChunk> chunks = state.candidates();
+        int iterations = state.iterations();
+        List<String> coverage = state.questionCoverage();
 
-        String confianza;
-        List<DocChunk> descartados = List.of();
-        if (!cobertura.isEmpty() && cobertura.stream().allMatch(GradeNode.CUBIERTA::equals)) {
-            confianza = RagResult.ALTA;
-        } else if (cobertura.stream().anyMatch(GradeNode.CUBIERTA::equals)) {
-            confianza = RagResult.MEDIA;
-        } else if (cobertura.stream().anyMatch(GradeNode.PARCIAL::equals)) {
-            confianza = RagResult.BAJA;
+        String confidence;
+        List<DocChunk> discarded = List.of();
+        if (!coverage.isEmpty() && coverage.stream().allMatch(GradeNode.COVERED::equals)) {
+            confidence = RagResult.HIGH;
+        } else if (coverage.stream().anyMatch(GradeNode.COVERED::equals)) {
+            confidence = RagResult.MEDIUM;
+        } else if (coverage.stream().anyMatch(GradeNode.PARTIAL::equals)) {
+            confidence = RagResult.LOW;
         } else {
-            confianza = RagResult.NULA;
-            descartados = estado.candidatosCrudos().stream()
+            confidence = RagResult.NONE;
+            discarded = state.rawCandidates().stream()
                     .sorted(Comparator.comparingDouble(DocChunk::score).reversed())
-                    .limit(TOPE_DESCARTADOS)
+                    .limit(MAX_DISCARDED)
                     .toList();
         }
 
-        log.debug("buscar_docs: consulta='{}' k={} iteraciones={} mejorScore={} cobertura={} confianza={}",
-                consulta, kEfectivo, iteraciones, estado.mejorScore(), cobertura, confianza);
-        return new RagResult(chunks, iteraciones, confianza, descartados);
+        log.debug("search_docs: query='{}' k={} iterations={} bestScore={} coverage={} confidence={}",
+                query, effectiveK, iterations, state.bestScore(), coverage, confidence);
+        return new RagResult(chunks, iterations, confidence, discarded);
     }
 }

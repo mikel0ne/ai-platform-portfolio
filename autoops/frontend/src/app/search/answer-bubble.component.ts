@@ -1,12 +1,10 @@
 import { CommonModule } from '@angular/common';
 import { Component, Input } from '@angular/core';
 import { MarkdownComponent } from 'ngx-markdown';
-import { Origen, SearchMessage } from '../core/models';
+import { Origin, SearchMessage } from '../core/models';
 
-/** Nivel visual del score normalizado de una cita (ver scoreNormalizado): orientativo, no garantiza relevancia real. */
-type Relevancia = 'top' | 'media' | 'baja';
+type ScoreLevel = 'top' | 'mid' | 'low';
 
-/** Burbuja del hilo de búsqueda: para el asistente añade confianza, citas y respuesta en markdown (docs/arquitectura/05-contratos-api-datos.md §2). */
 @Component({
   selector: 'app-answer-bubble',
   standalone: true,
@@ -23,47 +21,47 @@ type Relevancia = 'top' | 'media' | 'baja';
       }
 
       @if (msg.from === 'agent' && !msg.error) {
-        @if (msg.confianza) {
-          <div class="confidence" [class]="'conf-' + msg.confianza">
-            @switch (msg.confianza) {
-              @case ('alta') {
+        @if (msg.confidence) {
+          <div class="confidence" [class]="'conf-' + msg.confidence">
+            @switch (msg.confidence) {
+              @case ('high') {
                 <span class="icon" aria-hidden="true">✓</span> Confianza alta
               }
-              @case ('media') {
-                <span class="icon icon-media" aria-hidden="true">❓</span> Cobertura parcial · contrasta antes de aplicar
+              @case ('medium') {
+                <span class="icon" aria-hidden="true">❓</span> Cobertura parcial · contrasta antes de aplicar
               }
-              @case ('baja') {
-                <span class="icon icon-baja" aria-hidden="true">⚠️</span> Información tangencial · verifica antes de aplicar
+              @case ('low') {
+                <span class="icon" aria-hidden="true">⚠️</span> Información tangencial · verifica antes de aplicar
               }
-              @case ('nula') {
-                <span class="icon icon-nula" aria-hidden="true">❌</span> Sin documentación interna · verifica obligatoriamente
+              @case ('none') {
+                <span class="icon" aria-hidden="true">❌</span> Sin documentación interna · verifica obligatoriamente
               }
             }
           </div>
         }
 
-        @if (msg.citas && msg.citas.length > 0) {
+        @if (msg.citations && msg.citations.length > 0) {
           <div class="citations">
             <div class="citations-head">Fuentes</div>
-            @for (cita of msg.citas; track $index) {
+            @for (citation of msg.citations; track $index) {
               <div class="citation">
                 <div class="citation-row">
-                  <span class="cite-origin" [class]="'origin-' + cita.origen">
-                    {{ origenLabel(cita.origen) }}
+                  <span class="cite-origin" [class]="'origin-' + citation.origin">
+                    {{ originLabel(citation.origin) }}
                   </span>
-                  @if (cita.url) {
-                    <a class="cite-title" [href]="cita.url" target="_blank" rel="noopener noreferrer" [title]="cita.titulo">{{ cita.fuente }}</a>
+                  @if (citation.url) {
+                    <a class="cite-title" [href]="citation.url" target="_blank" rel="noopener noreferrer" [title]="citation.title">{{ citation.source }}</a>
                   } @else {
-                    <span class="cite-title" [title]="cita.titulo">{{ cita.fuente }}</span>
+                    <span class="cite-title" [title]="citation.title">{{ citation.source }}</span>
                   }
                   <span class="cite-score"
-                        [class]="'score-' + nivelScore(cita.score)"
+                        [class]="'score-' + scoreLevel(citation.score)"
                         title="Score del reranker normalizado a 0-10 (sigmoide); orientativo, no garantiza relevancia real — ver confianza">
-                    {{ scoreNormalizado(cita.score) | number:'1.1-1' }}
+                    {{ normalizedScore(citation.score) | number:'1.1-1' }}
                   </span>
                 </div>
-                @if (cita.seccion) {
-                  <div class="cite-section">{{ cita.seccion }}</div>
+                @if (citation.section) {
+                  <div class="cite-section">{{ citation.section }}</div>
                 }
               </div>
             }
@@ -116,7 +114,6 @@ type Relevancia = 'top' | 'media' | 'baja';
     .text ::ng-deep a { color: #0969da; }
     .user .text ::ng-deep a { color: #fff; text-decoration: underline; }
 
-    /* ── Confianza ───────────────────────────────────────────────────────── */
     .confidence {
       display: inline-flex;
       align-items: center;
@@ -136,16 +133,15 @@ type Relevancia = 'top' | 'media' | 'baja';
       border-radius: 50%;
       margin-left: -7px;
     }
-    .conf-alta  { background: #8fe4a8; color: #065f46; }
-    .conf-media { background: #f1e89d; color: #9b4300; }
-    .conf-baja  { background: #ffc494; color: #930007; }
-    .conf-nula  { background: #ffabab; color: #1f2937; }
-    .conf-alta  .icon { background-color: #daffec; }
-    .conf-media .icon { background-color: #fff6d6; }
-    .conf-baja  .icon { background-color: #FFE2C4; line-height: 1; }
-    .conf-nula  .icon { background-color: #fce8e8; }
+    .conf-high   { background: #8fe4a8; color: #065f46; }
+    .conf-medium { background: #f1e89d; color: #9b4300; }
+    .conf-low    { background: #ffc494; color: #930007; }
+    .conf-none   { background: #ffabab; color: #1f2937; }
+    .conf-high   .icon { background-color: #daffec; }
+    .conf-medium .icon { background-color: #fff6d6; }
+    .conf-low    .icon { background-color: #FFE2C4; line-height: 1; }
+    .conf-none   .icon { background-color: #fce8e8; }
 
-    /* ── Citas ───────────────────────────────────────────────────────────── */
     .citations {
       margin-top: 0.6rem;
       padding-top: 0.5rem;
@@ -206,8 +202,8 @@ type Relevancia = 'top' | 'media' | 'baja';
       border: 1px solid transparent;
     }
     .score-top { background: #d1fae5; color: #065f46; }
-    .score-media { background: #fef3c7; color: #b45309; }
-    .score-baja { background: #fff; color: #57606a; border-color: #d0d7de; }
+    .score-mid { background: #fef3c7; color: #b45309; }
+    .score-low { background: #fff; color: #57606a; border-color: #d0d7de; }
     .cite-section {
       padding-left: 0.1rem;
       color: #57606a;
@@ -216,7 +212,6 @@ type Relevancia = 'top' | 'media' | 'baja';
       white-space: nowrap;
     }
 
-    /* ── Meta ────────────────────────────────────────────────────────────── */
     .meta {
       margin-top: 0.35rem;
       font-size: 0.7rem;
@@ -228,28 +223,28 @@ type Relevancia = 'top' | 'media' | 'baja';
 export class AnswerBubbleComponent {
   @Input({ required: true }) msg!: SearchMessage;
 
-  private static readonly ORIGEN_LABEL: Record<Origen, string> = {
+  private static readonly ORIGIN_LABEL: Record<Origin, string> = {
     git: 'Git',
     wikijs: 'Wiki',
     'markdown-local': 'Local',
   };
 
-  origenLabel(origen: Origen): string {
-    return AnswerBubbleComponent.ORIGEN_LABEL[origen] ?? origen;
+  originLabel(origin: Origin): string {
+    return AnswerBubbleComponent.ORIGIN_LABEL[origin] ?? origin;
   }
 
-  /** Pendiente del sigmoide: con temperatura 1 los scores reales observados (~3-4) saturaban casi todos en 9.5-9.8, indistinguibles. Ajustar si la distribución real en producción resulta muy distinta. */
-  private static readonly TEMPERATURA_SCORE = 3;
+  // With a slope of 1 the observed reranker scores (~3-4) all saturated at 9.5-9.8 and became indistinguishable.
+  private static readonly SCORE_TEMPERATURE = 3;
 
-  /** Comprime el score sin escala fija del reranker (logit, puede ser negativo) a 0-10 vía sigmoide centrado en 0 (la frontera de relevancia al 50% con la que se entrenan estos cross-encoders): acotado y monótono con el original, pero no más fiable como proxy de relevancia que el score crudo. */
-  scoreNormalizado(score: number): number {
-    return 10 / (1 + Math.exp(-score / AnswerBubbleComponent.TEMPERATURA_SCORE));
+  // The cross-encoder score is an unbounded logit; a sigmoid centred on 0 maps it to 0-10 for display only.
+  normalizedScore(score: number): number {
+    return 10 / (1 + Math.exp(-score / AnswerBubbleComponent.SCORE_TEMPERATURE));
   }
 
-  nivelScore(score: number): Relevancia {
-    const normalizado = this.scoreNormalizado(score);
-    if (normalizado >= 7) return 'top';
-    if (normalizado >= 4) return 'media';
-    return 'baja';
+  scoreLevel(score: number): ScoreLevel {
+    const normalized = this.normalizedScore(score);
+    if (normalized >= 7) return 'top';
+    if (normalized >= 4) return 'mid';
+    return 'low';
   }
 }

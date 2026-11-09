@@ -18,9 +18,9 @@ herramientas y datos** de forma segura (lectura, nunca escritura sobre el clúst
 
 ```
 Claude Code / GitHub Copilot ──MCP (Streamable HTTP)──▶  autoops-mcp (Java · Spring Boot, en Kubernetes)
-                                                    ├─ buscar_docs        → Weaviate  (RAG avanzado / CRAG)
-                                                    ├─ diagnosticar_pod   → API K8s   (read-only)
-                                                    ├─ logs_pod, eventos… → API K8s   (read-only)
+                                                    ├─ search_docs        → Weaviate  (RAG avanzado / CRAG)
+                                                    ├─ diagnose_pod   → API K8s   (read-only)
+                                                    ├─ pod_logs, eventos… → API K8s   (read-only)
                                                     └─ (chat de búsqueda)  ← front secundario sobre el mismo RAG
 ```
 
@@ -35,11 +35,11 @@ con datos reales del clúster en vez de inventarlos.
 
 | Tool | Para qué |
 |---|---|
-| `buscar_docs` | RAG avanzado sobre documentación interna (Weaviate: búsqueda híbrida + reranking + bucle correctivo CRAG). |
-| `diagnosticar_pod` | Dossier estructurado de un pod: fase, condiciones, eventos, reinicios y cola de logs, en una sola llamada. |
-| `estado_pods` / `listar_workloads` | Estado de pods y workloads de un namespace. |
-| `describir_pod` / `eventos` / `logs_pod` | Piezas individuales para que el cliente componga su propio análisis. |
-| `consultar_logs` | Histórico agregado cross-pod vía Loki (no solo el log en vivo del pod). |
+| `search_docs` | RAG avanzado sobre documentación interna (Weaviate: búsqueda híbrida + reranking + bucle correctivo CRAG). |
+| `diagnose_pod` | Dossier estructurado de un pod: fase, condiciones, eventos, reinicios y cola de logs, en una sola llamada. |
+| `list_pods` / `list_workloads` | Estado de pods y workloads de un namespace. |
+| `describe_pod` / `list_events` / `pod_logs` | Piezas individuales para que el cliente componga su propio análisis. |
+| `query_logs` | Histórico agregado cross-pod vía Loki (no solo el log en vivo del pod). |
 
 Todo el acceso a Kubernetes es **estrictamente de solo lectura** (RBAC sin escritura ni acceso a Secrets).
 

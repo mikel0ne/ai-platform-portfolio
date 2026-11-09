@@ -19,7 +19,7 @@ Indexar y consultar usan **dos beans distintos del mismo modelo**, no uno solo: 
 embedding según el `taskType` (`RETRIEVAL_DOCUMENT` vs `RETRIEVAL_QUERY`), y usar el correcto en cada lado
 mejora la recuperación sin coste (mismo modelo, mismo precio, misma dimensión — ver §3).
 
-La tool MCP `buscar_docs` **no redacta**: devuelve chunks. Por eso el LLM del servidor es pequeño y de uso
+La tool MCP `search_docs` **no redacta**: devuelve chunks. Por eso el LLM del servidor es pequeño y de uso
 acotado; no es el cerebro del producto.
 
 La regla del proyecto: **ninguna clase fuera de `io.github.mikel0ne.autoops.llm.provider` importa clases de un proveedor

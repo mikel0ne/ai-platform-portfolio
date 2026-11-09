@@ -17,7 +17,7 @@ El front principal. Publica las **tools** que consume el cliente MCP (Claude Cod
 
 ### Núcleo RAG (LangChain4j + Weaviate + CRAG)
 
-El cerebro de recuperación, compartido por la tool `buscar_docs` y por el chat:
+El cerebro de recuperación, compartido por la tool `search_docs` y por el chat:
 
 - **Ingesta multi-fuente**: cada `FuenteDocumental` (markdown local, repo Git, Wiki.js) aporta documentos →
   el `Chunker` los trocea (heading + recursivo; cada chunk almacena su núcleo + `seccionChars`) → embeddings →
@@ -37,7 +37,7 @@ Inspección del clúster para las tools de diagnóstico:
 
 ### Servicio de observabilidad (Loki)
 
-Logs agregados, complemento de `logs_pod` (que solo ve el pod actual):
+Logs agregados, complemento de `pod_logs` (que solo ve el pod actual):
 
 - `LokiGateway` (`io.github.mikel0ne.autoops.observability`) habla por HTTP plano (`RestClient` de Spring, sin SDK
   dedicado) con la API `query_range` de **Loki**, compartido en el namespace `observability` (guía de
@@ -142,7 +142,7 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 
 ### ADR-007 — RAG correctivo (CRAG) con subgrafo LangGraph4j
 
-- **Decisión:** `buscar_docs` no hace una sola búsqueda: corre un **bucle** recuperar → calificar → (si flojo)
+- **Decisión:** `search_docs` no hace una sola búsqueda: corre un **bucle** recuperar → calificar → (si flojo)
   reformular/expandir → reintentar, acotado a N vueltas. Es un flujo **cíclico**, así que se implementa con
   **LangGraph4j** (la regla del repo aplica aquí, a diferencia del desaparecido ciclo de YAML).
 - **Razones:** el usuario quiere un RAG que **valide si los resultados son buenos** y reaccione. La calificación
@@ -165,13 +165,13 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 - **Consecuencias:** el Ingress enruta el endpoint `/mcp`; el cliente MCP se configura con la URL (ver
   [07-roadmap-implementacion.md](07-roadmap-implementacion.md) §F4).
 
-### ADR-009 — Logs agregados vía Loki (`consultar_logs`), complemento de `logs_pod`
+### ADR-009 — Logs agregados vía Loki (`query_logs`), complemento de `pod_logs`
 
-- **Contexto:** `logs_pod` (fabric8) solo ve el log en vivo del pod actual, equivalente a `kubectl logs`; no
+- **Contexto:** `pod_logs` (fabric8) solo ve el log en vivo del pod actual, equivalente a `kubectl logs`; no
   hay forma de correlacionar eventos entre varios pods/namespaces en una ventana de tiempo. Loki ya recibía los
   logs de todo el clúster (Promtail, ver guía de infraestructura `07-setup-observability.sh`), pero solo era
   útil para un humano mirando Grafana — el cliente MCP no podía consultarlo.
-- **Decisión:** nueva tool `consultar_logs` (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `LokiProperties` +
+- **Decisión:** nueva tool `query_logs` (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `LokiProperties` +
   `ObservabilityTools`) que llama a `/loki/api/v1/query_range` con una query LogQL construida a partir de
   filtros estructurados. La ventana temporal admite `ventanaMinutos` (relativa) o `desde`/`hasta` en ISO-8601
   con milisegundos, para acotar a un instante muy concreto al correlacionar llamadas entre servicios.

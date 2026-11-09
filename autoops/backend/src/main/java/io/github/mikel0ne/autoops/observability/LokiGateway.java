@@ -11,13 +11,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Cliente de Loki para la tool {@code consultar_logs} (doc 05 §1, roadmap F3/F5): construye la query LogQL
- * a partir de filtros estructurados, resuelve la ventana temporal y aplana la respuesta anidada de
- * {@code /loki/api/v1/query_range} a {@link LogEntry}. La construcción de query/ventana y el aplanado son
- * {@code static} y puros para poder testearlos sin un Loki real (mismo criterio que
- * {@code K8sInspectionService}).
- */
 @Service
 public class LokiGateway {
 
@@ -27,17 +20,13 @@ public class LokiGateway {
         this.client = lokiClient;
     }
 
-    public List<LogEntry> queryRange(String namespace, String pod, String contenedor, String texto,
-                                      String desde, String hasta, Integer ventanaMinutos, Integer lineas) {
-        Ventana ventana = resolveVentana(desde, hasta, ventanaMinutos);
-        String query = buildLogQl(namespace, pod, contenedor, texto);
-        int limit = lineas == null ? 200 : lineas;
+    public List<LogEntry> queryRange(String namespace, String pod, String container, String text,
+                                      String from, String to, Integer windowMinutes, Integer lines) {
+        TimeWindow window = resolveWindow(from, to, windowMinutes);
+        String query = buildLogQl(namespace, pod, container, text);
+        int limit = lines == null ? 200 : lines;
 
-        // La query LogQL trae llaves literales (p. ej. {namespace="autoops"}). Si se inyectan ya
-        // resueltas, UriBuilder las reinterpreta como variables de plantilla sin valor y revienta con
-        // "Not enough variable values available to expand". Se pasan como variables nombradas para que
-        // solo se sustituyan (y codifiquen) una vez, sin volver a escanear el resultado.
-        LokiResponse respuesta = client.get()
+        LokiResponse answer = client.get()
                 .uri(uri -> uri.path("/loki/api/v1/query_range")
                         .queryParam("query", "{query}")
                         .queryParam("start", "{start}")
@@ -45,66 +34,61 @@ public class LokiGateway {
                         .queryParam("limit", "{limit}")
                         .build(Map.of(
                                 "query", query,
-                                "start", ventana.desde().toString(),
-                                "end", ventana.hasta().toString(),
+                                "start", window.from().toString(),
+                                "end", window.to().toString(),
                                 "limit", limit)))
                 .retrieve()
                 .body(LokiResponse.class);
 
-        return flatten(respuesta);
+        return flatten(answer);
     }
 
-    /**
-     * Resuelve la ventana de tiempo a consultar. Sin {@code desde}/{@code hasta}, son los últimos
-     * {@code ventanaMinutos} (por defecto 15) hasta ahora. Con ambos en ISO-8601 (admite milisegundos),
-     * permite acotar a un instante muy concreto — p. ej. correlacionar con un timestamp ya visto en otro log.
-     */
-    static Ventana resolveVentana(String desde, String hasta, Integer ventanaMinutos) {
-        Instant fin = (hasta != null && !hasta.isBlank()) ? Instant.parse(hasta) : Instant.now();
-        Instant inicio = (desde != null && !desde.isBlank())
-                ? Instant.parse(desde)
-                : fin.minus(Duration.ofMinutes(ventanaMinutos == null ? 15 : ventanaMinutos));
-        return new Ventana(inicio, fin);
+    static TimeWindow resolveWindow(String from, String to, Integer windowMinutes) {
+        Instant fin = (to != null && !to.isBlank()) ? Instant.parse(to) : Instant.now();
+        Instant start = (from != null && !from.isBlank())
+                ? Instant.parse(from)
+                : fin.minus(Duration.ofMinutes(windowMinutes == null ? 15 : windowMinutes));
+        return new TimeWindow(start, fin);
     }
 
-    record Ventana(Instant desde, Instant hasta) {}
+    record TimeWindow(Instant from, Instant to) {}
 
-    static String buildLogQl(String namespace, String pod, String contenedor, String texto) {
+    static String buildLogQl(String namespace, String pod, String container, String text) {
         StringBuilder selector = new StringBuilder("{namespace=\"").append(escape(namespace)).append('"');
         if (pod != null && !pod.isBlank()) {
             selector.append(",pod=\"").append(escape(pod)).append('"');
         }
-        if (contenedor != null && !contenedor.isBlank()) {
-            selector.append(",container=\"").append(escape(contenedor)).append('"');
+        if (container != null && !container.isBlank()) {
+            selector.append(",container=\"").append(escape(container)).append('"');
         }
         selector.append('}');
-        if (texto != null && !texto.isBlank()) {
-            selector.append(" |= \"").append(escape(texto)).append('"');
+        if (text != null && !text.isBlank()) {
+            selector.append(" |= \"").append(escape(text)).append('"');
         }
         return selector.toString();
     }
 
-    static List<LogEntry> flatten(LokiResponse respuesta) {
+    static List<LogEntry> flatten(LokiResponse answer) {
         List<LogEntry> out = new ArrayList<>();
-        if (respuesta == null || respuesta.data() == null || respuesta.data().result() == null) {
+        if (answer == null || answer.data() == null || answer.data().result() == null) {
             return out;
         }
-        for (LokiStream stream : respuesta.data().result()) {
+        for (LokiStream stream : answer.data().result()) {
             Map<String, String> labels = stream.stream() == null ? Map.of() : stream.stream();
             if (stream.values() == null) {
                 continue;
             }
-            for (List<String> valor : stream.values()) {
-                Instant ts = Instant.ofEpochSecond(0L, Long.parseLong(valor.get(0)));
-                out.add(new LogEntry(ts, labels.get("namespace"), labels.get("pod"), labels.get("container"), valor.get(1)));
+            for (List<String> value : stream.values()) {
+                Instant ts = Instant.ofEpochSecond(0L, Long.parseLong(value.get(0)));
+                out.add(new LogEntry(ts, labels.get("namespace"), labels.get("pod"), labels.get("container"), value.get(1)));
             }
         }
         out.sort(Comparator.comparing(LogEntry::timestamp));
         return out;
     }
 
-    private static String escape(String valor) {
-        return valor.replace("\\", "\\\\").replace("\"", "\\\"");
+    private static String escape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     record LokiResponse(String status, LokiData data) {}

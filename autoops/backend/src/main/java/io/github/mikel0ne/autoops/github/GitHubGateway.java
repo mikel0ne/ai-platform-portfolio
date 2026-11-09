@@ -10,12 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 
-/**
- * Cliente de la API REST de GitHub para leer documentación sin clonar el repositorio (a diferencia de un
- * clon JGit, cada llamada trae solo lo que hace falta: el SHA de la rama, el árbol de ficheros y el
- * contenido de un fichero concreto). Pensado para reutilizarse también desde una futura tool de lectura de
- * código bajo demanda (grep + leer fichero), sin pasar por un índice vectorial.
- */
 @Service
 public class GitHubGateway {
 
@@ -25,8 +19,7 @@ public class GitHubGateway {
         this.client = gitHubClient;
     }
 
-    /** Rama por defecto del repositorio (la que GitHub muestra al entrar), para no tener que adivinarla. */
-    public String ramaPorDefecto(String owner, String repo) {
+    public String defaultBranch(String owner, String repo) {
         RepoInfo info = client.get()
                 .uri("/repos/{owner}/{repo}", owner, repo)
                 .retrieve()
@@ -34,8 +27,7 @@ public class GitHubGateway {
         return info == null ? null : info.defaultBranch();
     }
 
-    /** SHA del último commit de una rama. Reservado para una futura tool de lectura de código bajo demanda. */
-    public String ultimoCommitSha(String owner, String repo, String branch) {
+    public String latestCommitSha(String owner, String repo, String branch) {
         CommitRef ref = client.get()
                 .uri("/repos/{owner}/{repo}/commits/{branch}", owner, repo, branch)
                 .retrieve()
@@ -43,8 +35,7 @@ public class GitHubGateway {
         return ref == null ? null : ref.sha();
     }
 
-    /** Rutas (relativas a la raíz del repo) de todos los {@code *.md} del árbol completo, en un commit dado. */
-    public List<String> ficherosMarkdown(String owner, String repo, String sha) {
+    public List<String> markdownFiles(String owner, String repo, String sha) {
         TreeResponse tree = client.get()
                 .uri("/repos/{owner}/{repo}/git/trees/{sha}?recursive=1", owner, repo, sha)
                 .retrieve()
@@ -59,8 +50,7 @@ public class GitHubGateway {
                 .toList();
     }
 
-    /** Contenido de texto de un fichero en un commit/rama concretos. */
-    public String contenido(String owner, String repo, String path, String ref) {
+    public String content(String owner, String repo, String path, String ref) {
         URI uri = UriComponentsBuilder.fromUriString("https://api.github.com")
                 .pathSegment("repos", owner, repo, "contents")
                 .pathSegment(path.split("/"))
@@ -72,7 +62,7 @@ public class GitHubGateway {
         if (resp == null || resp.content() == null) {
             return "";
         }
-        // GitHub corta el base64 cada 60 caracteres con '\n'; el decoder MIME los tolera.
+
         byte[] raw = Base64.getMimeDecoder().decode(resp.content());
         return new String(raw, StandardCharsets.UTF_8);
     }

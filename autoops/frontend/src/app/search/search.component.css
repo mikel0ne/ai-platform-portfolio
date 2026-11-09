@@ -44,7 +44,6 @@
   flex-direction: column;
 }
 
-/* ── Estado vacío ──────────────────────────────────────────────────────── */
 .empty {
   max-width: 520px;
   margin: 2.5rem auto;
@@ -90,7 +89,6 @@
 }
 .example[disabled] { opacity: 0.6; cursor: not-allowed; }
 
-/* ── Composer ──────────────────────────────────────────────────────────── */
 .composer {
   display: flex;
   gap: 0.5rem;

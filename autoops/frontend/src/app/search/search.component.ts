@@ -17,7 +17,6 @@ export class SearchComponent implements AfterViewChecked {
   readonly store = inject(SearchStore);
   draft = '';
 
-  /** Ejemplos del estado vacío, alineados con los casos de uso de la doc (CU-2/CU-4). */
   readonly examples = [
     '¿Cómo configuramos readiness y liveness según la guía interna?',
     '¿Cuál es el estándar de fragmentación (chunking)?',

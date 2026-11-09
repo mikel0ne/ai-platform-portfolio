@@ -27,9 +27,9 @@ PREGUNTA <n>: SIN_CUBRIR
 - SIN_CUBRIR → no hay ningún fragmento relacionado con ella.
 
 PREGUNTAS:
-{{preguntas}}
+{{questions}}
 
 FRAGMENTOS:
-{{contexto}}
+{{context}}
 
 Veredictos (primero los fragmentos, uno por línea; luego las preguntas, una por línea):

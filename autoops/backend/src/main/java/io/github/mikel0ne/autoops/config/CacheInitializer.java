@@ -5,9 +5,6 @@ import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-/**
- * Inicializador del gestor de caché
- */
 @Component
 public class CacheInitializer {
 
@@ -19,4 +16,3 @@ public class CacheInitializer {
         fileCacheManager.init();
     }
 }
-
