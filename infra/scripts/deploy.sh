@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # =============================================================================
-# deploy.sh — despliega un proyecto del monorepo en Kubernetes (k3s)
+# deploy.sh: deploys one project of the monorepo to Kubernetes (k3s)
 # =============================================================================
-# Script GENÉRICO: lo específico de cada proyecto vive en
-# infra/projects/<project>.env (namespace, imágenes, secrets, rutas de ingress,
-# contexto de build). Los nombres de values/namespace/rbac/.env se derivan por
-# CONVENCIÓN del nombre de proyecto:
+# Generic script: everything project-specific lives in
+# infra/projects/<project>.env (namespace, images, secrets, ingress paths,
+# build context). Values, namespace, RBAC and env file names follow from the
+# project name by convention:
 #
 #   infra/values-<project>-backend.yaml      infra/values-<project>-frontend.yaml
-#   infra/namespace-<project>.yaml           infra/rbac-<project>.yaml (opcional)
+#   infra/namespace-<project>.yaml           infra/rbac-<project>.yaml (optional)
 #   infra/.env.local  (+ .env.<project>.local, both gitignored)
 #
-# Usa el chart genérico infra/charts/generic-app. Crea el namespace, aplica el
-# RBAC si existe, sincroniza los Secrets desde el .env y hace helm upgrade
-# --install idempotente.
+# Uses the generic chart infra/charts/generic-app: creates the namespace, applies
+# the RBAC when present, syncs the Secrets from the env files and runs an idempotent
+# helm upgrade --install.
 #
-# Uso:
+# Usage:
 #   ./infra/scripts/deploy.sh --project autoops    --component backend
 #   ./infra/scripts/deploy.sh --project autoops    --component backend --bump minor
 #   ./infra/scripts/deploy.sh --project l1-copilot --component all --tag 1.0.2
@@ -23,18 +23,18 @@
 #   ./infra/scripts/deploy.sh --project autoops    --uninstall
 #
 # Flags:
-#   --project       Nombre del proyecto (obligatorio). Debe existir infra/projects/<p>.env
-#   --component     backend | frontend | all   (obligatorio salvo con --uninstall)
-#   --tag           Tag de la imagen (default: extrae del pom.xml/package.json)
-#   --bump          major | minor | patch   (incrementa versión en manifest y usa ese tag)
-#   --skip-build    No hace docker build/push, solo helm
-#   --skip-secrets  No toca los Secrets de K8s
-#   --dry-run       Renderiza el chart con helm template, no aplica nada
-#   --uninstall     helm uninstall de los releases y borra el namespace
+#   --project       Project name (required). infra/projects/<p>.env must exist
+#   --component     backend | frontend | all   (required unless --uninstall)
+#   --tag           Image tag (default: version from pom.xml/package.json)
+#   --bump          major | minor | patch   (bumps the manifest version and uses it as tag)
+#   --skip-build    No docker build/push, helm only
+#   --skip-secrets  Leaves the Kubernetes Secrets alone
+#   --dry-run       Renders the chart with helm template, applies nothing
+#   --uninstall     helm uninstall of the releases and deletes the namespace
 # =============================================================================
 set -euo pipefail
 
-# ── Resolución de rutas ──────────────────────────────────────────────────────
+# ── Paths ────────────────────────────────────────────────────────────────────
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly INFRA_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 readonly REPO_ROOT="$(cd "${INFRA_DIR}/.." && pwd)"
@@ -51,7 +51,7 @@ usage() {
   exit 1
 }
 
-# ── Parseo de argumentos ─────────────────────────────────────────────────────
+# ── Arguments ────────────────────────────────────────────────────────────────
 PROJECT=""
 COMPONENT=""
 TAG=""
@@ -63,31 +63,31 @@ UNINSTALL="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --project)      PROJECT="${2:?--project requiere valor}"; shift 2 ;;
-    --component)    COMPONENT="${2:?--component requiere valor}"; shift 2 ;;
-    --tag)          TAG="${2:?--tag requiere valor}"; shift 2 ;;
-    --bump)         BUMP="${2:?--bump requiere valor}"; shift 2 ;;
+    --project)      PROJECT="${2:?--project needs a value}"; shift 2 ;;
+    --component)    COMPONENT="${2:?--component needs a value}"; shift 2 ;;
+    --tag)          TAG="${2:?--tag needs a value}"; shift 2 ;;
+    --bump)         BUMP="${2:?--bump needs a value}"; shift 2 ;;
     --skip-build)   SKIP_BUILD="true"; shift ;;
     --skip-secrets) SKIP_SECRETS="true"; shift ;;
     --dry-run)      DRY_RUN="true"; shift ;;
     --uninstall)    UNINSTALL="true"; shift ;;
     -h|--help)      usage ;;
-    *) err "Flag desconocido: $1"; usage ;;
+    *) err "Unknown flag: $1"; usage ;;
   esac
 done
 
-# ── Carga del descriptor de proyecto ─────────────────────────────────────────
-[[ -n "${PROJECT}" ]] || { err "Debes indicar --project <nombre>"; usage; }
+# ── Project descriptor ───────────────────────────────────────────────────────
+[[ -n "${PROJECT}" ]] || { err "--project <name> is required"; usage; }
 readonly PROJECT_ENV="${INFRA_DIR}/projects/${PROJECT}.env"
-[[ -f "${PROJECT_ENV}" ]] || { err "No existe el descriptor ${PROJECT_ENV}"; exit 1; }
+[[ -f "${PROJECT_ENV}" ]] || { err "Descriptor ${PROJECT_ENV} not found"; exit 1; }
 # shellcheck disable=SC1090
 source "${PROJECT_ENV}"
 
-: "${NAMESPACE:?El descriptor debe definir NAMESPACE}"
-: "${IMAGE_BACKEND:?El descriptor debe definir IMAGE_BACKEND}"
-: "${IMAGE_FRONTEND:?El descriptor debe definir IMAGE_FRONTEND}"
+: "${NAMESPACE:?The descriptor must define NAMESPACE}"
+: "${IMAGE_BACKEND:?The descriptor must define IMAGE_BACKEND}"
+: "${IMAGE_FRONTEND:?The descriptor must define IMAGE_FRONTEND}"
 
-# ── Rutas derivadas por convención ───────────────────────────────────────────
+# ── Paths derived by convention ──────────────────────────────────────────────
 readonly RELEASE_BACKEND="${PROJECT}-backend"
 readonly RELEASE_FRONTEND="${PROJECT}-frontend"
 readonly VALUES_BACKEND="${INFRA_DIR}/values-${PROJECT}-backend.yaml"
@@ -96,22 +96,22 @@ readonly NAMESPACE_MANIFEST="${INFRA_DIR}/namespace-${PROJECT}.yaml"
 readonly RBAC_MANIFEST="${INFRA_DIR}/rbac-${PROJECT}.yaml"
 readonly ENV_LOCAL="${INFRA_DIR}/.env.${PROJECT}.local"
 
-# ── Validaciones previas ─────────────────────────────────────────────────────
+# ── Pre-flight checks ────────────────────────────────────────────────────────
 require_bin() {
-  command -v "$1" >/dev/null 2>&1 || { err "Falta '$1' en PATH"; exit 1; }
+  command -v "$1" >/dev/null 2>&1 || { err "'$1' is not on PATH"; exit 1; }
 }
 require_bin kubectl
 require_bin helm
 [[ "${SKIP_BUILD}" == "true" ]] || require_bin docker
 
 if [[ "${UNINSTALL}" != "true" && -z "${COMPONENT}" ]]; then
-  err "Debes indicar --component backend|frontend|all (o --uninstall)"; usage
+  err "--component backend|frontend|all is required (or --uninstall)"; usage
 fi
 if [[ "${UNINSTALL}" != "true" && ! "${COMPONENT}" =~ ^(backend|frontend|all)$ ]]; then
-  err "Valor inválido para --component: ${COMPONENT}"; exit 1
+  err "Invalid value for --component: ${COMPONENT}"; exit 1
 fi
 
-# ── Carga de variables de entorno ────────────────────────────────────────────
+# ── Environment ──────────────────────────────────────────────────────────────
 #   1) infra/.env.local            local secrets shared by every project (gitignored)
 #   2) infra/.env.<project>.local  optional per-project overrides (gitignored)
 readonly ENV_SHARED_LOCAL="${INFRA_DIR}/.env.local"
@@ -130,19 +130,19 @@ load_env() {
   set +a
 }
 
-# ── Versionado automático ───────────────────────────────────────────────────
+# ── Automatic versioning ─────────────────────────────────────────────────────
 get_version_from_manifest() {
   local component="$1"
   local manifest_file
   case "${component}" in
     backend)
       manifest_file="${REPO_ROOT}/${PROJECT}/backend/pom.xml"
-      [[ -f "${manifest_file}" ]] || { err "No existe ${manifest_file}"; return 1; }
+      [[ -f "${manifest_file}" ]] || { err "${manifest_file} not found"; return 1; }
       sed -n 's|.*<version>\([^<]*\)</version>.*|\1|p' "${manifest_file}" | head -1
       ;;
     frontend)
       manifest_file="${REPO_ROOT}/${PROJECT}/frontend/package.json"
-      [[ -f "${manifest_file}" ]] || { err "No existe ${manifest_file}"; return 1; }
+      [[ -f "${manifest_file}" ]] || { err "${manifest_file} not found"; return 1; }
       sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${manifest_file}"
       ;;
   esac
@@ -159,7 +159,7 @@ bump_version() {
     major) major=$((major + 1)); minor=0; patch=0 ;;
     minor) minor=$((minor + 1)); patch=0 ;;
     patch) patch=$((patch + 1)) ;;
-    *) err "bump_type debe ser major|minor|patch"; return 1 ;;
+    *) err "bump_type must be major|minor|patch"; return 1 ;;
   esac
   echo "${major}.${minor}.${patch}"
 }
@@ -172,12 +172,12 @@ update_version_in_manifest() {
     backend)
       manifest_file="${REPO_ROOT}/${PROJECT}/backend/pom.xml"
       sed -i "0,/<version>[^<]*<\/version>/{s/<version>[^<]*<\/version>/<version>${new_version}<\/version>/}" "${manifest_file}"
-      ok "Versión en pom.xml actualizada a ${new_version}"
+      ok "pom.xml version set to ${new_version}"
       ;;
     frontend)
       manifest_file="${REPO_ROOT}/${PROJECT}/frontend/package.json"
       sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${new_version}\"/" "${manifest_file}"
-      ok "Versión en package.json actualizada a ${new_version}"
+      ok "package.json version set to ${new_version}"
       ;;
   esac
 }
@@ -187,14 +187,14 @@ apply_version_bump() {
   if [[ -z "${BUMP}" ]]; then
     return
   fi
-  log "Aplicando bump '${BUMP}' a ${component}"
+  log "Applying '${BUMP}' bump to ${component}"
   local current_version
   current_version=$(get_version_from_manifest "${component}") || return 1
   local new_version
   new_version=$(bump_version "${current_version}" "${BUMP}") || return 1
   log "  ${current_version} → ${new_version}"
   if [[ "${DRY_RUN}" == "true" ]]; then
-    warn "  (dry-run: no se modifica el manifest)"
+    warn "  (dry-run: manifest left unchanged)"
   else
     update_version_in_manifest "${component}" "${new_version}"
   fi
@@ -203,19 +203,18 @@ apply_version_bump() {
 
 # ── Namespace + RBAC ─────────────────────────────────────────────────────────
 ensure_namespace() {
-  log "Asegurando namespace '${NAMESPACE}'"
+  log "Ensuring namespace '${NAMESPACE}'"
   kubectl apply -f "${NAMESPACE_MANIFEST}" >/dev/null
-  ok "Namespace listo"
+  ok "Namespace ready"
   if [[ -f "${RBAC_MANIFEST}" ]]; then
-    log "Aplicando RBAC (${RBAC_MANIFEST##*/})"
+    log "Applying RBAC (${RBAC_MANIFEST##*/})"
     kubectl apply -f "${RBAC_MANIFEST}" >/dev/null
-    ok "RBAC aplicado"
+    ok "RBAC applied"
   fi
 }
 
 # ── Secrets ──────────────────────────────────────────────────────────────────
-# Crea o actualiza un Secret K8s de tipo Opaque a partir de la lista de claves
-# que se le pasa. Usa `kubectl apply` para que sea idempotente.
+# Creates or updates an Opaque Secret from the given keys; kubectl apply keeps it idempotent.
 sync_one_secret() {
   local secret_name="$1"
   shift
@@ -224,13 +223,13 @@ sync_one_secret() {
   for key in "$@"; do
     value="${!key-}"
     if [[ -z "${value}" ]]; then
-      warn "  · ${key} vacía (Secret '${secret_name}')"
+      warn "  · ${key} is empty (Secret '${secret_name}')"
       missing=1
     fi
     literals+=("--from-literal=${key}=${value}")
   done
   if [[ ${missing} -eq 1 ]]; then
-    warn "  → Aplico el Secret con valores vacíos; rellénalos en infra/.env.local"
+    warn "  → Applying the Secret with empty values; fill them in infra/.env.local"
   fi
 
   kubectl create secret generic "${secret_name}" \
@@ -238,24 +237,24 @@ sync_one_secret() {
     --dry-run=client -o yaml \
     "${literals[@]}" \
   | kubectl apply -f - >/dev/null
-  ok "  Secret '${secret_name}' (${#literals[@]} claves)"
+  ok "  Secret '${secret_name}' (${#literals[@]} keys)"
 }
 
 sync_secrets() {
   local component="$1"
   if [[ "${SKIP_SECRETS}" == "true" ]]; then
-    warn "--skip-secrets activo, no toco los Secrets"
+    warn "--skip-secrets set, Secrets left alone"
     return
   fi
   local ref="SECRETS_${component^^}"
   if ! declare -p "${ref}" >/dev/null 2>&1; then
-    ok "  (sin Secrets configurados para ${component})"
+    ok "  (no Secrets configured for ${component})"
     return
   fi
-  log "Sincronizando Secrets para '${component}'"
+  log "Syncing Secrets for '${component}'"
   local -n SECRETS_REF="${ref}"
   if [[ ${#SECRETS_REF[@]} -eq 0 ]]; then
-    ok "  (sin Secrets configurados para ${component})"
+    ok "  (no Secrets configured for ${component})"
     return
   fi
   local secret_name keys
@@ -270,7 +269,7 @@ sync_secrets() {
 build_and_push() {
   local component="$1"
   if [[ "${SKIP_BUILD}" == "true" ]]; then
-    warn "--skip-build activo, no hago docker build/push de '${component}'"
+    warn "--skip-build set, no docker build/push for '${component}'"
     return
   fi
   local image dockerfile context
@@ -279,9 +278,8 @@ build_and_push() {
       image="${IMAGE_BACKEND}"
       dockerfile="${DOCKERFILE_BACKEND}"
       context="${CONTEXT_BACKEND}"
-      # El corpus del RAG (CORPUS_DIR del descriptor, relativo a la raíz) se copia
-      # al contexto de build para que el Dockerfile lo hornee en /app/corpus.
-      # Si el proyecto no tiene corpus, se hornea un directorio vacío (COPY no falla).
+      # The RAG corpus (CORPUS_DIR, relative to the repo root) is copied into the build
+      # context so the Dockerfile bakes it into /app/corpus; without one the folder is empty.
       rm -rf "${REPO_ROOT}/${context}/corpus"
       if [[ -n "${CORPUS_DIR:-}" && -d "${REPO_ROOT}/${CORPUS_DIR}" ]]; then
         cp -r "${REPO_ROOT}/${CORPUS_DIR}" "${REPO_ROOT}/${context}/corpus"
@@ -293,14 +291,14 @@ build_and_push() {
       image="${IMAGE_FRONTEND}"
       dockerfile="${DOCKERFILE_FRONTEND}"
       context="${CONTEXT_FRONTEND}"
-      # El Dockerfile del frontend espera nginx.conf en el contexto; vive en docker/.
+      # The frontend Dockerfile expects nginx.conf in its context; the shared one lives in docker/.
       cp "${REPO_ROOT}/docker/frontend-nginx.conf" "${REPO_ROOT}/${context}/nginx.conf"
       ;;
   esac
-  log "Build & push: ${image}:${TAG}  (contexto: ${context})"
+  log "Build & push: ${image}:${TAG}  (context: ${context})"
   ( cd "${REPO_ROOT}" && docker build -t "${image}:${TAG}" -f "${dockerfile}" "${context}" )
   ( cd "${REPO_ROOT}" && docker push "${image}:${TAG}" )
-  ok "Imagen disponible en el registry local"
+  ok "Image available in the local registry"
 }
 
 # ── Helm ─────────────────────────────────────────────────────────────────────
@@ -311,7 +309,7 @@ helm_deploy() {
     backend)  release="${RELEASE_BACKEND}";  values="${VALUES_BACKEND}"  ;;
     frontend) release="${RELEASE_FRONTEND}"; values="${VALUES_FRONTEND}" ;;
   esac
-  [[ -f "${values}" ]] || { err "No existe el values ${values}"; exit 1; }
+  [[ -f "${values}" ]] || { err "Values file ${values} not found"; exit 1; }
 
   if [[ "${DRY_RUN}" == "true" ]]; then
     log "helm template ${release} (dry-run)"
@@ -319,34 +317,33 @@ helm_deploy() {
       --namespace "${NAMESPACE}" \
       -f "${values}" \
       --set image.tag="${TAG}"
-    ok "Plantilla renderizada (no aplicada)"
+    ok "Template rendered (not applied)"
     return
   fi
 
   log "helm upgrade --install ${release}"
-  # --force-conflicts: Helm 4 usa server-side apply por defecto. Si un kubectl set/edit
-  # manual tocó antes el mismo recurso, queda como field-manager en conflicto y el
-  # upgrade falla; Helm debe poder reafirmar la propiedad de los campos que gestiona.
+  # Helm 4 uses server-side apply: after a manual kubectl edit the upgrade fails on field-manager
+  # conflicts unless Helm may reclaim ownership of the fields it manages.
   helm upgrade --install "${release}" "${CHART_DIR}" \
     --namespace "${NAMESPACE}" \
     -f "${values}" \
     --set image.tag="${TAG}" \
     --force-conflicts \
     --wait --timeout 3m
-  ok "Release '${release}' desplegado"
+  ok "Release '${release}' deployed"
 }
 
 # ── Uninstall ────────────────────────────────────────────────────────────────
 uninstall_all() {
-  log "Uninstall de los releases helm de '${PROJECT}'"
+  log "Uninstalling the helm releases of '${PROJECT}'"
   helm uninstall "${RELEASE_BACKEND}"  --namespace "${NAMESPACE}" 2>/dev/null || true
   helm uninstall "${RELEASE_FRONTEND}" --namespace "${NAMESPACE}" 2>/dev/null || true
-  log "Borrando namespace '${NAMESPACE}'"
+  log "Deleting namespace '${NAMESPACE}'"
   kubectl delete namespace "${NAMESPACE}" --ignore-not-found
-  ok "Limpieza completada"
+  ok "Cleanup finished"
 }
 
-# ── Orquestación ─────────────────────────────────────────────────────────────
+# ── Orchestration ────────────────────────────────────────────────────────────
 deploy_component() {
   local component="$1"
   printf '\n\033[1;36m═══ %s · %s ═══\033[0m\n' "${PROJECT}" "${component^^}"
@@ -364,7 +361,7 @@ main() {
 
   if [[ -n "${BUMP}" && -z "${TAG}" ]]; then
     if ! [[ "${BUMP}" =~ ^(major|minor|patch)$ ]]; then
-      err "--bump debe ser major|minor|patch"; exit 1
+      err "--bump must be major|minor|patch"; exit 1
     fi
   fi
 
@@ -374,10 +371,10 @@ main() {
   if [[ -z "${TAG}" && -z "${BUMP}" ]]; then
     if [[ "${COMPONENT}" == "backend" || "${COMPONENT}" == "all" ]]; then
       TAG=$(get_version_from_manifest backend) || TAG="0.0.0"
-      log "TAG extraído del backend: ${TAG}"
+      log "TAG taken from the backend: ${TAG}"
     elif [[ "${COMPONENT}" == "frontend" ]]; then
       TAG=$(get_version_from_manifest frontend) || TAG="0.0.0"
-      log "TAG extraído del frontend: ${TAG}"
+      log "TAG taken from the frontend: ${TAG}"
     fi
   fi
 
@@ -388,10 +385,10 @@ main() {
   esac
 
   printf '\n'
-  ok "Despliegue de '${PROJECT}' completado en namespace '${NAMESPACE}'"
-  log "Ingress (tras infra/scripts/setup-app-ingress.sh --project ${PROJECT}):"
-  log "  http://${INGRESS_HOST}/   y rutas backend: ${INGRESS_BACKEND_PATHS:-/api}"
-  log "Comprueba: kubectl get pods -n ${NAMESPACE}"
+  ok "'${PROJECT}' deployed to namespace '${NAMESPACE}'"
+  log "Ingress (after infra/scripts/setup-app-ingress.sh --project ${PROJECT}):"
+  log "  http://${INGRESS_HOST}/   backend paths: ${INGRESS_BACKEND_PATHS:-/api}"
+  log "Check: kubectl get pods -n ${NAMESPACE}"
 }
 
 main "$@"

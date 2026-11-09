@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 06-setup-weaviate.sh
-# Despliega Weaviate COMPARTIDO en el namespace 'infra' de k3s.
+# Deploys a SHARED Weaviate in the 'infra' namespace of k3s.
 #
-# Mismo criterio que 03-setup-postgres.sh: UNA instancia para todo el portfolio;
-# cada proyecto crea su propia clase (AutoOps → AutoopsDocChunk). Sin auth (local),
-# sin vectorizador (las apps traen sus vectores).
+# Same approach as 03-setup-postgres.sh: ONE instance for the whole portfolio;
+# each project creates its own class (AutoOps -> AutoopsDocChunk). No auth (local)
+# and no vectorizer (apps bring their own vectors).
 #
-# Características:
-#   - Imagen: cr.weaviate.io/semitechnologies/weaviate:1.27.0
-#   - Persistencia: PVC de 5 Gi
-#   - Acceso interno: ClusterIP  weaviate.infra.svc.cluster.local (8080 HTTP / 50051 gRPC)
-#   - Acceso externo (debug): kubectl port-forward (no se expone por defecto)
+# Features:
+#   - Image: cr.weaviate.io/semitechnologies/weaviate:1.27.0
+#   - Persistence: 5 Gi PVC
+#   - Internal access: ClusterIP weaviate.infra.svc.cluster.local (8080 HTTP / 50051 gRPC)
+#   - External access (debug): kubectl port-forward (not exposed by default)
 #
-# Requisitos: Rancher Desktop / k3s corriendo, kubectl disponible.
+# Requires Rancher Desktop / k3s running and kubectl.
 # =============================================================================
 
 set -euo pipefail
@@ -30,73 +30,73 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # =============================================================================
-# 0. Requisitos
+# 0. Requirements
 # =============================================================================
-step "Verificando requisitos..."
-command -v kubectl &>/dev/null || fail "'kubectl' no encontrado en el PATH."
+step "Checking requirements..."
+command -v kubectl &>/dev/null || fail "'kubectl' not found on PATH."
 kubectl cluster-info &>/dev/null || fail "k3s no responde. Abre Rancher Desktop."
-[[ -f "$MANIFEST" ]] || fail "No encuentro el manifiesto: $MANIFEST"
-ok "kubectl y k3s disponibles"
+[[ -f "$MANIFEST" ]] || fail "Manifest not found: $MANIFEST"
+ok "kubectl and k3s available"
 
 # =============================================================================
-# 1. Namespace (compartido con Postgres)
+# 1. Namespace (shared with Postgres)
 # =============================================================================
-step "Asegurando namespace '$NS'..."
+step "Ensuring namespace '$NS'..."
 if kubectl get namespace "$NS" &>/dev/null; then
-  ok "Namespace '$NS' ya existe"
+  ok "Namespace '$NS' already exists"
 else
   kubectl create namespace "$NS"
-  ok "Namespace '$NS' creado"
+  ok "Namespace '$NS' created"
 fi
 
 # =============================================================================
-# 2. Aplicar Weaviate (PVC + StatefulSet + Service)
+# 2. Apply Weaviate (PVC + StatefulSet + Service)
 # =============================================================================
-step "Aplicando reranker-transformers (lo usa el RAG de AutoOps)..."
+step "Applying reranker-transformers (used by the AutoOps RAG)..."
 kubectl apply -f "$RERANKER_MANIFEST"
-ok "Reranker aplicado"
+ok "Reranker applied"
 
-step "Aplicando Weaviate (idempotente)..."
+step "Applying Weaviate (idempotent)..."
 kubectl apply -f "$MANIFEST"
-ok "Manifiesto aplicado"
+ok "Manifest applied"
 
 # =============================================================================
-# 3. Esperar a que esté Ready
+# 3. Wait until Ready
 # =============================================================================
-step "Esperando al reranker (descarga el modelo la 1ª vez, máx. 300 s)..."
+step "Waiting for the reranker (downloads the model on first run, max. 300 s)..."
 kubectl rollout status deployment/weaviate-reranker -n "$NS" --timeout=300s || \
-  warn "El reranker aún no está listo; Weaviate arrancará igualmente y reintentará."
+  warn "The reranker is not ready yet; Weaviate starts anyway and will retry."
 
-step "Esperando a que Weaviate esté listo (máx. 180 s)..."
+step "Waiting for Weaviate to be ready (max. 180 s)..."
 kubectl rollout status statefulset/weaviate -n "$NS" --timeout=180s
 ok "Weaviate Ready"
 
 # =============================================================================
-# 4. Verificación del endpoint /ready
+# 4. Check the /ready endpoint
 # =============================================================================
-step "Comprobando /v1/.well-known/ready dentro del pod..."
+step "Checking /v1/.well-known/ready inside the pod..."
 if kubectl exec -n "$NS" weaviate-0 -- wget -qO- http://localhost:8080/v1/.well-known/ready &>/dev/null; then
-  ok "Endpoint ready responde"
+  ok "Ready endpoint answers"
 else
-  warn "El endpoint aún no responde; espera unos segundos y reintenta."
+  warn "The endpoint does not answer yet; wait a few seconds and retry."
 fi
 
 # =============================================================================
-# 5. Resumen
+# 5. Summary
 # =============================================================================
 echo ""
 echo "============================================================"
-echo "  Weaviate (compartido) desplegado en namespace '$NS'"
+echo "  Shared Weaviate deployed to namespace '$NS'"
 echo "============================================================"
-echo "  Host interno (en-cluster) : weaviate.${NS}.svc.cluster.local"
-echo "  Puerto HTTP / gRPC        : 8080 / 50051"
-echo "  Vectorizer                : none (cada app trae sus vectores)"
-echo "  Auth                      : anónima (solo local)"
+echo "  Internal host (in-cluster) : weaviate.${NS}.svc.cluster.local"
+echo "  HTTP / gRPC port           : 8080 / 50051"
+echo "  Vectorizer                 : none (each app brings its vectors)"
+echo "  Auth                       : anonymous (local only)"
 echo "------------------------------------------------------------"
-echo "  Cada proyecto crea SU clase (no se comparte el índice):"
-echo "    AutoOps → AutoopsDocChunk  (la crea la app al arrancar)"
+echo "  Each project creates ITS OWN class (indexes are not shared):"
+echo "    AutoOps -> AutoopsDocChunk (created by the app on startup)"
 echo "------------------------------------------------------------"
-echo "  Debug desde el host (port-forward):"
+echo "  Debug from the host (port-forward):"
 echo "    kubectl port-forward svc/weaviate 8088:8080 -n ${NS}"
 echo "    http://localhost:8088/v1/schema"
 echo "============================================================"

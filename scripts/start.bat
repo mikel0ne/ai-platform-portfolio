@@ -1,13 +1,13 @@
 @echo off
 :: =============================================================================
-::  scripts\start.bat — Arrancar Backend (Spring Boot) + Frontend (Angular)
-::  Doble clic aqui para lanzar ambos servicios en ventanas separadas.
-::  O ejecutar desde IntelliJ: boton derecho -> Run 'start.bat'
+::  scripts\start.bat - starts the L1 Copilot backend (Spring Boot) and frontend (Angular)
+::  Double-click it to launch both services in separate windows,
+::  or run it from IntelliJ: right click -> Run 'start.bat'
 :: =============================================================================
 chcp 65001 > nul
 setlocal
 
-:: Calcular raíz del proyecto (un nivel arriba de scripts\)
+:: Repo root (one level above scripts\)
 set "SCRIPTS_DIR=%~dp0"
 for %%I in ("%SCRIPTS_DIR%..") do set "ROOT=%%~fI"
 set "BACKEND=%ROOT%\l1-copilot\backend"
@@ -15,69 +15,69 @@ set "FRONTEND=%ROOT%\l1-copilot\frontend"
 
 echo.
 echo  ============================================================
-echo   L1 Support Copilot — Arranque local (Windows)
+echo   L1 Support Copilot - local start (Windows)
 echo  ============================================================
 echo.
 
-:: ── Verificar que mvn existe ─────────────────────────────────────────────────
+:: ── Check mvn ────────────────────────────────────────────────────────────────
 where mvn >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] 'mvn' no encontrado en PATH.
-    echo         Instala Maven y asegurate de que esta en PATH.
+    echo [ERROR] 'mvn' not found on PATH.
+    echo         Install Maven and make sure it is on PATH.
     pause
     exit /b 1
 )
 
-:: ── Verificar que npm existe ──────────────────────────────────────────────────
+:: ── Check npm ────────────────────────────────────────────────────────────────
 where npm >nul 2>&1
 if errorlevel 1 (
-    echo [ERROR] 'npm' no encontrado en PATH.
-    echo         Instala Node.js desde https://nodejs.org
+    echo [ERROR] 'npm' not found on PATH.
+    echo         Install Node.js from https://nodejs.org
     pause
     exit /b 1
 )
 
-:: ── Instalar dependencias del frontend si hace falta ────────────────────────
+:: ── Install frontend dependencies when missing ───────────────────────────────
 if not exist "%FRONTEND%\node_modules" (
-    echo [INFO]  node_modules no encontrado. Ejecutando npm install...
+    echo [INFO]  node_modules not found. Running npm install...
     pushd "%FRONTEND%"
     call npm install
     popd
 )
 
-:: ── Intentar usar Git Bash para lanzar start.sh ──────────────────────────────
-::    (Git Bash suele estar en C:\Program Files\Git\bin\bash.exe)
+:: ── Prefer Git Bash and start.sh ─────────────────────────────────────────────
+::    (Git Bash usually lives in C:\Program Files\Git\bin\bash.exe)
 set "BASH="
 if exist "C:\Program Files\Git\bin\bash.exe"  set "BASH=C:\Program Files\Git\bin\bash.exe"
 if exist "C:\Program Files (x86)\Git\bin\bash.exe" set "BASH=C:\Program Files (x86)\Git\bin\bash.exe"
 
 if defined BASH (
-    echo [INFO]  Git Bash detectado. Lanzando con start.sh...
+    echo [INFO]  Git Bash found. Launching start.sh...
     echo.
     start "L1 Support Copilot" "%BASH%" --login -i "%SCRIPTS_DIR%start.sh"
     goto :open_browser
 )
 
-:: ── Fallback: lanzar cada proceso en su propia ventana CMD ──────────────────
-echo [INFO]  Git Bash no detectado. Abriendo ventanas CMD separadas...
+:: ── Fallback: one CMD window per process ─────────────────────────────────────
+echo [INFO]  Git Bash not found. Opening separate CMD windows...
 echo.
 
-echo [BACK]  Arrancando Spring Boot en http://localhost:8079
-start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Arrancando backend... && mvn spring-boot:run"
+echo [BACK]  Starting Spring Boot on http://localhost:8079
+start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Starting backend... && mvn spring-boot:run"
 
-:: Pequeña pausa para que el backend arranque antes del frontend
+:: Short pause so the backend starts before the frontend
 timeout /t 5 /nobreak > nul
 
-echo [FRONT] Arrancando Angular en http://localhost:4199
-start "Frontend - Angular" cmd /k "cd /d "%FRONTEND%" && echo Arrancando frontend... && npm start"
+echo [FRONT] Starting Angular on http://localhost:4199
+start "Frontend - Angular" cmd /k "cd /d "%FRONTEND%" && echo Starting frontend... && npm start"
 
 :open_browser
-:: ── Esperar y abrir el navegador ─────────────────────────────────────────────
+:: ── Wait and open the browser ────────────────────────────────────────────────
 echo.
-echo  Esperando 20 segundos antes de abrir el navegador...
+echo  Waiting 20 seconds before opening the browser...
 timeout /t 20 /nobreak > nul
 
-echo  Abriendo navegador...
+echo  Opening the browser...
 start "" "http://localhost:4199"
 
 echo.
@@ -87,8 +87,8 @@ echo   Swagger: http://localhost:8079/api/swagger-ui/index.html
 echo   Front  : http://localhost:4199
 echo  ============================================================
 echo.
-echo  Puedes cerrar esta ventana. Los servicios siguen corriendo
-echo  en sus ventanas propias.
+echo  You can close this window. The services keep running
+echo  in their own windows (scripts\stop.bat closes them).
 echo.
 pause
 endlocal

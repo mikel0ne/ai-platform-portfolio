@@ -1,18 +1,18 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # =============================================================================
 # 04-setup-postgres-ingress.sh
-# Configura el acceso a PostgreSQL con URL limpia desde el host.
+# Exposes the shared PostgreSQL to the host with a clean address.
 #
-# Resultado tras ejecutarlo:
-#   localhost:5432        -- INMEDIATO (Traefik TCP via Klipper LB de k3s)
-#   postgres.local:5432   -- tras ejecutar add-postgres-host.ps1 como Administrador
+# Result:
+#   localhost:5432        -- immediately (Traefik TCP through the k3s Klipper LB)
+#   postgres.local:5432   -- after running add-postgres-host.ps1 as Administrator
 #
-# Como funciona:
-#   Traefik (LoadBalancer en k3s/Rancher Desktop) expone el entrypoint TCP
-#   postgres en localhost:5432 a traves del Klipper LB de k3s.
-#   El IngressRouteTCP enruta ese trafico al servicio postgres en namespace infra.
+# How it works:
+#   Traefik (the k3s/Rancher Desktop LoadBalancer) exposes a 'postgres' TCP
+#   entrypoint on localhost:5432 through the k3s Klipper LB, and an
+#   IngressRouteTCP forwards it to the postgres service in the infra namespace.
 #
-# Requiere: script 03-setup-postgres.sh ejecutado previamente
+# Requires 03-setup-postgres.sh to have run first.
 # =============================================================================
 
 set -euo pipefail
@@ -25,18 +25,18 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # =========================================================================
-# 0. Requisitos
+# 0. Requirements
 # =========================================================================
-step "Verificando requisitos..."
+step "Checking requirements..."
 kubectl cluster-info &>/dev/null || fail "k3s no responde."
 kubectl get svc postgres -n "$NS" &>/dev/null || \
-  fail "Servicio postgres no encontrado en namespace $NS. Ejecuta primero 03-setup-postgres.sh"
-ok "Prerrequisitos OK"
+  fail "postgres service not found in namespace $NS. Run 03-setup-postgres.sh first"
+ok "Requirements OK"
 
 # =========================================================================
-# 1. HelmChartConfig -- entrypoint TCP postgres en Traefik puerto 5432
+# 1. HelmChartConfig -- 'postgres' TCP entrypoint on Traefik port 5432
 # =========================================================================
-step "Anadiendo entrypoint TCP postgres (5432) a Traefik..."
+step "Adding the postgres TCP entrypoint (5432) to Traefik..."
 kubectl apply -f - <<'EOF'
 apiVersion: helm.cattle.io/v1
 kind: HelmChartConfig
@@ -53,19 +53,19 @@ spec:
         exposedPort: 5432
         protocol: TCP
 EOF
-ok "HelmChartConfig aplicado"
+ok "HelmChartConfig applied"
 
 # =========================================================================
-# 2. Esperar a que Traefik se reinicie
+# 2. Wait for Traefik to restart
 # =========================================================================
-step "Esperando a que Traefik aplique la nueva configuracion (max. 90 s)..."
+step "Waiting for Traefik to pick up the new configuration (max. 90 s)..."
 kubectl rollout status deployment/traefik -n kube-system --timeout=90s
-ok "Traefik listo"
+ok "Traefik ready"
 
 # =========================================================================
 # 3. IngressRouteTCP
 # =========================================================================
-step "Creando IngressRouteTCP postgres..."
+step "Creating the postgres IngressRouteTCP..."
 kubectl apply -f - <<'EOF'
 apiVersion: traefik.io/v1alpha1
 kind: IngressRouteTCP
@@ -81,60 +81,60 @@ spec:
         - name: postgres
           port: 5432
 EOF
-ok "IngressRouteTCP creado"
+ok "IngressRouteTCP created"
 
 # =========================================================================
-# 4. Verificar que el puerto 5432 esta expuesto en localhost
+# 4. Check that port 5432 is exposed on localhost
 # =========================================================================
-step "Verificando que localhost:5432 es accesible..."
+step "Checking that localhost:5432 is reachable..."
 sleep 5
 if command -v nc &>/dev/null; then
   if nc -z 127.0.0.1 5432 2>/dev/null; then
-    ok "Puerto 5432 accesible en 127.0.0.1"
+    ok "Port 5432 reachable on 127.0.0.1"
   else
-    warn "Puerto 5432 aun no responde. Espera unos segundos y vuelve a probar."
+    warn "Port 5432 does not answer yet. Wait a few seconds and try again."
   fi
 fi
 
 # =========================================================================
-# 5. Prueba de conexion con psql dentro del pod
+# 5. Connection test with psql inside the pod
 # =========================================================================
-step "Probando conexion a postgres desde dentro del pod..."
+step "Testing the postgres connection from inside the pod..."
 PG_POD=$(kubectl get pod -n "$NS" -l app=postgres -o jsonpath="{.items[0].metadata.name}")
 kubectl exec -n "$NS" "$PG_POD" -- \
-  psql -U appuser -d appdb -c "SELECT 'IngressRouteTCP OK' AS resultado;"
-ok "Conexion verificada"
+  psql -U appuser -d appdb -c "SELECT 'IngressRouteTCP OK' AS result;"
+ok "Connection verified"
 
 # =========================================================================
-# 6. Instrucciones para hosts de Windows
+# 6. Windows hosts file
 # =========================================================================
-step "Para usar postgres.local en lugar de localhost (solo una vez como Admin):"
+step "To use postgres.local instead of localhost (once, as Administrator):"
 echo ""
-echo "  Ejecuta como Administrador:"
+echo "  Run as Administrator:"
 echo "    infra\scripts\add-postgres-host.ps1"
 echo ""
-echo "  O manualmente en PowerShell elevada:"
+echo "  Or by hand in an elevated PowerShell:"
 echo "    Add-Content C:\Windows\System32\drivers\etc\hosts '127.0.0.1 postgres.local'"
 echo ""
 
 # =========================================================================
-# 7. Resumen
+# 7. Summary
 # =========================================================================
 echo "============================================================"
-echo "  PostgreSQL -- URLs de acceso"
+echo "  PostgreSQL -- access URLs"
 echo "============================================================"
 echo ""
-echo "  EXTERNA (host / dev local):"
-echo "  localhost:5432       <-- disponible YA sin config extra"
-echo "  postgres.local:5432  <-- tras ejecutar add-postgres-host.ps1"
+echo "  EXTERNAL (host / local dev):"
+echo "  localhost:5432       <-- available right away"
+echo "  postgres.local:5432  <-- after add-postgres-host.ps1"
 echo ""
 echo "  JDBC (local dev):"
 echo "  jdbc:postgresql://postgres.local:5432/appdb"
 echo ""
-echo "  INTERNA (dentro de Kubernetes / pods):"
+echo "  INTERNAL (inside Kubernetes / pods):"
 echo "  jdbc:postgresql://postgres.infra.svc.cluster.local:5432/appdb"
 echo ""
-echo "  NodePort (alternativa sin Traefik):"
+echo "  NodePort (alternative without Traefik):"
 echo "  jdbc:postgresql://localhost:30532/appdb"
 echo ""
 echo "  User/password: POSTGRES_USER / POSTGRES_PASSWORD from infra/.env.local  |  DB: appdb"

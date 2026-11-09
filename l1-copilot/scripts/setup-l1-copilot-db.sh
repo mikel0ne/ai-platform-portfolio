@@ -1,27 +1,26 @@
 #!/usr/bin/env bash
 # =============================================================================
 # setup-l1-copilot-db.sh
-# Crea la BD `l1_copilot` dentro del PostgreSQL compartido y aplica el esquema
-# del proyecto. Al final llama a seed-l1-copilot-db.sh para cargar el seed.
+# Creates the `l1_copilot` database in the shared PostgreSQL and applies the
+# project schema, then calls seed-l1-copilot-db.sh to load the seed.
 #
-# Modelo: una BD por proyecto dentro del mismo motor Postgres del clúster
-# (ver infra/INFRA.md y docs/infraestructura/03-infra-compartida.md).
+# One database per project inside the cluster's single Postgres engine
+# (see infra/INFRA.md and l1-copilot/docs/infraestructura/03-infra-compartida.md).
 #
-# Idempotente:
-#   - La BD solo se crea si no existe (sin error si ya existía).
-#   - El schema usa CREATE TABLE IF NOT EXISTS.
-#   - El seed (data-postgresql.sql) hace TRUNCATE + INSERT, se puede reaplicar.
+# Idempotent:
+#   - The database is only created when missing.
+#   - The schema uses CREATE TABLE IF NOT EXISTS.
+#   - The seed (data-postgresql.sql) truncates and inserts, so it can be reapplied.
 #
-# Requisitos:
-#   - Postgres compartido accesible desde el host (postgres.local:15432 por
-#     defecto, NodePort del Postgres del namespace `infra`).
-#   - psql en el PATH.
+# Requires:
+#   - The shared Postgres reachable from the host (postgres.local:15432 by
+#     default, NodePort of the Postgres in the `infra` namespace).
+#   - psql on PATH.
 #
-# Credenciales: el script carga `infra/.env.local` si existe
-# si existen (mismo patrón que las Run Configurations de IntelliJ con el plugin
-# EnvFile). POSTGRES_USER/POSTGRES_PASSWORD del .env se mapean a PGUSER/PGPASSWORD.
+# Credentials come from infra/.env.local when present: POSTGRES_USER and
+# POSTGRES_PASSWORD are mapped to PGUSER and PGPASSWORD.
 #
-# Variables de entorno reconocidas (con fallbacks):
+# Environment variables (with defaults):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
 #   PGUSER      (default: POSTGRES_USER from infra/.env.local)
@@ -29,7 +28,7 @@
 #   PROJECT_DB  (default: l1_copilot)
 #
 # Flags:
-#   --no-seed   Solo crea la BD y aplica el esquema; no carga datos.
+#   --no-seed   Only creates the database and applies the schema; loads no data.
 # =============================================================================
 
 set -euo pipefail
@@ -39,14 +38,14 @@ if [ -f "$ENV_FILE" ]; then
   set -a; source "$ENV_FILE"; set +a
 fi
 
-# Mapear nombres POSTGRES_* (Spring/K8s) → PG* (psql) si no se definieron PG* directamente
+# Map POSTGRES_* (Spring/Kubernetes) to PG* (psql) unless PG* are already set
 : "${PGUSER:=${POSTGRES_USER:?Define POSTGRES_USER in infra/.env.local}}"
 : "${PGPASSWORD:=${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in infra/.env.local}}"
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
 : "${PROJECT_DB:=l1_copilot}"
-# Ver seed-l1-copilot-db.sh: forzar UTF8 evita que psql nativo de Windows
-# reinterprete el SQL con el codepage ANSI del sistema.
+# See seed-l1-copilot-db.sh: forcing UTF8 stops native Windows psql from reading
+# the SQL with the system ANSI codepage.
 PGCLIENTENCODING=UTF8
 export PGHOST PGPORT PGUSER PGPASSWORD PGCLIENTENCODING
 
@@ -58,12 +57,12 @@ for arg in "$@"; do
   case "$arg" in
     --no-seed) NO_SEED=true ;;
     -h|--help)
-      echo "Uso: $0 [--no-seed]"
-      echo "  Crea la BD $PROJECT_DB, aplica el esquema y carga el seed."
-      echo "  --no-seed   No ejecuta seed-l1-copilot-db.sh al final."
+      echo "Usage: $0 [--no-seed]"
+      echo "  Creates database $PROJECT_DB, applies the schema and loads the seed."
+      echo "  --no-seed   Skips seed-l1-copilot-db.sh at the end."
       exit 0
       ;;
-    *) echo "Argumento no reconocido: $arg" >&2; exit 1 ;;
+    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
 
@@ -73,59 +72,59 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # -----------------------------------------------------------------------------
-# 0. Requisitos
+# 0. Requirements
 # -----------------------------------------------------------------------------
-step "Verificando requisitos..."
-command -v psql >/dev/null 2>&1 || fail "psql no encontrado en el PATH."
-[ -f "$SCHEMA_FILE" ] || fail "No se encuentra $SCHEMA_FILE (¿estás en la raíz del repo?)."
+step "Checking requirements..."
+command -v psql >/dev/null 2>&1 || fail "psql not found on PATH."
+[ -f "$SCHEMA_FILE" ] || fail "$SCHEMA_FILE not found (are you at the repo root?)."
 
 if ! psql -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
-  fail "No se puede conectar a $PGHOST:$PGPORT como $PGUSER. ¿Está Rancher Desktop arrancado y el NodePort 15432 expuesto?"
+  fail "Cannot connect to $PGHOST:$PGPORT as $PGUSER. Is Rancher Desktop running and NodePort 15432 exposed?"
 fi
-ok "Conexión a Postgres OK ($PGHOST:$PGPORT como $PGUSER)"
+ok "Postgres connection OK ($PGHOST:$PGPORT as $PGUSER)"
 
 # -----------------------------------------------------------------------------
-# 1. Crear la BD del proyecto (idempotente)
+# 1. Create the project database (idempotent)
 # -----------------------------------------------------------------------------
-step "Creando BD '$PROJECT_DB' (si no existe)..."
+step "Creating database '$PROJECT_DB' (if missing)..."
 
 DB_EXISTS=$(psql -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$PROJECT_DB';")
 
 if [ "$DB_EXISTS" = "1" ]; then
-  warn "BD '$PROJECT_DB' ya existe."
+  warn "Database '$PROJECT_DB' already exists."
 else
   psql -d postgres -c "CREATE DATABASE $PROJECT_DB OWNER $PGUSER;"
-  ok "BD '$PROJECT_DB' creada"
+  ok "Database '$PROJECT_DB' created"
 fi
 
 # -----------------------------------------------------------------------------
-# 2. Aplicar schema (idempotente con CREATE TABLE IF NOT EXISTS)
+# 2. Apply the schema (idempotent with CREATE TABLE IF NOT EXISTS)
 # -----------------------------------------------------------------------------
-step "Aplicando $SCHEMA_FILE..."
+step "Applying $SCHEMA_FILE..."
 psql -d "$PROJECT_DB" -v ON_ERROR_STOP=1 -f "$SCHEMA_FILE"
-ok "Schema aplicado"
+ok "Schema applied"
 
 # -----------------------------------------------------------------------------
 # 3. Seed
 # -----------------------------------------------------------------------------
 if $NO_SEED; then
-  warn "Seed omitido (--no-seed). Para cargarlo más tarde: bash $SEED_SCRIPT"
+  warn "Seed skipped (--no-seed). To load it later: bash $SEED_SCRIPT"
 else
-  step "Cargando seed con $SEED_SCRIPT"
+  step "Loading the seed with $SEED_SCRIPT"
   PGDATABASE="$PROJECT_DB" bash "$SEED_SCRIPT"
 fi
 
 cat <<EOF
 
 ============================================================
-  BD del L1 Copilot lista
+  L1 Copilot database ready
 ============================================================
-  Host externo (host)      : $PGHOST:$PGPORT
-  Host interno (en-cluster): postgres.infra.svc.cluster.local:5432
-  Base de datos            : $PROJECT_DB
-  Usuario                  : $PGUSER
+  External host (host)      : $PGHOST:$PGPORT
+  Internal host (in-cluster): postgres.infra.svc.cluster.local:5432
+  Database                  : $PROJECT_DB
+  User                      : $PGUSER
 ------------------------------------------------------------
-  JDBC URL para el backend (perfil prod):
+  JDBC URL for the backend (prod profile):
   jdbc:postgresql://postgres.infra.svc.cluster.local:5432/$PROJECT_DB
 ============================================================
 EOF

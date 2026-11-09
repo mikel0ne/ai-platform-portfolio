@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
 # =============================================================================
 # 08-setup-wikijs.sh
-# Despliega Wiki.js en el namespace 'wiki', vía Helm con el chart genérico
-# infra/charts/generic-app (NO usa deploy.sh: imagen pública requarks/wiki:2,
-# sin build/push propio, un solo componente — ver infra/values-wikijs.yaml).
+# Deploys Wiki.js to the 'wiki' namespace with Helm and the generic chart
+# infra/charts/generic-app (not through deploy.sh: public image requarks/wiki:2,
+# no build/push of its own, a single component; see infra/values-wikijs.yaml).
 #
-# Requisito previo: wiki/scripts/setup-wiki-db.sh (crea la BD `wiki` vacía en
-# el Postgres compartido del namespace `infra`; Wiki.js migra su propio
-# esquema al arrancar).
+# Run wiki/scripts/setup-wiki-db.sh first: it creates the empty `wiki` database in
+# the shared Postgres of the `infra` namespace; Wiki.js migrates its own schema
+# on startup.
 #
-# Tras este script: abrir http://wiki.local, completar el wizard inicial
-# (usuario admin) y, en Admin Area → API Access, generar una API key con
-# permisos read:pages + read:source (lectura, la usa el backend de AutoOps
-# para la ingesta RAG) + write:pages (la usa wiki/scripts/seed-wiki-content.sh
-# para publicar el contenido versionado en git).
+# Afterwards: open http://wiki.local, finish the setup wizard (admin user) and, in
+# Admin Area -> API Access, create an API key with read:pages + read:source (the
+# AutoOps backend reads pages for RAG ingestion) and write:pages (used by
+# wiki/scripts/seed-wiki-content.sh to publish the content versioned in git).
 #
-# Requisitos: Rancher Desktop / k3s corriendo, kubectl y helm en el PATH.
+# Requires Rancher Desktop / k3s running, kubectl and helm on PATH.
 # =============================================================================
 
 set -euo pipefail
@@ -35,28 +34,28 @@ warn()  { echo "    [!]  $*"; }
 fail()  { echo "    [x]  $*"; exit 1; }
 
 # =============================================================================
-# 0. Requisitos
+# 0. Requirements
 # =============================================================================
-step "Verificando requisitos..."
-command -v kubectl &>/dev/null || fail "'kubectl' no encontrado en el PATH."
-command -v helm &>/dev/null || fail "'helm' no encontrado en el PATH."
+step "Checking requirements..."
+command -v kubectl &>/dev/null || fail "'kubectl' not found on PATH."
+command -v helm &>/dev/null || fail "'helm' not found on PATH."
 kubectl cluster-info &>/dev/null || fail "k3s no responde. Abre Rancher Desktop."
-[[ -f "$VALUES" ]] || fail "No encuentro el values: $VALUES"
+[[ -f "$VALUES" ]] || fail "Values file not found: $VALUES"
 kubectl get secret postgres-credentials -n "$INFRA_NS" &>/dev/null || \
-  fail "No existe el Secret 'postgres-credentials' en '$INFRA_NS'. Ejecuta primero infra/scripts/03-setup-postgres.sh."
-ok "kubectl, helm y k3s disponibles"
+  fail "Secret 'postgres-credentials' not found in '$INFRA_NS'. Run infra/scripts/03-setup-postgres.sh first."
+ok "kubectl, helm and k3s available"
 
 # =============================================================================
 # 1. Namespace
 # =============================================================================
-step "Asegurando namespace '$NS'..."
+step "Ensuring namespace '$NS'..."
 kubectl apply -f "${INFRA_DIR}/namespace-wiki.yaml" >/dev/null
-ok "Namespace '$NS' listo"
+ok "Namespace '$NS' ready"
 
 # =============================================================================
-# 2. Secret postgres-credentials (copiado del namespace infra, mismo appuser)
+# 2. postgres-credentials Secret (copied from the infra namespace, same appuser)
 # =============================================================================
-step "Sincronizando Secret 'postgres-credentials' en '$NS' (desde '$INFRA_NS')..."
+step "Syncing Secret 'postgres-credentials' into '$NS' (from '$INFRA_NS')..."
 PG_USER=$(kubectl get secret postgres-credentials -n "$INFRA_NS" -o jsonpath='{.data.POSTGRES_USER}' | base64 -d)
 PG_PASSWORD=$(kubectl get secret postgres-credentials -n "$INFRA_NS" -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d)
 kubectl create secret generic postgres-credentials \
@@ -65,50 +64,50 @@ kubectl create secret generic postgres-credentials \
   --from-literal=POSTGRES_USER="$PG_USER" \
   --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
 | kubectl apply -f - >/dev/null
-ok "Secret sincronizado"
+ok "Secret synced"
 
 # =============================================================================
 # 3. Helm upgrade --install
 # =============================================================================
 step "helm upgrade --install ${RELEASE}..."
-# --force-conflicts: Helm 4 usa server-side apply; necesario si un kubectl
-# manual tocó antes el mismo recurso (mismo criterio que deploy.sh).
+# --force-conflicts: Helm 4 uses server-side apply; needed after a manual kubectl
+# edit of the same resource (same reasoning as deploy.sh).
 helm upgrade --install "${RELEASE}" "${CHART_DIR}" \
   --namespace "${NS}" \
   -f "${VALUES}" \
   --force-conflicts \
   --wait --timeout 3m
-ok "Release '${RELEASE}' desplegado"
+ok "Release '${RELEASE}' deployed"
 
 # =============================================================================
-# 4. Esperar rollout y comprobar /healthz
+# 4. Wait for the rollout and check /healthz
 # =============================================================================
-step "Esperando a que el pod esté Ready (máx. 120 s)..."
+step "Waiting for the pod to be Ready (max. 120 s)..."
 kubectl rollout status "deployment/${DEPLOYMENT}" -n "$NS" --timeout=120s
 ok "Wiki.js Ready"
 
-step "Comprobando /healthz dentro del pod..."
+step "Checking /healthz inside the pod..."
 WIKI_POD=$(kubectl get pod -n "$NS" -l "app.kubernetes.io/instance=${RELEASE}" -o jsonpath="{.items[0].metadata.name}")
 if kubectl exec -n "$NS" "$WIKI_POD" -- node -e "require('http').get('http://localhost:3000/healthz', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))" &>/dev/null; then
-  ok "Endpoint /healthz responde"
+  ok "/healthz endpoint answers"
 else
-  warn "/healthz no respondió 200; si el contenedor sigue arrancando, reintenta en unos segundos."
+  warn "/healthz did not return 200; if the container is still starting, retry in a few seconds."
 fi
 
 # =============================================================================
-# 5. Resumen
+# 5. Summary
 # =============================================================================
 echo ""
 echo "============================================================"
-echo "  Wiki.js desplegado en namespace '$NS'"
+echo "  Wiki.js deployed to namespace '$NS'"
 echo "============================================================"
-echo "  Host interno (en-cluster) : ${DEPLOYMENT}.${NS}.svc.cluster.local:3000"
-echo "  BD                        : wiki (Postgres compartido, ns ${INFRA_NS})"
+echo "  Internal host (in-cluster) : ${DEPLOYMENT}.${NS}.svc.cluster.local:3000"
+echo "  Database                   : wiki (shared Postgres, ns ${INFRA_NS})"
 echo "------------------------------------------------------------"
-echo "  Próximos pasos:"
-echo "  1. infra/scripts/add-wiki-host.ps1   (Admin, una vez)"
-echo "  2. Abrir http://wiki.local y completar el wizard inicial"
-echo "  3. Admin Area → API Access → activar API y generar key"
-echo "     (permisos read:pages + read:source + write:pages)"
-echo "  4. Guardar la key en infra/.env.local como WIKIJS_API_KEY=..."
+echo "  Next steps:"
+echo "  1. infra/scripts/add-wiki-host.ps1   (as Administrator, once)"
+echo "  2. Open http://wiki.local and finish the setup wizard"
+echo "  3. Admin Area -> API Access -> enable the API and create a key"
+echo "     (permissions read:pages + read:source + write:pages)"
+echo "  4. Store the key in infra/.env.local as WIKIJS_API_KEY=..."
 echo "============================================================"
