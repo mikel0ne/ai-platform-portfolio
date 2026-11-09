@@ -67,9 +67,8 @@ promtail:
 
 grafana:
   enabled: true
-  # Credenciales locales (cámbialas si te expones fuera de localhost).
+  # adminPassword is passed by 07-setup-observability.sh from GRAFANA_ADMIN_PASSWORD (infra/.env.local).
   adminUser: admin
-  adminPassword: admin
   # El Ingress lo monta infra/observability/grafana-ingress.yaml (Traefik).
   ingress:
     enabled: false

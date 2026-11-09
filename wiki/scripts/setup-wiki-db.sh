@@ -16,15 +16,19 @@
 # Variables de entorno reconocidas (con fallbacks):
 #   PGHOST      (default: postgres.local)
 #   PGPORT      (default: 15432)
-#   PGUSER      (default: appuser)
-#   PGPASSWORD  (default: change-me)
+#   PGUSER      (default: POSTGRES_USER from infra/.env.local)
+#   PGPASSWORD  (default: POSTGRES_PASSWORD from infra/.env.local, required)
 #   PROJECT_DB  (default: wiki)
 # =============================================================================
 
 set -euo pipefail
 
-: "${PGUSER:=appuser}"
-: "${PGPASSWORD:=change-me}"
+ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/infra/.env.local"
+if [ -f "$ENV_FILE" ]; then
+  set -a; source "$ENV_FILE"; set +a
+fi
+: "${PGUSER:=${POSTGRES_USER:?Define POSTGRES_USER in infra/.env.local}}"
+: "${PGPASSWORD:=${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in infra/.env.local}}"
 : "${PGHOST:=postgres.local}"
 : "${PGPORT:=15432}"
 : "${PROJECT_DB:=wiki}"

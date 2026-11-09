@@ -38,7 +38,7 @@ declare -gA SECRETS_BACKEND=(
 ```
 
 El **valor real** de `GEMINI_API_KEY` no se commitea: vive en `infra/.env.local` (compartida por todos los
-proyectos del portfolio) o en `infra/.env.autoops.local` (específica, gitignored). Si la variable está vacía,
+proyectos del portfolio) o en `infra/.env.local` (específica, gitignored). Si la variable está vacía,
 `deploy.sh` avisa pero sigue (el Secret se crea con valor vacío, falla luego en readiness — guía 07).
 
 ## 3. RBAC de AutoOps (lectura del clúster)

@@ -58,7 +58,7 @@ bash infra/scripts/03-setup-postgres.sh
 
 Despliega `postgres:16-alpine` en el namespace `infra` con:
 
-- Usuario admin: `appuser` · password: `change-me` · BD por defecto: `appdb`
+- Usuario admin: `appuser` · password: `<POSTGRES_PASSWORD>` · BD por defecto: `appdb`
   (credenciales en el Secret `postgres-credentials` del namespace `infra`).
 - Persistencia: PVC de 1 Gi (`postgres-pvc`).
 - Recursos contenidos: 100m/128Mi (requests), 500m/512Mi (limits).
@@ -116,7 +116,7 @@ los del Postgres compartido por defecto):
 PGHOST=postgres.local       # NodePort del Postgres del namespace `infra`
 PGPORT=15432
 PGUSER=appuser
-PGPASSWORD=change-me     # el del script 03-setup-postgres.sh
+PGPASSWORD=<POSTGRES_PASSWORD>     # el del script 03-setup-postgres.sh
 PROJECT_DB=l1_copilot       # solo en setup; el seed usa PGDATABASE
 ```
 
@@ -158,6 +158,6 @@ kubectl exec -n infra deploy/postgres -- psql -U appuser -d postgres \
 |---|---|---|
 | `docker push localhost:30500/...` falla | NodePort no expuesto o daemon Docker sin registry inseguro | re-ejecutar `02-setup-registry.sh` (idempotente) |
 | `setup-l1-copilot-db.sh` falla con "no such file" | no estás en la raíz del repo | `cd` a la raíz del repo (la que contiene `l1-copilot/`, `infra/`, `docker/`) |
-| Backend: `password authentication failed` | el Secret `postgres-credentials` del namespace `l1-copilot` no coincide con `appuser/change-me` | regenerar el Secret (guía 07) |
+| Backend: `password authentication failed` | el Secret `postgres-credentials` del namespace `l1-copilot` no coincide con `appuser/<POSTGRES_PASSWORD>` | regenerar el Secret (guía 07) |
 | Seed cargado dos veces (duplicados) | re-ejecutaste `seed-l1-copilot-db.sh` y el SQL no incluye `TRUNCATE` | `TRUNCATE` está en `data-postgresql.sql`; revisar |
 | Pod postgres `CrashLoopBackOff` | PVC corrupto tras parada brusca | borrar PVC: `kubectl delete pvc postgres-pvc -n infra` (pierdes datos) y re-ejecutar `03-setup-postgres.sh` |

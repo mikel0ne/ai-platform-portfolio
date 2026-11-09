@@ -77,7 +77,7 @@ curl "http://localhost:8088/v1/objects?class=AutoopsDocChunk&limit=1"
 
 ## 4. Actualizar la API key del LLM
 
-El valor vive en `infra/.env.autoops.local` (gitignored) o `infra/.env.local` (compartida); tras editarlo,
+El valor vive en `infra/.env.local` (gitignored) o `infra/.env.local` (compartida); tras editarlo,
 `deploy.sh` resincroniza el Secret automáticamente (`--skip-build` si no hace falta rebuild de imagen):
 
 ```bash

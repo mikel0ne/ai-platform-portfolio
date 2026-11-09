@@ -55,7 +55,7 @@
 |-----------|-------|
 | Base de datos | `appdb` |
 | Usuario | `appuser` |
-| Contraseña | `change-me` |
+| Contraseña | `<POSTGRES_PASSWORD>` |
 | Puerto interno | `5432` |
 | Puerto externo (NodePort) | `15432` |
 
@@ -75,7 +75,7 @@
 # JDBC (application.properties / application.yml)
 spring.datasource.url=jdbc:postgresql://postgres.infra.svc.cluster.local:5432/appdb
 spring.datasource.username=appuser
-spring.datasource.password=change-me
+spring.datasource.password=<POSTGRES_PASSWORD>
 
 # psql desde dentro de un pod
 psql -h postgres.infra.svc.cluster.local -p 5432 -U appuser -d appdb
@@ -104,7 +104,7 @@ No requiere ningún proceso adicional.
 # application.properties (perfil local)
 spring.datasource.url=jdbc:postgresql://postgres.local:15432/appdb
 spring.datasource.username=appuser
-spring.datasource.password=change-me
+spring.datasource.password=<POSTGRES_PASSWORD>
 spring.datasource.driver-class-name=org.postgresql.Driver
 
 # psql desde el host o WSL
@@ -224,7 +224,7 @@ kubectl port-forward svc/weaviate 8088:8080 -n infra
 - **Chart**: `grafana/loki-stack` · **Namespace**: `observability`
 - **Componentes**: Loki (almacén), Promtail (DaemonSet, recoge logs de **todos** los namespaces), Grafana (UI + datasource Loki preconfigurado).
 - **Values**: `observability/loki-stack-values.yaml` · **Script**: `scripts/07-setup-observability.sh`
-- **Acceso**: `http://grafana.local` (admin/admin), ingress Traefik en `observability/grafana-ingress.yaml`.
+- **Acceso**: `http://grafana.local` (admin / `GRAFANA_ADMIN_PASSWORD`), ingress Traefik en `observability/grafana-ingress.yaml`.
 - **Retención**: 7 días (entorno local).
 
 ```bash
@@ -290,8 +290,8 @@ infra/
 ├── values-autoops-backend.yaml
 ├── values-autoops-frontend.yaml
 ├── values-wikijs.yaml                      # Wiki.js: un solo componente, imagen pública (no convención backend/frontend)
-├── .env.l1-copilot / .env.autoops          # Defaults compartidos (versionado)
-├── .env.local                              # GEMINI_API_KEY real, compartida por TODOS los proyectos (no versionado)
+├── .env.local.example                      # Plantilla versionada (placeholders)
+├── .env.local                              # Secretos locales reales, compartidos por TODOS los proyectos (no versionado)
 ├── .env.<p>.local                          # Override puntual de UN proyecto, opcional (no versionado)
 ├── charts/
 │   └── generic-app/                        # Chart Helm reusable Deployment+Service+Ingress
@@ -419,12 +419,11 @@ Todas pasan por el wrapper `infra/scripts/run-sh-gitbash.cmd`, que invoca el `.s
 
 ### Fuente de verdad única para Secrets (local + K8s)
 
-Tres ficheros en `infra/`, cada uno con un rol distinto:
+Dos ficheros en `infra/` (más la plantilla versionada `.env.local.example`):
 
 | Fichero | Commiteado | Contenido |
 |---------|------------|-----------|
-| `.env.l1-copilot` / `.env.autoops` | ✅ Sí (excepción explícita en `.gitignore`) | claves del proyecto con placeholders (`.env.l1-copilot` también trae `POSTGRES_USER`/`POSTGRES_PASSWORD`, ya públicos en INFRA.md) |
-| `.env.local` | ❌ No (gitignored por patrón `.env.*`) | tu `GEMINI_API_KEY` real — **una sola vez, compartida por TODOS los proyectos** del portfolio |
+| `.env.local` | ❌ No (gitignored por patrón `.env.*`) | todos los secretos locales (`GEMINI_API_KEY`, `POSTGRES_*`, `GRAFANA_ADMIN_PASSWORD`, `GITHUB_TOKEN`, `WIKIJS_API_KEY`) — **una sola vez, compartidos por TODOS los proyectos** |
 | `.env.<p>.local` | ❌ No (gitignored por patrón `.env.*`) | override puntual de UN proyecto (p.ej. rotar Postgres solo en local para l1-copilot); normalmente no hace falta |
 
 **Bootstrap inicial** (una vez, sirve para todos los proyectos):
@@ -470,9 +469,9 @@ Secret vía `secretEnv` en el values file correspondiente.
 
 El perfil `dev` solo necesita `GEMINI_API_KEY` (Postgres queda en H2). Tres formas de inyectarla en IntelliJ — usa la que prefieras:
 
-1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/l1-copilot - Backend.run.xml` añade `infra/.env.l1-copilot`, `infra/.env.local` y `infra/.env.l1-copilot.local` (en ese orden) como ficheros de entorno. Mismo source de verdad que el deploy.
+1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/l1-copilot - Backend.run.xml` añade `infra/.env.local` y `infra/.env.l1-copilot.local` (en ese orden) como ficheros de entorno. Mismo source de verdad que el deploy.
 2. **Variables en la run config**: edita `.run/l1-copilot - Backend.run.xml` y añade `<env name="GEMINI_API_KEY" value="..." />` (queda commiteada — solo si te da igual).
-3. **Shell**: exporta antes de arrancar IntelliJ — `source infra/.env.l1-copilot && source infra/.env.local && source infra/.env.l1-copilot.local`.
+3. **Shell**: exporta antes de arrancar IntelliJ — `source infra/.env.local`.
 
 ### Estrategia de Secrets: evolución futura
 

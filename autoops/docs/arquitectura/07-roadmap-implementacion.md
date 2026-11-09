@@ -93,7 +93,7 @@ hace que el cliente llame a `diagnosticar_pod` y razone citando el `ErrImagePull
 
 - [x] Manifiestos en `infra/` (descriptor `infra/projects/autoops.env` + `values-autoops-{backend,frontend}.yaml`
       + `rbac-autoops.yaml`), no en una carpeta `k8s/` separada como se planteó originalmente. El secreto (API
-      key de Gemini) vive en `infra/.env.autoops.local`, gitignored — mismo efecto que el `01-secrets.yaml`
+      key de Gemini) vive en `infra/.env.local`, gitignored — mismo efecto que el `01-secrets.yaml`
       previsto, mecanismo distinto.
 - [x] Dockerfile (guía infra 04) + perfil `k8s` (transporte MCP, inicialmente SSE).
 - [x] Desplegar Weaviate + `autoops-mcp` + Ingress; ejecutar la ingesta del corpus.

@@ -15,7 +15,7 @@
 spring:
   datasource:
     url: jdbc:postgresql://postgres.local:15432/l1_copilot
-    password: ${SPRING_DATASOURCE_PASSWORD:change-me}   # único perfil con fallback inseguro
+    password: ${SPRING_DATASOURCE_PASSWORD}
   sql:
     init:
       mode: ${SQL_INIT_MODE:never}

@@ -16,11 +16,18 @@
 set -euo pipefail
 
 # -----------------------------------------------------------------------------
-# Variables — editar si se desea cambiar credenciales o namespace
+# Variables. Credentials come from infra/.env.local (gitignored).
 # -----------------------------------------------------------------------------
+ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.env.local"
+if [[ -f "$ENV_FILE" ]]; then
+  set -a; source "$ENV_FILE"; set +a
+fi
+: "${POSTGRES_USER:?Define POSTGRES_USER in infra/.env.local (see infra/.env.local.example)}"
+: "${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD in infra/.env.local (see infra/.env.local.example)}"
+
 NS="infra"
-PG_USER="appuser"
-PG_PASSWORD="change-me"
+PG_USER="$POSTGRES_USER"
+PG_PASSWORD="$POSTGRES_PASSWORD"
 PG_DB="appdb"
 PG_VERSION="16-alpine"
 PG_STORAGE="1Gi"
