@@ -6,7 +6,7 @@ spring:
   datasource:
     driver-class-name: org.postgresql.Driver
     username: ${SPRING_DATASOURCE_USERNAME:appuser}
-    password: ${SPRING_DATASOURCE_PASSWORD}   # sin fallback inseguro
+    password: ${SPRING_DATASOURCE_PASSWORD}
   jpa:
     open-in-view: false
     hibernate:
@@ -20,9 +20,7 @@ spring:
 server:
   port: 8079
   servlet:
-    # Todo el back vive bajo /api. Los @RequestMapping NO repiten el prefijo:
-    # el Ingress (Traefik) enruta /api/* -> este Service tal cual y el context-path
-    # lo absorbe. El frontend Angular se sirve en / desde el mismo host.
+    # The Ingress routes /api/* to this Service unchanged; controllers do not repeat the prefix.
     context-path: /api
     encoding:
       charset: UTF-8
@@ -36,66 +34,39 @@ logging:
     root: INFO
     io.github.mikel0ne.l1copilot: DEBUG
     dev.langchain4j: DEBUG
-  # El formato del appender se define en logback-spring.xml:
-  #   - perfil !prod → texto plano (local/dev)
-  #   - perfil prod  → JSON estructurado para Loki/Grafana
 
-# Configuración de LangChain4j (Google AI Studio)
-# La API key se puede obtener gratis en https://aistudio.google.com/app/apikey
-# Se recomienda pasarla por variable de entorno: GEMINI_API_KEY
+# API key from the environment: GEMINI_API_KEY (free at https://aistudio.google.com/app/apikey).
 langchain4j:
   gemini:
     api-key: ${GEMINI_API_KEY:}
-    # gemma-*  → cliente OpenAI-compatible (generativelanguage.googleapis.com/v1beta/openai/)
-    #             cuota gratuita ~1500 req/día — ideal para desarrollo
-    # gemini-* → cliente nativo Gemini; cuota gratuita ~20-50 req/día según modelo
-    #
-    # Otros modelos disponibles (cambiar aquí para todos los perfiles):
-    #   gemma-4-27b-it        ← Gemma 4 26B  (OpenAI-compat, cuota generosa)
-    #   gemma-4-27b-it        ← Gemma 4 26B  (OpenAI-compat, cuota generosa)
-    #   gemini-3.1-flash-lite ← Gemini 3.1 Flash Lite (nativo, cuota independiente K8s)
+    # gemini-* uses the native Gemini client; gemma-* the OpenAI-compatible endpoint (larger free quota).
     model-name: gemini-3.1-flash-lite
     timeout: 30s
     max-retries: 2
-    # Temperatura por rol del LLM (creatividad según la tarea). Ajustables sin recompilar.
-    # - deterministic: router + verificador → 0.0 (clasifican/juzgan; misma entrada → misma salida)
-    # - ticket: redacción de incidencias → baja (limpia el texto sin inventar datos)
-    # - response: respuestas de negocio → media (tono natural, fiel a los datos)
-    # - chat: charla informal (modo chatty) → alta (calidez y variedad)
+    # One model per role: classification must be deterministic, small talk benefits from variety.
     temperatures:
-      deterministic: 0.0
-      ticket: 0.2
-      response: 0.35
-      chat: 0.7
-    # Nivel de razonamiento (thinking budget) por rol. Solo aplica a modelos gemini-*;
-    # para gemma-* se ignora silenciosamente.
-    # Valores: NONE | LOW | MEDIUM | HIGH
-    # - deterministic: LOW  → router (7+ intenciones, anáforas) y verificador (SURE/DOUBT/REJECT)
-    #                         se benefician de reasoning ligero; sin latencia excesiva
-    # - ticket: NONE        → transformación de texto, no razonamiento
-    # - response: LOW       → interpreta instrucciones complejas del toolResult
-    # - chat: NONE          → espontaneidad; el thinking la vuelve formal/rígida
+      deterministic: 0.0   # router and verifier
+      ticket: 0.2          # ticket drafting: clean up the text without inventing facts
+      response: 0.35       # business answers
+      chat: 0.7            # small talk
+    # NONE | LOW | MEDIUM | HIGH; ignored for gemma-* models.
     thinking-levels:
       deterministic: LOW
       ticket: NONE
       response: LOW
-      chat: NONE
+      chat: NONE           # thinking makes small talk stiff
 
-# Agente de soporte L1 (LangGraph4j)
 copilot:
   max-recent-orders: 3
-  # Memoria conversacional inyectada en los prompts del LLM. El historial ya se
-  # acumula en el estado; aquí se decide cuánto ve cada LLM, de forma independiente.
-  # - enabled=false  → ese consumidor no recibe historial (prompt = "(sin historial previo)")
-  # - size           → nº máximo de mensajes recientes (USER/AGENT) incluidos en la ventana
+  # How much of the conversation each LLM sees; the full history always lives in the graph state.
   history:
-    classifier:        # el router: ayuda a resolver referencias e intención según el hilo
+    classifier:
       enabled: true
       size: 6
-    responder:         # el redactor: coherencia del hilo y referencias ("eso", "lo de antes")
+    responder:
       enabled: true
       size: 6
-  # Registro de turnos (materia prima del golden-set de evaluación).
+  # Turn log: raw material for the router's golden evaluation set.
   turn-log:
     file:
       enabled: true
@@ -103,23 +74,18 @@ copilot:
     db:
       enabled: true
 
-# Tratamiento del asistente: a partir de esta edad se trata de usted (amable);
-# por debajo, se tutea (simpático). Aplica a mensajes generados y hardcodeados.
+# From this age up the assistant addresses the user formally (usted); below it, informally (tú).
 app:
   treatment:
     formal-age-threshold: 60
 
-# Swagger UI / OpenAPI
 springdoc:
   show-actuator: true
-  paths-to-exclude: /actuator/health/**   # Oculta el endpoint /actuator/health/{*path} de Swagger (el wildcard duplicado)
+  paths-to-exclude: /actuator/health/**
   swagger-ui:
-    # Ordenación alfabética de tags y operaciones a cargo de Swagger UI (antes se
-    # reordenaba a mano con un OpenApiCustomizer; el orden alfabético es suficiente).
     tags-sorter: alpha
     operations-sorter: alpha
 
-# Actuator - Monitorización
 management:
   endpoints:
     web:
@@ -145,8 +111,7 @@ info:
     description: "@project.description@"
     version: "@project.version@"
 
-# Caché de respuestas LLM: desactivada. Ningún perfil la activa — si algún día
-# hace falta, se pone a true aquí (nunca en un fichero de perfil).
+# LLM response cache for development, to save Gemini free-tier quota. Never enable it in a profile.
 cache:
   enabled: false
   file:

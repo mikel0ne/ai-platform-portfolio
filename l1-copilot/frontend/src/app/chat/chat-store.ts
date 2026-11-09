@@ -3,11 +3,7 @@ import { finalize } from 'rxjs/operators';
 import { ChatApiService } from '../core/chat-api.service';
 import { ChatMessage } from '../core/models';
 
-/**
- * crypto.randomUUID() exige secure context (HTTPS o el hostname literal "localhost");
- * el despliegue corre en http://l1-copilot.local, así que se genera el UUID v4 a mano
- * con getRandomValues(), que sí está disponible fuera de secure context.
- */
+// crypto.randomUUID() needs a secure context and the demo runs on plain http://l1-copilot.local.
 function randomConversationId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6] & 0x0f) | 0x40;
@@ -23,7 +19,6 @@ export class ChatStore {
   readonly messages = signal<ChatMessage[]>([]);
   readonly sending = signal(false);
   private _conversationId = randomConversationId();
-  /** true → trato de usted (amable); false → tuteo (simpático). Lo fija el saludo. */
   private formal = false;
 
   get conversationId(): string {
@@ -38,16 +33,11 @@ export class ChatStore {
     this.messages.set([{ from: 'agent', text, at: new Date() }]);
   }
 
-  /**
-   * Envía un mensaje al agente. El `payload` es lo que viaja al backend; `displayText`
-   * (si se indica) es lo que se muestra en la burbuja del usuario — útil para los botones
-   * de acción, cuyo payload es un comando interno que el usuario no debería leer.
-   */
+  // displayText hides the internal command that action buttons send as payload.
   send(payload: string, displayText?: string): void {
     const message = payload.trim();
     if (this.sending() || !message) return;
     const bubble = (displayText ?? payload).trim();
-    // Al iniciar un nuevo turno, cualquier acción de confirmación pendiente queda superada.
     this.messages.update(m => [
       ...m.map(msg => msg.confirm ? { ...msg, confirm: null } : msg),
       { from: 'user', text: bubble, at: new Date() },

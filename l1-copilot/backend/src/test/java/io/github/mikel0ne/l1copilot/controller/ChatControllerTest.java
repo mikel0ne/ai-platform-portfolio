@@ -38,7 +38,7 @@ class ChatControllerTest {
     private TreatmentPolicy treatmentPolicy;
 
     @Test
-    @DisplayName("Un turno válido devuelve la respuesta del agente")
+    @DisplayName("A valid turn returns the agent's reply")
     void validTurnReturnsAgentReply() throws Exception {
         when(userRepository.existsById("u-001")).thenReturn(true);
         when(conversationService.chat(eq("u-001"), eq("conv-1"), any()))
@@ -58,7 +58,7 @@ class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("Sin cabecera de sesión: 401 problem+json")
+    @DisplayName("Without a session header: 401 problem+json")
     void missingSessionHeaderIsUnauthorized() throws Exception {
         mockMvc.perform(post("/copilot/chat")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -69,7 +69,7 @@ class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("Usuario desconocido: 401 sin revelar detalles")
+    @DisplayName("Unknown user: 401 without revealing details")
     void unknownUserIsUnauthorized() throws Exception {
         when(userRepository.existsById("u-999")).thenReturn(false);
 
@@ -83,7 +83,7 @@ class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("Mensaje en blanco: 400 antes de gastar tokens")
+    @DisplayName("Blank message: 400 before spending tokens")
     void blankMessageIsRejected() throws Exception {
         when(userRepository.existsById("u-001")).thenReturn(true);
 
@@ -97,7 +97,7 @@ class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("El asistente caído se traduce a 503 con mensaje amable")
+    @DisplayName("An unavailable assistant maps to 503 with a friendly message")
     void llmUnavailableIs503() throws Exception {
         when(userRepository.existsById("u-001")).thenReturn(true);
         when(conversationService.chat(any(), any(), any()))
@@ -113,7 +113,7 @@ class ChatControllerTest {
     }
 
     @Test
-    @DisplayName("Los usuarios de demo alimentan el login simulado del frontend")
+    @DisplayName("The demo users feed the frontend's simulated login")
     void demoUsersAreListed() throws Exception {
         User ana = new User();
         ana.setId("u-001");

@@ -14,22 +14,16 @@ import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Verifica que el ciclo persistencia → recarga funciona y que los modos
- * activados/desactivados se comportan como esperamos. La recarga era el
- * punto sospechoso por el que llegamos aquí.
- */
 class FileCacheManagerTest {
 
     @Test
-    @DisplayName("Recarga las entradas vigentes desde disco en un nuevo arranque")
+    @DisplayName("Reloads the valid entries from disk on a new start")
     void reloadsEntriesAfterRestart(@TempDir Path tmp) {
         FileCacheManager first = newManager(tmp, true, 3600L);
         first.init();
         first.put("k1", "respuesta cacheada");
         first.put("k2", "otra respuesta");
 
-        // Nuevo "arranque": una instancia distinta apuntando al mismo directorio.
         FileCacheManager second = newManager(tmp, true, 3600L);
         second.init();
 
@@ -39,13 +33,13 @@ class FileCacheManagerTest {
     }
 
     @Test
-    @DisplayName("Las entradas expiradas se descartan al recargar")
+    @DisplayName("Expired entries are dropped on reload")
     void droppsExpiredEntriesOnReload(@TempDir Path tmp) throws InterruptedException {
         FileCacheManager first = newManager(tmp, true, 3600L);
         first.init();
         first.put("vivo", "ok", 3600L);
         first.put("muerto", "stale", 1L);
-        Thread.sleep(1_500); // supera el TTL de "muerto"
+        Thread.sleep(1_500);
 
         FileCacheManager second = newManager(tmp, true, 3600L);
         second.init();
@@ -55,7 +49,7 @@ class FileCacheManagerTest {
     }
 
     @Test
-    @DisplayName("Con file.enabled=false no toca disco aunque se le pase un path")
+    @DisplayName("With file.enabled=false it never touches disk even when given a path")
     void inMemoryOnlyDoesNotTouchDisk(@TempDir Path tmp) throws IOException {
         FileCacheManager manager = newManager(tmp, false, 3600L);
         manager.init();
@@ -69,15 +63,15 @@ class FileCacheManagerTest {
     }
 
     @Test
-    @DisplayName("Cuenta hits, misses y ratio en getStats()")
+    @DisplayName("Counts hits, misses and ratio in getStats()")
     void countsHitsAndMisses(@TempDir Path tmp) {
         FileCacheManager manager = newManager(tmp, false, 3600L);
         manager.init();
         manager.put("k", "v");
 
-        manager.get("k");       // hit
-        manager.get("k");       // hit
-        manager.get("missing"); // miss
+        manager.get("k");
+        manager.get("k");
+        manager.get("missing");
 
         Map<String, Object> stats = manager.getStats();
         assertThat(stats.get("hits")).isEqualTo(2L);
@@ -86,24 +80,22 @@ class FileCacheManagerTest {
     }
 
     @Test
-    @DisplayName("Un fichero de caché corrupto no rompe el arranque y se borra")
+    @DisplayName("A corrupt cache file does not break startup and gets deleted")
     void corruptedFileIsRemovedOnReload(@TempDir Path tmp) throws IOException {
-        // Crea un .cache con basura → ObjectInputStream lanzará IOException
         Path corrupt = tmp.resolve("corrupt.cache");
         try (OutputStream out = Files.newOutputStream(corrupt)) {
             out.write(new byte[]{1, 2, 3, 4, 5});
         }
 
         FileCacheManager manager = newManager(tmp, true, 3600L);
-        manager.init();   // no debe lanzar
+        manager.init();
 
-        // No se carga la entrada corrupta — el fichero queda en disco pero ignorado.
         assertThat(manager.get("corrupt")).isNull();
     }
 
     private static FileCacheManager newManager(Path dir, boolean fileEnabled, long ttlSeconds) {
         CacheProperties props = new CacheProperties(
-                true,  // cache.enabled — la caché global está activa en los tests
+                true,
                 new CacheProperties.File(fileEnabled, dir.toString()),
                 ttlSeconds);
         return new FileCacheManager(props);

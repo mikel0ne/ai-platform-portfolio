@@ -4,11 +4,6 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 
-/**
- * Router semántico: clasifica el mensaje del usuario y extrae entidades.
- * AiService de LangChain4j con salida estructurada; la decisión de flujo
- * posterior es código Java ({@code SupportRouting}).
- */
 public interface IntentClassifier {
 
     @SystemMessage("""
@@ -173,24 +168,8 @@ public interface IntentClassifier {
                             @V("focusOrder") String focusOrder,
                             @V("history") String history);
 
-    /**
-     * Salida estructurada del router.
-     *
-     * @param intent       TRACKING | CANCEL | RETURN | SUPPORT | TICKETS | FAQ | CHATTY | OTHER
-     * @param orderId      id del pedido si el usuario lo identifica claramente; null para
-     *                     conservar el foco actual (no inventar ni elegir por similitud)
-     * @param confirmation YES | NO | NONE — solo relevante cuando se esperaba una confirmación
-     * @param navigation   NONE | BACK_TO_LIST | BACK_TO_MENU | BACK — el usuario pide volver al
-     *                     listado de pedidos, al menú principal, o "atrás/volver" a secas (BACK,
-     *                     cuyo nivel destino resuelve {@code RouterNode} según el foco actual)
-     * @param orderRelated solo relevante si intent=SUPPORT: ¿la incidencia es sobre un pedido
-     *                     concreto? Si lo es y aún no hay foco, el grafo identifica el pedido antes
-     *                     de abrir el ticket; si no, se abre una incidencia genérica (sin pedido)
-     */
     record RouterDecision(String intent, Long orderId, String confirmation, String navigation,
                           boolean orderRelated) {
-
-        /** Conveniencia para gestiones que no son incidencias: orderRelated es indiferente (false). */
         public RouterDecision(String intent, Long orderId, String confirmation, String navigation) {
             this(intent, orderId, confirmation, navigation, false);
         }

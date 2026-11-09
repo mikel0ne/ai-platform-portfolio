@@ -27,28 +27,6 @@ import static org.bsc.langgraph4j.StateGraph.START;
 import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
 import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
-/**
- * Topología del agente de soporte L1. Cada turno HTTP recorre el grafo de
- * START a END; el ciclo conversacional se materializa entre turnos gracias al
- * checkpointer (ver docs/arquitectura/04-grafo-langgraph.md).
- *
- * <pre>
- * START → router ──┬→ verify ─┬→ resolve_order ──┬→ tracking ──────→ respond → END
- *                  │ (CANCEL/ │                  ├→ cancel_check ─┬→ execute ──↑
- *                  │ RETURN   │                  ├→ support ──────┼───────────→│
- *                  │ frescos) │                  └→ (ask_user) ───┼───────────→│
- *                  │          ├→ cancel_check ──── (ver arriba)   │            │
- *                  │          └→ clarify (DUDA) ──────────────────┼───────────→│
- *                  ├→ resolve_order (SUPPORT sobre pedido) ───────→│            │
- *                  ├→ support (SUPPORT: gate confirmar/describir) →│            │
- *                  ├→ tracking ───────────────────────────────────→│            │
- *                  ├→ cancel_check (gate en curso) ───────────────→│            │
- *                  ├→ tickets ─────────────────────────────────────┤            │
- *                  ├→ faq ─────────────────────────────────────────┤            │
- *                  ├→ chatty ──────────────────────────────────────┤            │
- *                  └→ fallback ───────────────────────────────────→┘            │
- * </pre>
- */
 @Component
 @RequiredArgsConstructor
 public class SupportAgentGraph {

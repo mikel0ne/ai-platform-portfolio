@@ -16,10 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * Herramienta de escalado: crea tickets para que un agente humano atienda
- * la incidencia. Misma política de seguridad que {@link OrderTools}.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -35,7 +31,7 @@ public class TicketTools {
                 .map(t -> new TicketSummary(t.getId(), t.getSubject(), t.getStatus().name(),
                         t.getOrderId(), t.getCreatedAt()))
                 .toList();
-        log.debug("Consulta de incidencias del usuario {}: {} ticket(s)", userId, tickets.size());
+        log.debug("Ticket lookup for user {}: {} ticket(s)", userId, tickets.size());
         return tickets;
     }
 
@@ -46,7 +42,6 @@ public class TicketTools {
                                       @P("Resumen corto de la incidencia") String subject,
                                       @P("Descripción detallada dada por el usuario") String description) {
         if (orderId != null) {
-            // Si referencia un pedido, debe ser del propio usuario
             orderRepository.findByIdAndUserId(orderId, userId)
                     .orElseThrow(() -> new OrderNotFoundException(orderId));
         }
@@ -58,7 +53,7 @@ public class TicketTools {
         t.setStatus(TicketStatus.OPEN);
         t.setCreatedAt(Instant.now());
         t = ticketRepository.save(t);
-        log.info("Ticket {} creado para el usuario {} (pedido: {})", t.getId(), userId, orderId);
+        log.info("Ticket {} created for user {} (order: {})", t.getId(), userId, orderId);
         return new TicketCreated(t.getId(), t.getSubject(), t.getStatus().name(), t.getCreatedAt());
     }
 }

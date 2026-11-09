@@ -3,13 +3,11 @@ export interface UserDto {
   name: string;
   age: number;
   avatarUrl?: string | null;
-  /** true si al usuario se le trata de usted (lo decide el backend según la edad). */
   formal: boolean;
 }
 
 export type Intent = 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'TICKETS' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
 
-/** Acción de confirmación (botones) para una operación irreversible, p. ej. cancelar un pedido. */
 export interface ConfirmAction {
   orderId: number;
   title: string;
@@ -45,7 +43,6 @@ export interface TicketDetail {
   createdAt: string;
 }
 
-/** Tarjeta de devolución: enlace clicable a la etiqueta de devolución (/returns/{id}). */
 export interface ReturnCard {
   id: number;
   code: string;
@@ -54,7 +51,6 @@ export interface ReturnCard {
   createdAt: string;
 }
 
-/** Etiqueta de devolución para la página /returns/{id}. */
 export interface ReturnLabel {
   id: number;
   code: string;
@@ -78,11 +74,7 @@ export interface ChatResponse {
   intent: Intent;
   resolved: boolean;
   orders?: OrderCard[];
-  /**
-   * true → las tarjetas de `orders` son un LISTADO para elegir (clicables).
-   * false → son el detalle del pedido ya en foco (no clicables, ya estamos dentro).
-   * Lo decide el backend (awaiting==ORDER_CHOICE), no el tamaño de la lista.
-   */
+  // Decided by the backend (awaiting ORDER_CHOICE): a clickable list vs the detail of the focused order.
   ordersSelectable?: boolean;
   tickets?: TicketCard[];
   returns?: ReturnCard[];
@@ -95,7 +87,6 @@ export interface ChatMessage {
   intent?: Intent;
   at: Date;
   orders?: OrderCard[];
-  /** Ver ChatResponse.ordersSelectable: si las tarjetas de pedido son clicables. */
   ordersSelectable?: boolean;
   tickets?: TicketCard[];
   returns?: ReturnCard[];

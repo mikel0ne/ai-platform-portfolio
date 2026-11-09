@@ -11,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SupportStateTest {
 
     @Test
-    @DisplayName("Devuelve los candidatos como texto plano tal cual se guardaron")
+    @DisplayName("Returns the candidates as plain text exactly as stored")
     void candidatesAreReturnedAsStoredText() {
         SupportState state = new SupportState(Map.of(
                 "candidates", List.of(
@@ -26,7 +26,7 @@ class SupportStateTest {
     }
 
     @Test
-    @DisplayName("Sin candidatos en el estado, devuelve lista vacía (no null)")
+    @DisplayName("Without candidates in the state, returns an empty list (not null)")
     void candidatesDefaultToEmptyList() {
         SupportState state = new SupportState(Map.of());
 

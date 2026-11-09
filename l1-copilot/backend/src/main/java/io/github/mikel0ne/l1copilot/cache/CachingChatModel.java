@@ -19,19 +19,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Decorador de {@link ChatModel} que cachea respuestas en {@link FileCacheManager}.
- * <p>
- * Toda la conversación del agente pasa por aquí: el router y el redactor son
- * AiServices conectados a este bean, así que dos turnos idénticos solo consumen
- * cuota la primera vez.
- * <p>
- * Si la petición incluye {@code toolSpecifications}, se baipasea la caché — el
- * resultado puede ser un {@code tool_call} dependiente del estado externo y
- * cachearlo abriría la puerta a ejecuciones repetidas no idempotentes. En este
- * proyecto el grafo no usa tool-calling del LLM (las herramientas son nodos de
- * LangGraph4j), así que en la práctica nunca se entra por esa rama.
- */
 public class CachingChatModel implements ChatModel {
 
     private static final Logger log = LoggerFactory.getLogger(CachingChatModel.class);
@@ -88,11 +75,6 @@ public class CachingChatModel implements ChatModel {
         return delegate.supportedCapabilities();
     }
 
-    /**
-     * Clave estable: incluye todos los mensajes (tipo + contenido) y los parámetros
-     * que pueden cambiar la respuesta. Dos {@code ChatRequest} con misma intención
-     * pero distinto temperature/topP/topK no comparten clave.
-     */
     private String buildKey(ChatRequest request) {
         StringBuilder sb = new StringBuilder(1024);
         for (ChatMessage msg : request.messages()) {

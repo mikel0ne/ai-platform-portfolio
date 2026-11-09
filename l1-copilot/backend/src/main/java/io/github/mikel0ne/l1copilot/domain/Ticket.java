@@ -16,11 +16,6 @@ import lombok.Setter;
 
 import java.time.Instant;
 
-/**
- * Ticket de soporte creado por el agente cuando una incidencia requiere
- * escalado a un humano. {@code orderId} es opcional: una incidencia puede
- * no estar ligada a un pedido.
- */
 @Entity
 @Table(name = "tickets")
 @Getter

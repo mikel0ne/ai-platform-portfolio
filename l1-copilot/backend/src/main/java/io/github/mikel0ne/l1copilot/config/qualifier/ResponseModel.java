@@ -7,10 +7,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * Modelo de respuestas de negocio (temperatura media): tono natural, fiel a los
- * datos. Lo consume el redactor principal ({@code Responder}).
- */
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.TYPE})

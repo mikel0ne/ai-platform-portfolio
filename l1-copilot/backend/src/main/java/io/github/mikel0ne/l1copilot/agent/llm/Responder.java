@@ -4,10 +4,6 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 
-/**
- * Único punto donde se redacta texto para el usuario: centraliza tono,
- * idioma y la regla de oro de no inventar datos.
- */
 public interface Responder {
 
     @SystemMessage("""

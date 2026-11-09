@@ -13,12 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Consulta del detalle de un ticket de soporte para la página de detalle del
- * frontend ({@code /tickets/{id}}). Es de solo lectura y pública (sin cabecera
- * {@code X-User-Id}): el enlace del ticket debe poder abrirse directamente en
- * una ventana emergente, igual que un enlace de seguimiento que llega por correo.
- */
 @Tag(name = "Tickets", description = "Detalle de tickets de soporte")
 @RestController
 @RequestMapping("/copilot/tickets")
@@ -31,13 +25,12 @@ public class TicketController {
     @Operation(summary = "Detalle de un ticket de soporte por id")
     @GetMapping("/{id}")
     public TicketDetailDto ticket(@PathVariable Long id) {
-        log.debug("Consulta de detalle del ticket {}", id);
+        log.debug("Ticket detail requested: {}", id);
         return ticketRepository.findById(id)
                 .map(TicketDetailDto::from)
                 .orElseThrow(() -> new TicketNotFoundException(id));
     }
 
-    /** El ticket solicitado no existe. */
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public static class TicketNotFoundException extends RuntimeException {
         public TicketNotFoundException(Long id) {

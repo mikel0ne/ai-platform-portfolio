@@ -20,10 +20,6 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * Reglas de negocio y seguridad del dato de las tools, contra H2 con el seed
- * real (schema-h2.sql + data-h2.sql). Sin LLM: las tools son deterministas a propósito.
- */
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=none")
 @Import({OrderTools.class, TicketTools.class})
 class OrderToolsTest {
@@ -40,10 +36,8 @@ class OrderToolsTest {
     @Autowired
     private TicketRepository ticketRepository;
 
-    // ---- getRecentOrders ----
-
     @Test
-    @DisplayName("Devuelve los pedidos del usuario ordenados por fecha descendente")
+    @DisplayName("Returns the user's orders sorted by date, newest first")
     void recentOrdersAreOrderedByDateDesc() {
         List<OrderSummary> orders = orderTools.getRecentOrders("u-001");
 
@@ -51,15 +45,13 @@ class OrderToolsTest {
     }
 
     @Test
-    @DisplayName("Un usuario sin pedidos recibe lista vacía, no error")
+    @DisplayName("A user without orders gets an empty list, not an error")
     void unknownUserGetsEmptyList() {
         assertThat(orderTools.getRecentOrders("u-999")).isEmpty();
     }
 
-    // ---- trackShipment ----
-
     @Test
-    @DisplayName("Informa estado, fecha estimada y transportista del pedido propio")
+    @DisplayName("Reports status, estimated date and carrier of the user's own order")
     void trackOwnShipment() {
         ShipmentStatus s = orderTools.trackShipment(123L, "u-001");
 
@@ -69,17 +61,14 @@ class OrderToolsTest {
     }
 
     @Test
-    @DisplayName("SEGURIDAD: el pedido de otro usuario no existe para este usuario")
+    @DisplayName("SECURITY: another user's order does not exist for this user")
     void cannotTrackForeignOrder() {
-        // El pedido 201 es de u-002: para u-001 debe ser indistinguible de inexistente
         assertThatThrownBy(() -> orderTools.trackShipment(201L, "u-001"))
                 .isInstanceOf(OrderNotFoundException.class);
     }
 
-    // ---- checkCancellable / cancelOrder ----
-
     @Test
-    @DisplayName("Un pedido CREATED es cancelable; uno SHIPPED no")
+    @DisplayName("A CREATED order is cancellable; a SHIPPED one is not")
     void cancellabilityFollowsBusinessRules() {
         CancellationCheck created = orderTools.checkCancellable(200L, "u-002");
         CancellationCheck shipped = orderTools.checkCancellable(201L, "u-002");
@@ -90,7 +79,7 @@ class OrderToolsTest {
     }
 
     @Test
-    @DisplayName("Cancelar un pedido cancelable lo deja CANCELLED en base de datos")
+    @DisplayName("Cancelling a cancellable order leaves it CANCELLED in the database")
     void cancelExecutesAndPersists() {
         CancellationResult result = orderTools.cancelOrder(200L, "u-002");
 
@@ -100,7 +89,7 @@ class OrderToolsTest {
     }
 
     @Test
-    @DisplayName("Cancelar un pedido enviado es rechazado POR CÓDIGO, con motivo")
+    @DisplayName("Cancelling a shipped order is rejected BY CODE, with a reason")
     void cancelShippedIsRejected() {
         CancellationResult result = orderTools.cancelOrder(201L, "u-002");
 
@@ -110,10 +99,8 @@ class OrderToolsTest {
                 .isEqualTo(OrderStatus.SHIPPED);
     }
 
-    // ---- createTicket ----
-
     @Test
-    @DisplayName("Crea el ticket OPEN asociado al pedido propio")
+    @DisplayName("Creates an OPEN ticket linked to the user's own order")
     void createTicketForOwnOrder() {
         TicketCreated t = ticketTools.createTicket("u-001", 123L,
                 "Pantalla rota", "El portátil llegó con la pantalla rota");
@@ -124,7 +111,7 @@ class OrderToolsTest {
     }
 
     @Test
-    @DisplayName("SEGURIDAD: no se puede abrir ticket sobre un pedido ajeno")
+    @DisplayName("SECURITY: a ticket cannot be opened on someone else's order")
     void cannotCreateTicketForForeignOrder() {
         assertThatThrownBy(() -> ticketTools.createTicket("u-001", 201L, "x", "y"))
                 .isInstanceOf(OrderNotFoundException.class);

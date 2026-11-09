@@ -11,10 +11,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/**
- * Usuario de demo. Existe solo para simular el login del frontend;
- * la autenticación real queda fuera de alcance del prototipo.
- */
 @Entity
 @Table(name = "users")
 @Getter
@@ -36,12 +32,10 @@ public class User {
     @Column(nullable = false, length = 150)
     private String email;
 
-    /** Edad del usuario: decide el tratamiento (tú/usted) del asistente. */
     @Positive
     @Column(nullable = false)
     private int age;
 
-    /** Foto de perfil para el selector de "login" de la demo. */
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 }

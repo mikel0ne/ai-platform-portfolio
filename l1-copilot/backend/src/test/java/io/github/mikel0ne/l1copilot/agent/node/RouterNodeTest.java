@@ -19,11 +19,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- * Lógica de foco del router, aislada del LLM (clasificador mockeado) y de Spring.
- * Aquí se garantiza que el pedido en curso es "pegajoso": no se salta de pedido
- * en pedido salvo elección explícita del menú, mención de otro id o vuelta al listado.
- */
 class RouterNodeTest {
 
     private final IntentClassifier classifier = mock(IntentClassifier.class);
@@ -38,33 +33,30 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Foco pegajoso: con un pedido en curso y orderId=null, NO se cambia el pedido")
+    @DisplayName("Sticky focus: with an order in progress and orderId=null, the order does NOT change")
     void nullOrderKeepsFocus() {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "awaiting", "NOTHING")));
 
-        // La intención puede cambiar (tracking → incidencia) pero el foco no se toca
         assertThat(updates).doesNotContainKey("orderId");
         assertThat(updates).containsEntry("intent", "SUPPORT");
     }
 
     @Test
-    @DisplayName("Cambio explícito: si el usuario nombra OTRO pedido (gestión fresca), se PROPONE el foco (lo confirma verify)")
+    @DisplayName("Explicit switch: naming ANOTHER order (fresh request) PROPOSES the focus (verify confirms it)")
     void explicitDifferentOrderSwitchesFocus() {
         decision(new RouterDecision("TRACKING", 456L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "awaiting", "NOTHING")));
 
-        // No se compromete el foco antes de validar: el router lo propone y verify lo ascenderá
-        // (y descartará el menú) solo si aprueba la acción. El foco real sigue intacto aquí.
         assertThat(updates).containsEntry("proposedOrderId", 456L);
         assertThat(updates).doesNotContainKey("orderId");
         assertThat(updates).doesNotContainKey("candidates");
     }
 
     @Test
-    @DisplayName("Elección del menú: en ORDER_CHOICE se propone el pedido elegido y se cierra la pregunta (verify lo confirma)")
+    @DisplayName("Menu choice: in ORDER_CHOICE the chosen order is proposed and the question is closed (verify confirms it)")
     void menuChoiceResolvesOrder() {
         decision(new RouterDecision("TRACKING", 789L, "NONE", "NONE"));
 
@@ -78,7 +70,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Volver al listado: BACK_TO_LIST suelta el foco, descarta el menú y reencamina al listado")
+    @DisplayName("Back to list: BACK_TO_LIST releases the focus, drops the menu and reroutes to the list")
     void backToListReleasesFocus() {
         decision(new RouterDecision("OTHER", null, "NONE", "BACK_TO_LIST"));
 
@@ -87,12 +79,12 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
-        // Sin orderId, la arista del router cae en resolve_order (vía TRACKING)
+
         assertThat(updates).containsEntry("intent", "TRACKING");
     }
 
     @Test
-    @DisplayName("Volver al listado durante una cancelación conserva la intención CANCEL")
+    @DisplayName("Back to list during a cancellation keeps the CANCEL intent")
     void backToListKeepsCancelIntent() {
         decision(new RouterDecision("OTHER", null, "NONE", "BACK_TO_LIST"));
 
@@ -103,7 +95,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Volver al menú principal: BACK_TO_MENU suelta el foco y cae siempre en OTHER (fallback)")
+    @DisplayName("Back to main menu: BACK_TO_MENU releases the focus and always falls to OTHER (fallback)")
     void backToMenuReleasesFocusAndFallsBackToOther() {
         decision(new RouterDecision("TRACKING", null, "NONE", "BACK_TO_MENU"));
 
@@ -113,15 +105,13 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
-        // A diferencia de BACK_TO_LIST, siempre cae en OTHER → fallback (menú de capacidades)
+
         assertThat(updates).containsEntry("intent", "OTHER");
     }
 
     @Test
-    @DisplayName("'atrás' (BACK) con un pedido en foco: sube un nivel al listado")
+    @DisplayName("'back' (BACK) with an order in focus: goes up one level to the list")
     void backWithFocusGoesToList() {
-        // "atrás", "volver", "anterior"... no los clasifica una lista de palabras: el LLM emite
-        // BACK (subir un nivel) y el router decide el destino según el nivel real. Con foco → listado.
         decision(new RouterDecision("TRACKING", null, "NONE", "BACK"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
@@ -131,16 +121,13 @@ class RouterNodeTest {
 
         assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
-        // Con foco, BACK sube al listado (vía TRACKING → resolve_order)
+
         assertThat(updates).containsEntry("intent", "TRACKING");
     }
 
     @Test
-    @DisplayName("'atrás' (BACK) estando ya en el listado (sin foco): sube al menú, NO re-lista")
+    @DisplayName("'back' (BACK) when already on the list (no focus): goes up to the menu, does NOT re-list")
     void backOnListWithoutFocusGoesToMenu() {
-        // El usuario está en el listado eligiendo (ORDER_CHOICE, hay candidatos pero NINGÚN foco).
-        // Un "atrás" aquí debe SUBIR al menú, no volver a pintar el mismo listado (el bucle que veía
-        // el usuario). Lo decide el router por el nivel: sin foco → BACK_TO_MENU → fallback.
         decision(new RouterDecision("OTHER", null, "NONE", "BACK"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
@@ -152,17 +139,13 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
-        // Sin foco, BACK cae en OTHER → fallback (menú de capacidades), no en resolve_order
+
         assertThat(updates).containsEntry("intent", "OTHER");
     }
 
     @Test
-    @DisplayName("'atrás' (BACK) iniciando una devolución con el foco diferido sin comprometer: vuelve al listado, NO al menú")
+    @DisplayName("'back' (BACK) while starting a return with an uncommitted deferred focus: returns to the list, NOT the menu")
     void backWithDeferredFocusDroppedGoesToList() {
-        // Caso del foco diferido: el usuario eligió un pedido del listado para devolverlo, pero
-        // verify dudó y mandó a clarify SIN ascender el foco; proposedOrderId es efímero, así que
-        // este turno NO hay orderId. El listado sigue ahí (candidates) y ya no estamos eligiendo
-        // (awaiting != ORDER_CHOICE): "atrás" debe volver al LISTADO, no saltarse un nivel al menú.
         decision(new RouterDecision("OTHER", null, "NONE", "BACK"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
@@ -174,13 +157,12 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
-        // BACK_TO_LIST conserva la gestión (RETURN) para que, con orderId vacío, la arista del
-        // router caiga en resolve_order y re-ofrezca el listado, no en fallback (menú).
+
         assertThat(updates).containsEntry("intent", "RETURN");
     }
 
     @Test
-    @DisplayName("Digresión: una FAQ con gestión pendiente suspende la tarea SIN tocar su contexto")
+    @DisplayName("Digression: an FAQ with a pending request suspends the task WITHOUT touching its context")
     void faqDuringPendingTaskSuspendsWithoutTouchingContext() {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
@@ -190,7 +172,7 @@ class RouterNodeTest {
                 "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#456 Monitor (DELIVERED)"))));
 
         assertThat(updates).containsEntry("intent", "FAQ");
-        // Se recuerda la gestión para retomarla; el contexto de la tarea queda intacto
+
         assertThat(updates).containsEntry("suspendedIntent", "TRACKING");
         assertThat(updates).doesNotContainKey("orderId");
         assertThat(updates).doesNotContainKey("candidates");
@@ -198,7 +180,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Digresión: una FAQ sin gestión pendiente NO suspende nada (FAQ normal)")
+    @DisplayName("Digression: an FAQ with no pending request suspends nothing (plain FAQ)")
     void faqWithoutPendingTaskIsNotDigression() {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
@@ -209,10 +191,8 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Retorno: al retomar la gestión tras la FAQ se restaura la intención y se descarta la suspensión")
+    @DisplayName("Resume: picking the request up after the FAQ restores the intent and clears the suspension")
     void resumingAfterDigressionClearsSuspendedIntent() {
-        // El usuario, tras la FAQ, elige por fin el pedido: el LLM —que vio TRACKING como
-        // vigente— devuelve TRACKING + orderId; el router cierra la digresión.
         decision(new RouterDecision("TRACKING", 123L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
@@ -223,13 +203,13 @@ class RouterNodeTest {
 
         assertThat(updates).containsEntry("suspendedIntent", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("intent", "TRACKING");
-        // Gestión fresca tras la digresión: el foco se PROPONE (lo confirma verify), no se fija ya
+
         assertThat(updates).containsEntry("proposedOrderId", 123L);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
     }
 
     @Test
-    @DisplayName("Botón confirmar: el comando se resuelve a YES de forma determinista, sin LLM")
+    @DisplayName("Confirm button: the command resolves to YES deterministically, without the LLM")
     void confirmCancelCommandIsDeterministic() {
         Map<String, Object> updates = router.apply(state(Map.of(
                 "userMessage", UiAction.confirmCancel(200L),
@@ -243,7 +223,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Botón descartar: el comando se resuelve a NO de forma determinista, sin LLM")
+    @DisplayName("Dismiss button: the command resolves to NO deterministically, without the LLM")
     void abortCancelCommandIsDeterministic() {
         Map<String, Object> updates = router.apply(state(Map.of(
                 "userMessage", UiAction.abortCancel(200L),
@@ -256,7 +236,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Selección de tarjeta '#id': fija el foco sin LLM si el id está en el menú")
+    @DisplayName("Card selection '#id': sets the focus without the LLM when the id is on the menu")
     void cardSelectionResolvesFocusDeterministically() {
         Map<String, Object> updates = router.apply(state(Map.of(
                 "userMessage", "#123",
@@ -269,7 +249,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Digresión chatty: la charla informal en mitad de una gestión la suspende igual que FAQ")
+    @DisplayName("Chatty digression: small talk in the middle of a request suspends it like an FAQ")
     void chattyDuringPendingTaskSuspends() {
         decision(new RouterDecision("CHATTY", null, "NONE", "NONE"));
 
@@ -285,7 +265,7 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("Aclaración: un OTHER ambiguo con foco incrementa el contador; sin foco lo reinicia")
+    @DisplayName("Clarification: an ambiguous OTHER with focus increments the counter; without focus it resets it")
     void clarifyAttemptsTrackOnlyWithContext() {
         decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
@@ -298,28 +278,27 @@ class RouterNodeTest {
     }
 
     @Test
-    @DisplayName("SUPPORT: el slot orderRelated se vuelca al estado (gobierna si se identifica el pedido)")
+    @DisplayName("SUPPORT: the orderRelated slot is copied to the state (it decides whether the order is identified)")
     void supportOrderRelatedIsDumped() {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE", true));
         assertThat(router.apply(state(Map.of())))
                 .containsEntry("intent", "SUPPORT")
                 .containsEntry("orderRelated", true);
 
-        // Incidencia genérica: orderRelated=false
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE", false));
         assertThat(router.apply(state(Map.of())))
                 .containsEntry("orderRelated", false);
     }
 
     @Test
-    @DisplayName("orderRelated solo se vuelca en SUPPORT; otras intenciones no lo tocan")
+    @DisplayName("orderRelated is only copied for SUPPORT; other intents leave it alone")
     void orderRelatedOnlyForSupport() {
         decision(new RouterDecision("TRACKING", 123L, "NONE", "NONE", true));
         assertThat(router.apply(state(Map.of()))).doesNotContainKey("orderRelated");
     }
 
     @Test
-    @DisplayName("Gate de incidencia: si el usuario sigue en SUPPORT, NO se descarta el borrador")
+    @DisplayName("Ticket gate: if the user stays on SUPPORT, the draft is NOT dropped")
     void ticketGateKeepsDraftWhenStillSupport() {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
 
@@ -327,13 +306,13 @@ class RouterNodeTest {
                 "intent", "SUPPORT", "awaiting", "TICKET_CONFIRM", "ticketDraft", "el monitor llegó roto")));
 
         assertThat(updates).containsEntry("intent", "SUPPORT");
-        // El borrador se conserva y el gate sigue en pie: lo gestiona el nodo SUPPORT
+
         assertThat(updates).doesNotContainKey("ticketDraft");
         assertThat(updates).doesNotContainEntry("awaiting", "NOTHING");
     }
 
     @Test
-    @DisplayName("Gate de incidencia: si el usuario pide otra cosa, se descarta el borrador y se reencamina")
+    @DisplayName("Ticket gate: if the user asks for something else, the draft is dropped and rerouted")
     void ticketGateAbandonedWhenUserWantsSomethingElse() {
         decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
@@ -343,12 +322,12 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
         assertThat(updates).containsEntry("intent", "OTHER");
-        // No escala a modo aclaración: el contador se reinicia al abandonar el gate
+
         assertThat(updates).containsEntry("clarifyAttempts", 0);
     }
 
     @Test
-    @DisplayName("Gate de incidencia: pivotar a cancelar otro pedido descarta el borrador y PROPONE el foco (verify lo confirma)")
+    @DisplayName("Ticket gate: pivoting to cancel another order drops the draft and PROPOSES the focus (verify confirms it)")
     void ticketGatePivotToCancelDropsDraftAndSwitchesOrder() {
         decision(new RouterDecision("CANCEL", 200L, "NONE", "NONE"));
 
@@ -358,14 +337,13 @@ class RouterNodeTest {
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
         assertThat(updates).containsEntry("intent", "CANCEL");
-        // Al descartar el borrador el turno queda como una cancelación FRESCA (awaiting NOTHING,
-        // ticket vacío): pasa por verify, así que el foco se PROPONE y lo asciende verify si aprueba.
+
         assertThat(updates).containsEntry("proposedOrderId", 200L);
         assertThat(updates).doesNotContainKey("orderId");
     }
 
     @Test
-    @DisplayName("Gate de incidencia: una FAQ lateral lo SUSPENDE (no lo abandona): el borrador sobrevive")
+    @DisplayName("Ticket gate: a side FAQ SUSPENDS it (does not abandon it): the draft survives")
     void ticketGateFaqDigressionSuspendsWithoutDroppingDraft() {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
@@ -374,12 +352,12 @@ class RouterNodeTest {
 
         assertThat(updates).containsEntry("intent", "FAQ");
         assertThat(updates).containsEntry("suspendedIntent", "SUPPORT");
-        // La digresión no destruye el contexto de la incidencia: el borrador se conserva
+
         assertThat(updates).doesNotContainKey("ticketDraft");
     }
 
     @Test
-    @DisplayName("'#id' ajeno al menú no es atajo: lo resuelve el LLM (no se fija a ciegas)")
+    @DisplayName("An '#id' not on the menu is no shortcut: the LLM resolves it (it is not set blindly)")
     void unknownCardIdFallsThroughToLlm() {
         decision(new RouterDecision("TRACKING", null, "NONE", "NONE"));
 
@@ -388,7 +366,6 @@ class RouterNodeTest {
                 "awaiting", "ORDER_CHOICE",
                 "candidates", List.of("#123 Portátil (IN_DELIVERY)"))));
 
-        // No hay atajo determinista: no se fija el #999; el flujo normal del LLM decide
         assertThat(updates).doesNotContainEntry("orderId", 999L);
     }
 }

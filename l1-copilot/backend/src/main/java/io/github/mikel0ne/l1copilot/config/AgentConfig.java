@@ -25,14 +25,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
-/**
- * Wiring del agente: AiServices (router y redactor), checkpointer y grafo compilado.
- * <p>
- * Cada AiService se conecta al modelo con la temperatura adecuada a su tarea
- * (ver {@link Config}): router y verificador al determinista (0.0), el redactor de
- * tickets al de tickets (0.2), el redactor de negocio al de respuesta (0.35) y el
- * redactor de charla informal ({@code chattyResponder}) al de chat (0.7).
- */
 @Configuration
 public class AgentConfig {
 
@@ -43,17 +35,12 @@ public class AgentConfig {
         return AiServices.create(IntentClassifier.class, chatModel);
     }
 
-    /** Redactor de las gestiones de negocio: temperatura media para un tono natural. */
     @Bean
     @Primary
     public Responder responder(@ResponseModel ChatModel responseChatModel) {
         return AiServices.create(Responder.class, responseChatModel);
     }
 
-    /**
-     * Redactor de la charla informal (modo chatty): misma interfaz que {@link #responder},
-     * pero sobre el modelo de mayor temperatura para respuestas más cálidas y variadas.
-     */
     @Bean
     @ChattyResponder
     public Responder chattyResponder(@ChattyModel ChatModel chatChatModel) {
@@ -70,15 +57,6 @@ public class AgentConfig {
         return AiServices.create(Verifier.class, chatModel);
     }
 
-    /**
-     * Checkpointer del grafo: persiste el estado de cada conversación entre turnos HTTP.
-     * <p>
-     * Actualmente usa {@link MemorySaver} (RAM del proceso). Las conversaciones en curso
-     * se pierden al reiniciar el contenedor — aceptable para este prototipo.
-     * <p>
-     * Para persistencia real habría que implementar {@link BaseCheckpointSaver} sobre
-     * PostgreSQL via JDBC. LangGraph4j 1.8.x no incluye esa implementación out-of-the-box.
-     */
     @Bean
     public BaseCheckpointSaver checkpointSaver() {
         return new MemorySaver();
@@ -94,7 +72,7 @@ public class AgentConfig {
                         .build());
 
         if (log.isDebugEnabled()) {
-            log.debug("Topología del agente (Mermaid):\n{}",
+            log.debug("Agent topology (Mermaid):\n{}",
                     graph.getGraph(GraphRepresentation.Type.MERMAID, "L1 Support Copilot").content());
         }
         return graph;

@@ -18,11 +18,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Nodo router: clasifica la intención del mensaje, extrae el pedido referido
- * (incluida la resolución de referencias sobre los candidatos ya ofrecidos:
- * "el portátil" → #123) y detecta confirmaciones pendientes.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -38,18 +33,13 @@ public class RouterNode implements NodeAction<SupportState> {
         log.debug("---ROUTER--- awaiting={} intent={} suspended={}",
                 state.awaiting(), state.intent(), state.suspendedIntent().orElse(null));
 
-        // Atajo determinista: los botones de la UI y la selección de una tarjeta llegan
-        // como comandos inequívocos. Se resuelven aquí, sin consultar al LLM, para que
-        // una acción crítica (confirmar una cancelación) o el foco de un pedido no dependan
-        // de que el modelo interprete bien el lenguaje natural.
+        // UI buttons and card clicks are resolved here, so a critical action never depends on the LLM reading them right.
         Optional<Map<String, Object>> shortcut = deterministicShortcut(state);
         if (shortcut.isPresent()) {
             return shortcut.get();
         }
 
-        // Si hay una gestión suspendida por una digresión FAQ, es ESA la intención
-        // que el clasificador debe ver como "vigente": así, cuando el usuario retoma
-        // (elige pedido, confirma...), el LLM mantiene la gestión y no la FAQ.
+        // During a digression the suspended request is the current one, so resuming it keeps its intent.
         Intent effectiveCurrent = state.suspendedIntent().orElse(state.intent());
 
         IntentClassifier.RouterDecision decision = classifier.classify(
@@ -63,69 +53,46 @@ public class RouterNode implements NodeAction<SupportState> {
         Map<String, Object> updates = new HashMap<>();
         Intent intent = Intent.fromLlm(decision.intent());
 
-        // El usuario pide salir del foco actual. Hay tres señales posibles del clasificador:
-        // BACK_TO_LIST / BACK_TO_MENU (destino explícito) y BACK ("atrás/volver" a secas, sin
-        // destino). El "atrás" ambiguo lo resolvemos AQUÍ —no el LLM— según el nivel real de la
-        // conversación, de modo que siempre suba EXACTAMENTE un nivel (pedido→listado, listado→menú)
-        // y nunca se quede re-listando el mismo sitio.
         Navigation navigation = Navigation.fromLlm(decision.navigation());
         if (navigation != Navigation.NONE) {
+            // A bare 'back' is resolved in code to go up exactly one level (order -> list -> menu).
             Navigation destination = resolveNavigation(navigation, state);
-            log.debug("---ROUTER--- navegación {} → {}: se suelta el foco", navigation, destination);
+            log.debug("---ROUTER--- navigation {} → {}: focus released", navigation, destination);
             return navigationUpdates(destination, intent, state.intent());
         }
 
-        // DIGRESIÓN: el usuario hace una consulta lateral (FAQ o charla informal) sin haber
-        // cerrado la gestión en curso (hay algo pendiente). Se atiende pero NO se destruye el
-        // contexto de la tarea: se recuerda su intención para retomarla después.
         if (isDigression(intent) && state.awaiting() != Awaiting.NOTHING) {
             Intent suspended = state.suspendedIntent().orElse(state.intent());
             updates.put("intent", intent.name());
             updates.put("suspendedIntent", suspended.name());
             updates.put("clarifyAttempts", 0);
-            log.debug("---ROUTER--- digresión {}: se suspende la gestión {} (awaiting={})",
+            log.debug("---ROUTER--- digression {}: suspending request {} (awaiting={})",
                     intent, suspended, state.awaiting());
             return updates;
         }
 
-        // RETORNO: había una gestión suspendida y el usuario ya no hace una consulta lateral
-        // (la retoma o cambia de tema). El intent que devolvió el LLM ya es el correcto
-        // —vio la gestión como vigente—; solo hay que descartar la suspensión.
         if (state.suspendedIntent().isPresent() && !isDigression(intent)) {
             updates.put("suspendedIntent", AgentState.MARK_FOR_REMOVAL);
-            log.debug("---ROUTER--- fin de digresión: se retoma la gestión (intent={})", intent);
+            log.debug("---ROUTER--- digression over: resuming the request (intent={})", intent);
         }
 
         if (intent != Intent.NONE) {
             updates.put("intent", intent.name());
         }
 
-        // Slot de SUPPORT: ¿la incidencia es sobre un pedido concreto? Gobierna si se identifica el
-        // pedido (resolve_order) antes de abrir el ticket. Solo aplica a SUPPORT; en el resto es
-        // indiferente. Si el usuario declina el pedido en mitad de la identificación, el clasificador
-        // mantiene SUPPORT con orderRelated=false y el routing cae solo en la incidencia genérica.
         if (intent == Intent.SUPPORT) {
             updates.put("orderRelated", decision.orderRelated());
         }
 
-        // GATE DE INCIDENCIA: se había propuesto abrir una incidencia (awaiting
-        // TICKET_CONFIRM/TICKET_INFO) y el usuario, en vez de seguir adelante, pide otra cosa
-        // —su intención ya no es SUPPORT (las digresiones FAQ/CHATTY se resolvieron arriba)—.
-        // Se descarta el borrador a medio hacer y se reencamina el turno a lo que realmente
-        // quiere (el foco y el nuevo pedido se resuelven más abajo). Nunca se abre una
-        // incidencia no pedida.
         boolean abandoningTicketGate = (state.awaiting() == Awaiting.TICKET_CONFIRM
                 || state.awaiting() == Awaiting.TICKET_INFO)
                 && intent != Intent.SUPPORT && intent != Intent.NONE;
         if (abandoningTicketGate) {
             updates.put("ticketDraft", AgentState.MARK_FOR_REMOVAL);
             updates.put("awaiting", Awaiting.NOTHING.name());
-            log.debug("---ROUTER--- incidencia descartada: el usuario pide otra cosa (intent={})", intent);
+            log.debug("---ROUTER--- ticket dropped: the user asks for something else (intent={})", intent);
         }
 
-        // Foco pegajoso: solo se cambia el pedido en curso si el usuario está eligiendo
-        // del menú (ORDER_CHOICE) o nombra explícitamente otro distinto (orderId no nulo).
-        // Un orderId nulo conserva el foco; nunca se salta de pedido "a lo loco".
         if (decision.orderId() != null && decision.orderId() > 0) {
             long newFocus = decision.orderId();
             boolean selecting = state.awaiting() == Awaiting.ORDER_CHOICE;
@@ -134,25 +101,16 @@ public class RouterNode implements NodeAction<SupportState> {
                 updates.put("awaiting", Awaiting.NOTHING.name());
             }
 
-            // No comprometer estado antes de validar: si este turno va a pasar por verify, el
-            // nuevo foco NO se fija todavía; se deja PROPUESTO y verify lo asciende a foco real
-            // solo si aprueba la acción. Si verify lo rechaza (→ clarify) el foco ni se tocó, así
-            // nunca cambiamos de pedido para una acción que después no se ejecuta. En cambio, las
-            // gestiones a mitad de un gate (que no pasan por verify) sí fijan el foco aquí.
             if (routesToVerify(intent, updates, state)) {
                 updates.put("proposedOrderId", newFocus);
             } else {
                 updates.put("orderId", newFocus);
                 if (!selecting && differentOrder) {
-                    // Cambio explícito a otro pedido: cualquier menú anterior ya no aplica.
                     updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
                 }
             }
         }
 
-        // La confirmación solo se honra si realmente había una pendiente: un "sí" suelto en el
-        // primer turno jamás dispara nada. Incluye TICKET_CONFIRM para que el gate de incidencia
-        // distinga un "sí" escueto (→ pedir descripción) de un mensaje que ya describe el problema.
         if (state.awaiting() == Awaiting.CANCEL_CONFIRM || state.awaiting() == Awaiting.RETURN_CONFIRM
                 || state.awaiting() == Awaiting.TICKET_CONFIRM) {
             String confirmation = decision.confirmation() == null
@@ -160,9 +118,6 @@ public class RouterNode implements NodeAction<SupportState> {
             updates.put("confirmation", CONFIRMATIONS.contains(confirmation) ? confirmation : "NONE");
         }
 
-        // Modo aclaración: si el mensaje es ambiguo (OTHER) pero hay una gestión en curso,
-        // no se vuelca el menú; se cuenta el intento para escalar si se repite. Un turno claro
-        // (cualquier otra intención) —o abandonar el gate de incidencia— reinicia el contador.
         if (intent == Intent.OTHER && hasOngoingContext(state) && !abandoningTicketGate) {
             updates.put("clarifyAttempts", state.clarifyAttempts() + 1);
         } else {
@@ -174,19 +129,12 @@ public class RouterNode implements NodeAction<SupportState> {
         return updates;
     }
 
-    /**
-     * Resuelve, sin LLM, los mensajes que en realidad son acciones de la interfaz:
-     * confirmar/descartar una cancelación (botón) o elegir un pedido del menú (tarjeta).
-     * Devuelve vacío si el mensaje es texto libre que debe clasificar el modelo.
-     */
     private Optional<Map<String, Object>> deterministicShortcut(SupportState state) {
         String message = state.userMessage();
 
-        // Botón de confirmación de cancelación: el clic ES la autorización explícita,
-        // no hay que interpretar "sí/cancélalo/confirmo" con el modelo.
         Optional<Long> confirmId = UiAction.orderIdOf(message, UiAction.CONFIRM_CANCEL);
         if (confirmId.isPresent()) {
-            log.debug("---ROUTER--- comando: confirmar cancelación #{}", confirmId.get());
+            log.debug("---ROUTER--- command: confirm cancellation #{}", confirmId.get());
             return Optional.of(Map.of(
                     "intent", Intent.CANCEL.name(),
                     "orderId", confirmId.get(),
@@ -195,7 +143,7 @@ public class RouterNode implements NodeAction<SupportState> {
         }
         Optional<Long> abortId = UiAction.orderIdOf(message, UiAction.ABORT_CANCEL);
         if (abortId.isPresent()) {
-            log.debug("---ROUTER--- comando: descartar cancelación #{}", abortId.get());
+            log.debug("---ROUTER--- command: dismiss cancellation #{}", abortId.get());
             return Optional.of(Map.of(
                     "intent", Intent.CANCEL.name(),
                     "orderId", abortId.get(),
@@ -203,10 +151,9 @@ public class RouterNode implements NodeAction<SupportState> {
                     "clarifyAttempts", 0));
         }
 
-        // Botón de confirmación de devolución: el clic ES la autorización explícita.
         Optional<Long> confirmReturnId = UiAction.orderIdOf(message, UiAction.CONFIRM_RETURN);
         if (confirmReturnId.isPresent()) {
-            log.debug("---ROUTER--- comando: confirmar devolución #{}", confirmReturnId.get());
+            log.debug("---ROUTER--- command: confirm return #{}", confirmReturnId.get());
             return Optional.of(Map.of(
                     "intent", Intent.RETURN.name(),
                     "orderId", confirmReturnId.get(),
@@ -215,7 +162,7 @@ public class RouterNode implements NodeAction<SupportState> {
         }
         Optional<Long> abortReturnId = UiAction.orderIdOf(message, UiAction.ABORT_RETURN);
         if (abortReturnId.isPresent()) {
-            log.debug("---ROUTER--- comando: descartar devolución #{}", abortReturnId.get());
+            log.debug("---ROUTER--- command: dismiss return #{}", abortReturnId.get());
             return Optional.of(Map.of(
                     "intent", Intent.RETURN.name(),
                     "orderId", abortReturnId.get(),
@@ -223,12 +170,10 @@ public class RouterNode implements NodeAction<SupportState> {
                     "clarifyAttempts", 0));
         }
 
-        // Selección de un pedido del menú por su tarjeta ("#id"): se fija el foco sin LLM,
-        // conservando la intención (tracking/cancelación) con la que se ofreció el menú.
         if (state.awaiting() == Awaiting.ORDER_CHOICE) {
             Optional<Long> picked = UiAction.bareOrderId(message).filter(id -> isCandidate(state, id));
             if (picked.isPresent()) {
-                log.debug("---ROUTER--- selección de tarjeta: #{}", picked.get());
+                log.debug("---ROUTER--- card selected: #{}", picked.get());
                 return Optional.of(Map.of(
                         "orderId", picked.get(),
                         "awaiting", Awaiting.NOTHING.name(),
@@ -238,69 +183,34 @@ public class RouterNode implements NodeAction<SupportState> {
         return Optional.empty();
     }
 
-    /** ¿El id corresponde a uno de los pedidos ofrecidos en el menú actual? */
     private boolean isCandidate(SupportState state, long orderId) {
         String prefix = "#" + orderId + " ";
         return state.candidates().stream().anyMatch(c -> c.startsWith(prefix));
     }
 
-    /**
-     * ¿Este turno se enrutará a verify (validación) con la decisión ya construida en
-     * {@code updates}? Replica el criterio de {@link io.github.mikel0ne.l1copilot.agent.SupportRouting}
-     * (gestión fresca: TRACKING/CANCEL/SUPPORT sin pregunta pendiente ni incidencia en curso),
-     * para decidir si el nuevo foco debe PROPONERSE (lo confirma verify) o fijarse ya.
-     */
     private boolean routesToVerify(Intent intent, Map<String, Object> updates, SupportState state) {
-        // SUPPORT NO pasa por verify (su salvaguarda es el gate de confirmación): por eso no es
-        // "verifiable" aquí y, cuando una incidencia nombra un pedido, el foco se fija directamente
-        // en vez de PROPONERSE (no hay verify que ascienda el foco propuesto).
         boolean verifiable = intent == Intent.TRACKING || intent == Intent.CANCEL
                 || intent == Intent.RETURN;
         return verifiable && effectiveAwaiting(updates, state) == Awaiting.NOTHING && effectiveTicketBlank(updates, state);
     }
 
-    /** Awaiting que quedará en efecto: el que el router acaba de poner o, si no, el del estado. */
     private Awaiting effectiveAwaiting(Map<String, Object> updates, SupportState state) {
         Object pending = updates.get("awaiting");
         return pending instanceof String s ? Awaiting.fromState(s) : state.awaiting();
     }
 
-    /** ¿Quedará vacío el borrador de incidencia? (el router solo puede descartarlo, nunca llenarlo). */
     private boolean effectiveTicketBlank(Map<String, Object> updates, SupportState state) {
         return updates.get("ticketDraft") == AgentState.MARK_FOR_REMOVAL || state.ticketDraft().isBlank();
     }
 
-    /** Hay una gestión "viva" sobre la que el usuario podría estar hablando. */
     private boolean hasOngoingContext(SupportState state) {
         return state.orderId().isPresent() || state.awaiting() != Awaiting.NOTHING;
     }
 
-    /** Consultas laterales de un solo turno que no son gestiones: se atienden y se retoma. */
     private boolean isDigression(Intent intent) {
         return intent == Intent.FAQ || intent == Intent.CHATTY;
     }
 
-    /**
-     * Resuelve la navegación al destino real según el nivel jerárquico de la conversación
-     * (Menú → Listado → Pedido en foco). Los destinos explícitos ({@code BACK_TO_LIST} /
-     * {@code BACK_TO_MENU}) se respetan tal cual: si el usuario dice "mis pedidos" o "menú
-     * principal" sabe a dónde quiere ir. El "atrás/volver" a secas ({@code BACK}) sube
-     * EXACTAMENTE un nivel, y para eso hay que decidir si la conversación está EN el listado
-     * o POR DEBAJO de él (trabajando un pedido concreto):
-     * <ul>
-     *   <li><b>Por debajo del listado</b> → {@code BACK_TO_LIST} (se vuelve al listado). Es así
-     *   cuando hay un pedido en foco real ({@code orderId}) o cuando se está iniciando una
-     *   gestión sobre un pedido elegido del listado cuyo foco aún NO se ha comprometido (foco
-     *   diferido): {@code verify} no lo ascendió —p. ej. devolvió DUDA y mandó a {@code clarify}—
-     *   y {@code proposedOrderId} es efímero, así que {@code orderId} quedó vacío PERO el listado
-     *   sigue ahí ({@code candidates}) y ya no estamos eligiendo ({@code awaiting != ORDER_CHOICE}).
-     *   Sin esto, "atrás" al iniciar una devolución/cancelación se saltaba el listado y caía al
-     *   menú, justo el foco que el usuario creía tener.</li>
-     *   <li><b>En el propio listado</b> ({@code awaiting == ORDER_CHOICE}, eligiendo todavía) o
-     *   sin nada → {@code BACK_TO_MENU} (se sube al menú). Aquí "atrás" NO re-lista lo mismo (el
-     *   bucle que veía el usuario), sino que sube de nivel.</li>
-     * </ul>
-     */
     private Navigation resolveNavigation(Navigation navigation, SupportState state) {
         if (navigation != Navigation.BACK) {
             return navigation;
@@ -310,12 +220,6 @@ public class RouterNode implements NodeAction<SupportState> {
         return belowListing ? Navigation.BACK_TO_LIST : Navigation.BACK_TO_MENU;
     }
 
-    /**
-     * Intención con la que reencaminar al listado tras un BACK_TO_LIST: si este turno
-     * trae una skill clara (TRACKING/CANCEL) se usa; si no (típico "ver mis pedidos" →
-     * OTHER), se respeta la gestión vigente, y en último caso TRACKING (solo listar).
-     * Con el orderId ya vacío, la arista del router cae en resolve_order.
-     */
     private Intent targetForBackToList(Intent turnIntent, Intent currentIntent) {
         if (turnIntent == Intent.TRACKING || turnIntent == Intent.CANCEL || turnIntent == Intent.RETURN) {
             return turnIntent;
@@ -326,12 +230,6 @@ public class RouterNode implements NodeAction<SupportState> {
         return Intent.TRACKING;
     }
 
-    /**
-     * Updates comunes a las dos salidas del foco (BACK_TO_LIST / BACK_TO_MENU): se suelta
-     * el pedido en foco, el menú y cualquier borrador/suspensión, y se fija la intención
-     * destino. BACK_TO_MENU cae siempre en OTHER (→ fallback); BACK_TO_LIST fuerza
-     * TRACKING/CANCEL para que, con el orderId ya vacío, la arista caiga en resolve_order.
-     */
     private Map<String, Object> navigationUpdates(Navigation navigation, Intent turnIntent, Intent currentIntent) {
         Map<String, Object> updates = new HashMap<>();
         updates.put("orderId", AgentState.MARK_FOR_REMOVAL);
@@ -340,9 +238,7 @@ public class RouterNode implements NodeAction<SupportState> {
         updates.put("suspendedIntent", AgentState.MARK_FOR_REMOVAL);
         updates.put("awaiting", Awaiting.NOTHING.name());
         updates.put("clarifyAttempts", 0);
-        // La navegación es una orden determinista del usuario, no una acción de negocio fresca:
-        // se marca el turno para que la arista del router NO la mande a verify (que re-leería el
-        // "volver atrás" como una consulta y la rechazaría, mandándola a clarify en bucle).
+
         updates.put("navigating", true);
 
         Intent target = navigation == Navigation.BACK_TO_MENU

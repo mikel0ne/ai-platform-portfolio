@@ -7,10 +7,6 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-/**
- * Modelo de redacción de tickets (temperatura baja): limpia el texto de la
- * incidencia sin inventar datos. Lo consume {@code TicketWriter}.
- */
 @Qualifier
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.TYPE})

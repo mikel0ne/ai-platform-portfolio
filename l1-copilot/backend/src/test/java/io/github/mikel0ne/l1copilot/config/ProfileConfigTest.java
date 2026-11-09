@@ -10,17 +10,6 @@ import org.springframework.context.annotation.Configuration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Fija qué perfil resuelve qué propiedades de application*.yml: el general
- * (application.yml) lleva los valores por defecto (Postgres, puerto 8079,
- * ddl-auto none, turn-log file+db...) y cada perfil pisa solo lo irrepetible.
- * No arranca ningún bean real (el contexto es vacío) para no tropezar con el
- * ChatModel de Gemini, que no puede construirse sin red en este entorno.
- *
- * Nace del incidente en que server.port vivía sin querer en el application.yml
- * base y se filtró a prod sin que nadie lo notara durante una semana (ver
- * docs/infraestructura).
- */
 class ProfileConfigTest {
 
     @Configuration
@@ -36,47 +25,47 @@ class ProfileConfigTest {
     }
 
     @Test
-    @DisplayName("dev (H2) hereda del general y solo pisa lo que de verdad cambia")
+    @DisplayName("dev (H2) inherits from the base config and only overrides what really changes")
     void devOverridesOnlyWhatDiffers() {
         runWithProfile("dev", context -> {
             var env = context.getEnvironment();
             assertThat(env.getActiveProfiles()).containsExactly("dev");
-            assertThat(env.getProperty("server.port")).isEqualTo("8079");                      // heredado
-            assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");    // heredado
-            assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");         // heredado
-            assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.h2.Driver"); // pisado
-            assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("true");    // heredado
-            assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("false");     // pisado
+            assertThat(env.getProperty("server.port")).isEqualTo("8079");
+            assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");
+            assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.h2.Driver");
+            assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("true");
+            assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("false");
         });
     }
 
     @Test
-    @DisplayName("local (Postgres) hereda el driver/puerto del general y solo pisa la URL/password")
+    @DisplayName("local (Postgres) inherits driver/port from the base config and only overrides URL/password")
     void localOverridesOnlyWhatDiffers() {
         runWithProfile("local", context -> {
             var env = context.getEnvironment();
             assertThat(env.getActiveProfiles()).containsExactly("local");
-            assertThat(env.getProperty("server.port")).isEqualTo("8079");                                  // heredado
-            assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.postgresql.Driver"); // heredado
-            assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");                // heredado
-            assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("true");                // heredado
-            assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("true");                  // heredado
+            assertThat(env.getProperty("server.port")).isEqualTo("8079");
+            assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.postgresql.Driver");
+            assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("true");
+            assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("true");
         });
     }
 
     @Test
-    @DisplayName("prod (K8s) pisa solo puerto y turn-log.file; el resto lo hereda del general")
+    @DisplayName("prod (K8s) only overrides port and turn-log.file; everything else is inherited")
     void prodOverridesOnlyWhatDiffers() {
         runWithProfile("prod", context -> {
             var env = context.getEnvironment();
             assertThat(env.getActiveProfiles()).containsExactly("prod");
-            assertThat(env.getProperty("server.port")).isEqualTo("8080");                                  // pisado
-            assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.postgresql.Driver"); // heredado
-            assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");                // heredado
-            assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");                     // heredado
-            assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("false");               // pisado
-            assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("true");                  // heredado
-            assertThat(env.getProperty("management.endpoint.env.show-values")).isNull();                   // nunca heredado (seguridad)
+            assertThat(env.getProperty("server.port")).isEqualTo("8080");
+            assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.postgresql.Driver");
+            assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
+            assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");
+            assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("false");
+            assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("true");
+            assertThat(env.getProperty("management.endpoint.env.show-values")).isNull();
         });
     }
 }

@@ -113,7 +113,6 @@ describe('ChatStore', () => {
     expect(store.messages()[1].confirm).toBeTruthy();
 
     store.send('action:confirm-cancel:123', 'Sí, cancelar el pedido');
-    // El mensaje del agente que traía los botones ya no debe mostrarlos
     expect(store.messages()[1].confirm).toBeFalsy();
     httpMock.expectOne('/api/copilot/chat').flush({
       conversationId: store.conversationId, reply: 'Hecho.', intent: 'CANCEL', resolved: true,
