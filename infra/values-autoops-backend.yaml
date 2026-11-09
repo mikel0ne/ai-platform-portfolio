@@ -1,16 +1,16 @@
 # =============================================================================
-# values-autoops-backend.yaml — Backend del servidor AutoOps MCP
+# values-autoops-backend.yaml: AutoOps MCP server backend
 # Chart: infra/charts/generic-app
 # =============================================================================
-# Despliegue (lo orquesta infra/scripts/deploy.sh --project autoops):
+# Deploy (orchestrated by infra/scripts/deploy.sh --project autoops):
 #   ./infra/scripts/deploy.sh --project autoops --component backend --tag 0.1.0
 #
-# El backend es a la vez:
-#   - servidor MCP por Streamable HTTP (/mcp) ← lo consume Claude Code / Copilot
-#   - API REST del chat     (/search)      ← lo consume el frontend Angular
-#   - Actuator              (/actuator)    ← health para las probes
-# RAG sobre Weaviate COMPARTIDO en el namespace `infra` (criterio Postgres):
-# una sola instancia, AutoOps usa su propia clase (AutoopsDocChunk).
+# The backend serves at the same time:
+#   - the MCP server over Streamable HTTP (/mcp)  <- Claude Code / Copilot
+#   - the chat REST API                   (/search) <- Angular frontend
+#   - Actuator                            (/actuator) <- probes
+# RAG on the Weaviate SHARED in the `infra` namespace: one instance, AutoOps
+# uses its own class (AutoopsDocChunk).
 # =============================================================================
 
 namespace: autoops
@@ -23,46 +23,45 @@ image:
 replicaCount: 1
 
 strategy:
-  # El estado vive en Weaviate; el pod es prácticamente stateless. RollingUpdate
-  # con maxUnavailable=0 evita cortes. El MCP (Streamable HTTP) reconecta solo.
+  # State lives in Weaviate and the pod is stateless: RollingUpdate with
+  # maxUnavailable=0 avoids downtime, and MCP (Streamable HTTP) clients reconnect.
   type: RollingUpdate
   rollingUpdate:
     maxSurge: 1
     maxUnavailable: 0
 
 container:
-  port: 8080          # server.port de application.yml (sin context-path)
+  port: 8080          # server.port in application.yml (no context path)
   portName: http
 
 service:
   type: ClusterIP
   port: 8080
 
-# Variables no sensibles (perfil k8s + conexión al Weaviate compartido del ns infra).
-# Binding relajado de Spring: AUTOOPS_WEAVIATE_HOST → autoops.weaviate.host, etc.
+# Non-sensitive variables (k8s profile + shared Weaviate in the infra namespace).
+# Spring relaxed binding: AUTOOPS_WEAVIATE_HOST -> autoops.weaviate.host, etc.
 configmap:
   enabled: true
   data:
     SPRING_PROFILES_ACTIVE: "k8s"
     AUTOOPS_LLM_PROVIDER: "gemini"
-    # Modelo de embeddings: gemini-embedding-2 (flexible 128-3000 dims, mejor que gemini-embedding-001)
-    # Free tier: 100 RPM.
+    # Embedding model: gemini-embedding-2 (flexible 128-3000 dims). Free tier: 100 RPM.
     AUTOOPS_LLM_EMBEDDING_MODEL_NAME: "gemini-embedding-2"
     AUTOOPS_WEAVIATE_HOST: "weaviate.infra.svc.cluster.local"
     AUTOOPS_WEAVIATE_PORT: "8080"
     AUTOOPS_WEAVIATE_GRPC_PORT: "50051"
     AUTOOPS_WEAVIATE_CLASS_NAME: "AutoopsDocChunk"
-    # Ingesta solo desde GitHub (corpus local desactivado).
+    # GitHub is the only ingestion source (local corpus disabled).
     # AUTOOPS_INGESTION_CORPUS_PATH: "/app/corpus"
-    # Wiki.js: fuente RAG adicional (WikiJsSource). URL interna del Service del release
-    # `wikijs` (namespace `wiki`, ver infra/values-wikijs.yaml) y URL pública para las citas.
+    # Wiki.js: extra RAG source (WikiJsSource). Internal URL of the `wikijs` release
+    # Service (namespace `wiki`, see infra/values-wikijs.yaml) and public URL for citations.
     AUTOOPS_WIKIJS_URL: "http://wikijs-generic-app.wiki.svc.cluster.local:3000"
     AUTOOPS_WIKIJS_PUBLIC_URL: "http://wiki.local"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
-# Secret compartido: API key de Gemini (chat + embeddings) y token de GitHub (lectura del
-# monorepo para la ingesta RAG). El chart NO crea el Secret; lo sincroniza deploy.sh desde
-# infra/.env.local (compartida por todos los proyectos del portfolio).
+# Secrets synced by deploy.sh from infra/.env.local: Gemini key (chat + embeddings), GitHub
+# token (reads the repo for RAG ingestion), Wiki.js key and the /admin token.
+# The chart never creates them.
 secretEnv:
   - name: GEMINI_API_KEY
     secretName: autoops-llm-secret
@@ -77,15 +76,14 @@ secretEnv:
     secretName: autoops-admin-secret
     secretKey: AUTOOPS_ADMIN_TOKEN
 
-# ServiceAccount de SOLO LECTURA para las tools K8s (lo crea infra/rbac-autoops.yaml,
-# aplicado por deploy.sh junto al ClusterRole/ClusterRoleBinding). create:false porque
-# el chart NO debe crearlo (su ciclo de vida es cluster-scoped, fuera del release de
-# Helm); el chart solo lo referencia por nombre en el pod.
+# READ-ONLY ServiceAccount for the Kubernetes tools, created by infra/rbac-autoops.yaml
+# (applied by deploy.sh with its ClusterRole/ClusterRoleBinding). create:false because
+# its lifecycle is cluster-scoped, outside the Helm release; the chart only references it.
 serviceAccount:
   create: false
   name: autoops-mcp
 
-# Actuator en la raíz (AutoOps no usa context-path).
+# Actuator at the root (AutoOps has no context path).
 probes:
   readiness:
     enabled: true
@@ -110,16 +108,16 @@ resources:
     cpu: 250m
   limits:
     memory: 1Gi
-    # CPU holgada (2 cores): el chart genérico siempre inyecta un límite; este es
-    # suficientemente alto para no throttlear la JVM en el nodo local.
+    # Generous CPU (2 cores): the generic chart always sets a limit, and this one is high
+    # enough not to throttle the JVM on the local node.
     cpu: "2000m"
 
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
 
-# El Ingress lo monta infra/scripts/setup-app-ingress.sh --project autoops
-# (host autoops.local, rutas /search /mcp /actuator → backend, / → frontend).
+# The Ingress is created by infra/scripts/setup-app-ingress.sh --project autoops
+# (host autoops.local; /search /mcp /actuator -> backend, / -> frontend).
 ingress:
   enabled: false
 

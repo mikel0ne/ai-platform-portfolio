@@ -1,14 +1,14 @@
 # =============================================================================
-# weaviate.yaml — Base vectorial COMPARTIDA del clúster (namespace `infra`)
+# weaviate.yaml: SHARED vector store of the cluster (namespace `infra`)
 # =============================================================================
-# Mismo criterio que el Postgres compartido: UNA sola instancia de Weaviate para
-# todo el portfolio. Cada proyecto usa su propia clase (p.ej. AutoOps →
-# AutoopsDocChunk), no una instancia por proyecto.
+# Same approach as the shared Postgres: ONE Weaviate instance for the whole
+# portfolio. Each project uses its own class (e.g. AutoOps ->
+# AutoopsDocChunk) instead of an instance per project.
 #
-# Sin módulo vectorizador (vectorizer: none): cada app trae sus vectores
-# (AutoOps los calcula con Gemini text-embedding-004, 768 dims). Sin auth (local).
+# No vectorizer module (vectorizer: none): each app brings its own vectors
+# (AutoOps computes them with Gemini embeddings). No auth (local only).
 #
-# Lo aplica infra/scripts/06-setup-weaviate.sh. DNS interno:
+# Applied by infra/scripts/06-setup-weaviate.sh. Internal DNS:
 #   weaviate.infra.svc.cluster.local  (HTTP 8080, gRPC 50051)
 # =============================================================================
 apiVersion: v1
@@ -54,10 +54,10 @@ spec:
             - { containerPort: 50051, name: grpc }
           env:
             - { name: PERSISTENCE_DATA_PATH, value: /var/lib/weaviate }
-            - { name: AUTHENTICATION_ANONYMOUS_ENABLED, value: "true" }   # local: sin auth
+            - { name: AUTHENTICATION_ANONYMOUS_ENABLED, value: "true" }   # local only: no auth
             - { name: QUERY_DEFAULTS_LIMIT, value: "25" }
-            - { name: DEFAULT_VECTORIZER_MODULE, value: "none" }          # las apps traen sus vectores
-            - { name: ENABLE_MODULES, value: "reranker-transformers" }    # rerank nativo (lo usa AutoOps)
+            - { name: DEFAULT_VECTORIZER_MODULE, value: "none" }          # apps bring their vectors
+            - { name: ENABLE_MODULES, value: "reranker-transformers" }    # native rerank (used by AutoOps)
             - { name: RERANKER_INFERENCE_API, value: "http://weaviate-reranker.infra.svc.cluster.local:8080" }
             - { name: CLUSTER_HOSTNAME, value: "node1" }
           volumeMounts:

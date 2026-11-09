@@ -1,17 +1,17 @@
 # =============================================================================
-# rbac-autoops.yaml — ServiceAccount + RBAC de SOLO LECTURA para AutoOps MCP
+# rbac-autoops.yaml: READ-ONLY ServiceAccount + RBAC for AutoOps MCP
 # =============================================================================
-# Las tools de diagnóstico (diagnose_pod, pod_logs, eventos…) consultan la
-# API de Kubernetes desde dentro del clúster. El pod corre con este SA, con
-# permisos estrictamente de lectura. Principio de mínimo privilegio: AutoOps
-# NUNCA modifica el clúster ni lee Secrets.
+# The diagnostic tools (diagnose_pod, pod_logs, list_events...) query the
+# Kubernetes API from inside the cluster. The pod runs with this SA, with
+# strictly read-only permissions. Least privilege: AutoOps never modifies the
+# cluster and never reads Secrets.
 #
-# Lo aplica deploy.sh automáticamente (convención rbac-<project>.yaml) tras crear
-# el namespace. El values del backend referencia este SA (sin crearlo, create:false
-# — su ciclo de vida es cluster-scoped, fuera del release de Helm) con:
+# deploy.sh applies it automatically (rbac-<project>.yaml convention) after
+# creating the namespace. The backend values reference the SA without creating it
+# (its lifecycle is cluster-scoped, outside the Helm release):
 #   serviceAccount: { create: false, name: autoops-mcp }
 #
-# Verificación (las dos últimas DEBEN dar "no"):
+# Check (the last two MUST answer "no"):
 #   kubectl auth can-i list pods    --as=system:serviceaccount:autoops:autoops-mcp -A  # yes
 #   kubectl auth can-i get pods/log --as=system:serviceaccount:autoops:autoops-mcp -A  # yes
 #   kubectl auth can-i get secrets  --as=system:serviceaccount:autoops:autoops-mcp -A  # no
@@ -44,7 +44,7 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingresses"]
     verbs: ["get", "list", "watch"]
-# NOTA: 'secrets' queda deliberadamente FUERA de los recursos legibles.
+# NOTE: 'secrets' is deliberately NOT among the readable resources.
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

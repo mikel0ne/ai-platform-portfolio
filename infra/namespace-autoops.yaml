@@ -1,6 +1,6 @@
-# Namespace de la aplicación AutoOps MCP.
-# El chart generic-app NO crea namespaces; deploy.sh lo aplica antes del primer
-# helm install (o manualmente: kubectl apply -f infra/namespace-autoops.yaml).
+# AutoOps MCP namespace. The generic-app chart does not create namespaces:
+# deploy.sh applies this before the first helm install
+# (or by hand: kubectl apply -f infra/namespace-autoops.yaml).
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -1,17 +1,16 @@
 # =============================================================================
-# values-wikijs.yaml — Wiki.js (wiki self-hosted, fuente RAG adicional de AutoOps)
+# values-wikijs.yaml: Wiki.js (self-hosted wiki, an extra RAG source for AutoOps)
 # Chart: infra/charts/generic-app
 # =============================================================================
-# A diferencia de autoops/l1-copilot, Wiki.js NO se despliega con deploy.sh: usa
-# la imagen pública requarks/wiki:2 (sin build/push propio) y es un solo
-# componente, no backend+frontend. Se instala con el script dedicado
-# infra/scripts/08-setup-wikijs.sh, que hace:
+# Unlike autoops/l1-copilot, Wiki.js is not deployed with deploy.sh: it uses the
+# public image requarks/wiki:2 (no build/push of its own) and is a single
+# component, not backend+frontend. infra/scripts/08-setup-wikijs.sh installs it:
 #   kubectl apply -f infra/namespace-wiki.yaml
 #   kubectl create secret generic postgres-credentials -n wiki --from-literal=...
 #   helm upgrade --install wikijs infra/charts/generic-app -n wiki -f infra/values-wikijs.yaml
 #
-# Estado: vive enteramente en el Postgres compartido (BD `wiki`, creada por
-# wiki/scripts/setup-wiki-db.sh). Sin PVC propio.
+# State lives entirely in the shared Postgres (database `wiki`, created by
+# wiki/scripts/setup-wiki-db.sh). No PVC of its own.
 # =============================================================================
 
 namespace: wiki
@@ -34,8 +33,8 @@ service:
   type: ClusterIP
   port: 3000
 
-# Variables no sensibles. Wiki.js no usa Spring (config nativa por env vars, no
-# binding relajado): los nombres son los suyos (DB_TYPE, DB_HOST...), no AUTOOPS_*.
+# Non-sensitive variables. Wiki.js is not Spring (native env config, no relaxed
+# binding), so the names are its own (DB_TYPE, DB_HOST...).
 env:
   - name: DB_TYPE
     value: "postgres"
@@ -46,8 +45,8 @@ env:
   - name: DB_NAME
     value: "wiki"
 
-# Credenciales del Postgres compartido, copiadas al namespace `wiki` por
-# 08-setup-wikijs.sh (el chart NO crea el Secret).
+# Shared Postgres credentials, copied into the `wiki` namespace by
+# 08-setup-wikijs.sh (the chart never creates the Secret).
 secretEnv:
   - name: DB_USER
     secretName: postgres-credentials
@@ -82,18 +81,16 @@ resources:
     memory: 512Mi
     cpu: 500m
 
-# Override del default del chart: requarks/wiki:2 corre como usuario "node" (no
-# numérico, USER node en su Dockerfile). Con runAsNonRoot:true (default del chart)
-# el kubelet no puede verificar que sea no-root y el pod queda en
-# CreateContainerConfigError ("cannot verify user is non-root") — confirmado en
-# despliegue real. Helm fusiona los values en profundidad: hay que desactivarlo
-# explícitamente, omitir la clave no basta (hereda el default del chart).
+# Overrides the chart default: requarks/wiki:2 runs as user "node" (not numeric,
+# USER node in its Dockerfile). With runAsNonRoot:true the kubelet cannot verify it
+# is non-root and the pod stays in CreateContainerConfigError. Helm deep-merges
+# values, so it must be disabled explicitly; omitting the key keeps the default.
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: false
 
-# El propio chart genera el Ingress (un solo Service, sin convención
-# backend/frontend) — no se usa setup-app-ingress.sh para este proyecto.
+# The chart itself renders the Ingress (single Service, no backend/frontend
+# convention): setup-app-ingress.sh is not used for this project.
 ingress:
   enabled: true
   className: traefik

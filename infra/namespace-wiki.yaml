@@ -1,6 +1,6 @@
-# Namespace de Wiki.js (wiki self-hosted, fuente RAG adicional de AutoOps).
-# El chart generic-app NO crea namespaces; aplicar este manifiesto antes del
-# primer helm install:
+# Wiki.js namespace (self-hosted wiki, an extra RAG source for AutoOps).
+# The generic-app chart does not create namespaces; apply this manifest before
+# the first helm install:
 #   kubectl apply -f infra/namespace-wiki.yaml
 apiVersion: v1
 kind: Namespace

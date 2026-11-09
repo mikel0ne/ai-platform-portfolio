@@ -1,4 +1,4 @@
-# Helm ignora estos ficheros al empaquetar el chart (helm package)
+# Files Helm skips when packaging the chart (helm package)
 .helmignore
 .git
 .gitignore

@@ -1,12 +1,12 @@
 {{/*
-Nombre corto del chart (máximo 63 caracteres).
+Short chart name (63 characters max).
 */}}
 {{- define "generic-app.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
-Nombre completo: release-name + chart-name (o fullnameOverride).
+Full name: release name + chart name (or fullnameOverride).
 */}}
 {{- define "generic-app.fullname" -}}
 {{- if .Values.fullnameOverride }}
@@ -22,7 +22,7 @@ Nombre completo: release-name + chart-name (o fullnameOverride).
 {{- end }}
 
 {{/*
-Labels estándar de Helm (chart + instancia + versión + managed-by).
+Standard Helm labels (chart, instance, version, managed-by).
 */}}
 {{- define "generic-app.labels" -}}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
@@ -34,7 +34,7 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Labels de selector (invariantes entre actualizaciones).
+Selector labels (stable across upgrades).
 */}}
 {{- define "generic-app.selectorLabels" -}}
 app.kubernetes.io/name: {{ include "generic-app.name" . }}
@@ -42,7 +42,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Nombre del ServiceAccount (si serviceAccount.create=true o serviceAccount.name dado).
+ServiceAccount name (when serviceAccount.create=true or serviceAccount.name is set).
 */}}
 {{- define "generic-app.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
@@ -53,7 +53,7 @@ Nombre del ServiceAccount (si serviceAccount.create=true o serviceAccount.name d
 {{- end }}
 
 {{/*
-Nombre del ConfigMap propio del chart.
+Name of the chart-owned ConfigMap.
 */}}
 {{- define "generic-app.configmapName" -}}
 {{- include "generic-app.fullname" . }}

@@ -1,27 +1,13 @@
 # =============================================================================
-# values-l1-copilot-backend.yaml — Backend del L1 Support Copilot
+# values-l1-copilot-backend.yaml: L1 Support Copilot backend
 # Chart: infra/charts/generic-app
 # =============================================================================
-# Despliegue:
-#   # 1) Crear el namespace y los Secrets ANTES (el chart NO los crea):
-#   kubectl apply -f infra/namespace-l1-copilot.yaml
-#   kubectl create secret generic gemini-api-key -n l1-copilot \
-#     --from-literal=GEMINI_API_KEY=<tu-api-key>
-#   kubectl create secret generic postgres-credentials -n l1-copilot \
-#     --from-literal=POSTGRES_USER=appuser \
-#     --from-literal=POSTGRES_PASSWORD=<password>
-#
-#   # 2) Build + push de la imagen al registry local (ver infra/INFRA.md):
-#   docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile ./l1-copilot/backend
-#   docker push registry.local/l1-copilot-backend:1.0.0
-#
-#   # 3) Helm install:
-#   helm upgrade --install l1-copilot-backend infra/charts/generic-app \
-#     -f infra/values-l1-copilot-backend.yaml
+# Deploy (deploy.sh also creates the namespace and syncs the Secrets from infra/.env.local):
+#   ./infra/scripts/deploy.sh --project l1-copilot --component backend
 # =============================================================================
-# IMPORTANTE: replicaCount=1 y strategy=Recreate mientras el checkpointer del
-# grafo sea MemorySaver (estado conversacional en memoria del pod). No habilitar
-# HPA hasta tener un BaseCheckpointSaver persistente.
+# replicaCount=1 and strategy=Recreate while the graph checkpointer is a MemorySaver
+# (conversation state in the pod's memory). No HPA until a persistent
+# BaseCheckpointSaver is in place.
 # =============================================================================
 
 namespace: l1-copilot
@@ -34,17 +20,17 @@ image:
 replicaCount: 1
 
 strategy:
-  type: Recreate   # estado conversacional en memoria — ver nota arriba
+  type: Recreate   # in-memory conversation state, see the note above
 
 container:
-  port: 8080   # debe coincidir con server.port de application-prod.yml
+  port: 8080   # must match server.port in application-prod.yml
   portName: http
 
 service:
   type: ClusterIP
   port: 8080
 
-# Variables de entorno no sensibles (perfil prod + JDBC hacia el Postgres compartido)
+# Non-sensitive variables (prod profile + JDBC to the shared Postgres)
 configmap:
   enabled: true
   data:
@@ -52,8 +38,8 @@ configmap:
     SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
-# Variables sensibles — el chart NO crea estos Secrets. Crearlos antes con kubectl
-# o con infra/scripts/create-secrets.ps1.
+# Sensitive variables: the chart never creates these Secrets; deploy.sh syncs them
+# from infra/.env.local.
 secretEnv:
   - name: GEMINI_API_KEY
     secretName: gemini-api-key
@@ -66,8 +52,8 @@ secretEnv:
     secretKey: POSTGRES_PASSWORD
 
 probes:
-  # El backend vive bajo /api (server.servlet.context-path en application.yml),
-  # asi que el actuator queda en /api/actuator/health/*.
+  # The backend lives under /api (server.servlet.context-path in application.yml),
+  # so actuator is at /api/actuator/health/*.
   readiness:
     enabled: true
     httpGet:
@@ -97,11 +83,11 @@ securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
 
-# Ingress: host unico l1-copilot.local, routing por path (puerto 80 estandar).
-# El Ingress lo gestiona infra/scripts/setup-app-ingress.sh --project l1-copilot.
-# Aqui se deja desactivado para evitar conflictos con el recurso manual.
+# Ingress: single host l1-copilot.local, path routing on port 80. It is managed by
+# infra/scripts/setup-app-ingress.sh --project l1-copilot, so it stays disabled here
+# to avoid clashing with that resource.
 #
-# URLs resultantes (anadir hosts con infra/scripts/add-copilot-host.ps1):
+# Resulting URLs (hosts entry: infra/scripts/add-host.ps1 -Hostname l1-copilot.local):
 #   http://l1-copilot.local/              <- Angular frontend
 #   http://l1-copilot.local/api            <- REST API
 #   http://l1-copilot.local/api/actuator   <- Actuator

@@ -56,9 +56,8 @@ spec:
               protocol: TCP
 
           {{- /*
-            envFrom: monta el ConfigMap propio del chart y ConfigMaps externos
-            como variables de entorno en bloque. Los Secrets se inyectan de forma
-            individual en env[] (secretEnv) para mayor granularidad y trazabilidad.
+            envFrom mounts the chart ConfigMap and external ConfigMaps as a block.
+            Secrets go one by one into env[] (secretEnv) so every variable is traceable.
           */}}
           {{- if or .Values.configmap.enabled .Values.envFrom.configMaps }}
           envFrom:
@@ -73,9 +72,8 @@ spec:
           {{- end }}
 
           {{- /*
-            env: variables planas (env[]) + referencias a Secrets externos (secretEnv[]).
-            Los Secrets NO los crea el chart; créalos con infra/scripts/create-secrets.ps1
-            o con kubectl antes de hacer helm upgrade/install.
+            env: plain variables (env[]) plus references to external Secrets (secretEnv[]).
+            The chart never creates Secrets; deploy.sh syncs them before helm upgrade.
           */}}
           {{- if or .Values.env .Values.secretEnv }}
           env:
