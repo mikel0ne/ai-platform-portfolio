@@ -128,7 +128,6 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
     }
     .text { white-space: pre-wrap; line-height: 1.4; }
 
-    /* ── Order cards ─────────────────────────────────────────────────────── */
     .order-cards {
       display: flex;
       flex-direction: column;
@@ -155,7 +154,6 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
     }
     .order-card:active { transform: translateY(0); }
 
-    /* Tarjeta de pedido en foco (detalle, no listado): informativa, no clicable. */
     .order-card.static {
       cursor: default;
     }
@@ -222,7 +220,6 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
     .status-cancelled  { background: #fee2e2; color: #b91c1c; }
     .status-return_requested { background: #ccfbf1; color: #0f766e; }
 
-    /* ── Ticket link card ────────────────────────────────────────────────── */
     .ticket-cards {
       display: flex;
       flex-direction: column;
@@ -288,7 +285,6 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
       flex-shrink: 0;
     }
 
-    /* ── Return label card ───────────────────────────────────────────────── */
     .return-cards {
       display: flex;
       flex-direction: column;
@@ -353,7 +349,6 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
       flex-shrink: 0;
     }
 
-    /* ── Meta row ────────────────────────────────────────────────────────── */
     .meta {
       display: flex;
       align-items: center;
@@ -414,18 +409,15 @@ export class MessageBubbleComponent {
     this.orderSelected.emit(order);
   }
 
-  /** Pulsación de un botón de acción: envía el comando al backend mostrando su etiqueta. */
   triggerAction(payload: string, label: string): void {
     this.actionTriggered.emit({ payload, label });
   }
 
-  /** Abre el detalle del ticket en una ventana emergente. */
   openTicket(ticket: TicketCard): void {
     const features = 'width=520,height=680,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes';
     window.open(`/tickets/${ticket.id}`, `ticket-${ticket.id}`, features);
   }
 
-  /** Abre la etiqueta de devolución en una ventana emergente. */
   openReturn(ret: ReturnCard): void {
     const features = 'width=520,height=720,menubar=no,toolbar=no,location=no,resizable=yes,scrollbars=yes';
     window.open(`/returns/${ret.id}`, `return-${ret.id}`, features);

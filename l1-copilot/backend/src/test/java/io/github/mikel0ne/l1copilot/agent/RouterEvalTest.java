@@ -14,19 +14,6 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Harness de evaluación del router contra un golden-set etiquetado
- * ({@code golden-router-cases.json}). Es la red que convierte "afinar el prompt"
- * en ingeniería medible en vez de fe: cada cambio de prompt se mide aquí.
- * <p>
- * NO se ejecuta en los builds normales: solo cuando se pide explícitamente con la
- * variable de entorno {@code ROUTER_EVAL=true}, porque llama al modelo REAL (necesita
- * {@code GEMINI_API_KEY} y red). El umbral mínimo es configurable con
- * {@code ROUTER_EVAL_MIN} (por defecto {@value #DEFAULT_MIN_ACCURACY}).
- * <p>
- * Uso (PowerShell):
- * <pre>$env:ROUTER_EVAL="true"; $env:GEMINI_API_KEY="..."; mvn -Dtest=RouterEvalTest test</pre>
- */
 @SpringBootTest
 @EnabledIfEnvironmentVariable(named = "ROUTER_EVAL", matches = "true")
 class RouterEvalTest {
@@ -38,12 +25,11 @@ class RouterEvalTest {
 
     private final ObjectMapper mapper = new ObjectMapper();
 
-    /** Caso etiquetado del golden-set: mensaje fresco y la intención que se espera. */
     record GoldenCase(String message, String expectedIntent) {
     }
 
     @Test
-    @DisplayName("El router clasifica el golden-set por encima del umbral mínimo")
+    @DisplayName("The router classifies the golden set above the minimum threshold")
     void routerMeetsAccuracyThreshold() throws Exception {
         List<GoldenCase> cases = mapper.readValue(
                 new ClassPathResource("golden-router-cases.json").getInputStream(),
@@ -52,7 +38,6 @@ class RouterEvalTest {
         int hits = 0;
         StringBuilder report = new StringBuilder("\n=== Router eval ===\n");
         for (GoldenCase c : cases) {
-            // Peticiones frescas: sin foco, sin nada pendiente, sin candidatos.
             RouterDecision decision = classifier.classify(
                     c.message(), "NONE", "NOTHING", "(ninguno)", "(ninguno)", "(sin historial previo)");
             Intent got = Intent.fromLlm(decision.intent());

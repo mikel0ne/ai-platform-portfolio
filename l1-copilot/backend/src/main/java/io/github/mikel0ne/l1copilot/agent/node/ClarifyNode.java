@@ -11,15 +11,6 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Nodo clarify: se llega cuando {@code verify} no está seguro de la acción que
- * eligió el router. Atiende dudas sobre CANCEL y RETURN (SUPPORT no pasa por
- * verify/clarify: su salvaguarda es el gate de confirmación del propio nodo
- * support). No ejecuta NADA ni deja nada pendiente; prepara para {@code respond}
- * una pregunta aclaratoria enfocada. La valla (qué opciones existen) la pone el
- * código; el peso y la redacción (cuáles ofrecer y cómo, ancladas al pedido en
- * foco) los hace el {@code Responder} dentro de esa valla.
- */
 @Component
 @Slf4j
 public class ClarifyNode implements NodeAction<SupportState> {
@@ -28,10 +19,9 @@ public class ClarifyNode implements NodeAction<SupportState> {
     public Map<String, Object> apply(SupportState state) {
         Intent suspected = state.intent();
         Verdict verdict = state.verdict();
-        // DOUBT: la gestión es plausible → se ofrece PRIMERO. REJECT: probablemente no era
-        // eso → se lidera con alternativas y la gestión sospechada se deja para el final.
+
         boolean lead = verdict == Verdict.DOUBT;
-        log.debug("---CLARIFY--- sospecha={} veredicto={} (lidera la sospecha={})", suspected, verdict, lead);
+        log.debug("---CLARIFY--- suspected={} verdict={} (lead with suspicion={})", suspected, verdict, lead);
 
         String guess = switch (suspected) {
             case CANCEL -> "cancelar un pedido";
@@ -39,8 +29,6 @@ public class ClarifyNode implements NodeAction<SupportState> {
             default -> "esa gestión";
         };
 
-        // El prefijo CLARIFY: lo reconoce el Responder para aplicar la regla de aclaración
-        // (pregunta enfocada con opciones ponderadas) por encima de las reglas de AWAITING.
         String instruction = lead
                 ? "CLARIFY: el sistema cree que el usuario quería " + guess + ", pero no está "
                   + "seguro y no se ha ejecutado nada. Pregunta de forma breve y enfocada, "
@@ -53,8 +41,7 @@ public class ClarifyNode implements NodeAction<SupportState> {
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("toolResult", instruction);
-        // clarify solo atiende dudas sobre CANCEL/RETURN; no deja nada pendiente. (SUPPORT no pasa
-        // por verify/clarify: su propio gate de confirmación es la salvaguarda.)
+
         updates.put("awaiting", Awaiting.NOTHING.name());
         return updates;
     }

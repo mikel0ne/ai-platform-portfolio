@@ -4,12 +4,6 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 
-/**
- * Redacta un ticket de soporte coherente a partir del texto en bruto que ha
- * escrito el usuario (posiblemente en varios turnos, coloquial, con erratas o
- * expresiones de enfado). Devuelve un asunto profesional y una descripción
- * limpia, sin inventar datos.
- */
 public interface TicketWriter {
 
     @SystemMessage("""
@@ -32,12 +26,6 @@ public interface TicketWriter {
     @UserMessage("{{raw}}")
     TicketDraft draft(@V("raw") String raw);
 
-    /**
-     * Ticket redactado por el modelo.
-     *
-     * @param subject     título breve y profesional de la incidencia
-     * @param description descripción limpia y coherente del problema
-     */
     record TicketDraft(String subject, String description) {
     }
 }

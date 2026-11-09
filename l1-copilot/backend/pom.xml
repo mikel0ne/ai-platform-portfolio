@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>L1 Support Copilot</name>
-    <description>Agente de soporte L1 autónomo con Spring Boot, LangChain4j, LangGraph4j y Gemini (Google AI Studio)</description>
+    <description>Autonomous L1 support agent built with Spring Boot, LangChain4j, LangGraph4j and Gemini (Google AI Studio)</description>
 
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -21,7 +21,7 @@
 
     <properties>
         <java.version>17</java.version>
-        <!-- Par de versiones validado: langgraph4j 1.8.x está compilado contra langchain4j 1.14+ -->
+        <!-- langgraph4j 1.8.x is built against langchain4j 1.14+: bump both together -->
         <langchain4j.version>1.16.2</langchain4j.version>
         <langgraph4j.version>1.8.17</langgraph4j.version>
         <springdoc.version>2.8.17</springdoc.version>
@@ -40,19 +40,16 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
-        <!-- Validación de DTOs (jakarta.validation) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- Persistencia: entidades del dominio (orders, tickets, users) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -68,33 +65,28 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- LangChain4j: AiServices, integración con el modelo -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j</artifactId>
         </dependency>
 
-        <!-- LangChain4j Google AI Gemini (Google AI Studio - capa gratuita) -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-google-ai-gemini</artifactId>
         </dependency>
 
-        <!-- LangChain4j OpenAI-compatible client — necesario para modelos Gemma,
-             que Google AI Studio expone bajo el endpoint compatible con OpenAI -->
+        <!-- Gemma models are served through Google AI Studio's OpenAI-compatible endpoint -->
         <dependency>
             <groupId>dev.langchain4j</groupId>
             <artifactId>langchain4j-open-ai</artifactId>
         </dependency>
 
-        <!-- LangGraph4j: grafo de estado del agente (ciclos, checkpointing) -->
         <dependency>
             <groupId>org.bsc.langgraph4j</groupId>
             <artifactId>langgraph4j-core</artifactId>
             <version>${langgraph4j.version}</version>
         </dependency>
 
-        <!-- Spring Boot DevTools -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
@@ -102,36 +94,29 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
 
-        <!-- Spring Boot Actuator - Monitorización y health checks (probes K8s) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- Logback JSON encoder: logs estructurados para Loki/Grafana en K8s.
-             El perfil prod activa el appender JSON (logback-spring.xml). En local/dev
-             sigue usando texto plano. Requiere Logback 1.5+ (Spring Boot 3.3+). -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
             <version>8.1</version>
         </dependency>
 
-        <!-- Swagger UI / OpenAPI - Para probar la API desde el navegador -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
 
-        <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -154,9 +139,7 @@
                 </configuration>
             </plugin>
 
-            <!-- Por defecto NO se ejecutan los tests etiquetados @Tag("security"):
-                 son pruebas de robustez (prompt injection / abuso) que se lanzan
-                 bajo demanda con el perfil -Psecurity, no en cada build. -->
+            <!-- @Tag("security") tests (prompt injection, abuse) run on demand with -Psecurity -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -165,10 +148,6 @@
                 </configuration>
             </plugin>
 
-            <!-- Cobertura de tests. Genera el informe en target/site/jacoco/.
-                 prepare-agent instrumenta la JVM de los tests; report se ejecuta
-                 tras la fase test. No hay umbral que bloquee el build (check):
-                 medimos primero, endurecemos después si interesa. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -193,7 +172,7 @@
     </build>
 
     <profiles>
-        <!-- Ejecuta SOLO los tests de seguridad: ./mvnw test -Psecurity -->
+        <!-- Runs only the security tests: mvn test -Psecurity -->
         <profile>
             <id>security</id>
             <build>

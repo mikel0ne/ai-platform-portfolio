@@ -19,14 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * API del agente de soporte L1.
- * <p>
- * Nota de seguridad: la cabecera {@code X-User-Id} simula el token de sesión
- * (la autenticación real queda fuera de alcance). Cuando haya JWT, el userId
- * se extraerá del {@code Authentication} en este mismo punto y nada más cambia:
- * ni el grafo ni las tools ven la diferencia.
- */
 @Tag(name = "Copilot", description = "Agente de soporte L1 autónomo (LangGraph4j)")
 @RestController
 @RequestMapping("/copilot")
@@ -66,7 +58,6 @@ public class ChatController {
         }
     }
 
-    /** La cabecera X-User-Id no corresponde a ningún usuario conocido. */
     public static class UnknownUserException extends RuntimeException {
         public UnknownUserException(String userId) {
             super("Usuario no autenticado: " + userId);

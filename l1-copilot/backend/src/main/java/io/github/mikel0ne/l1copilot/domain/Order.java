@@ -16,11 +16,6 @@ import lombok.Setter;
 
 import java.time.LocalDate;
 
-/**
- * Pedido del e-commerce. El envío se modela dentro del propio pedido
- * (status + estimated_delivery + tracking_carrier): el prototipo no necesita
- * histórico de eventos de envío.
- */
 @Entity
 @Table(name = "orders")
 @Getter

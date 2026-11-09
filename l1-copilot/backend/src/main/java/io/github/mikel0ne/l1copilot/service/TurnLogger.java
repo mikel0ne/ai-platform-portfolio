@@ -16,23 +16,6 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Registra cada turno de conversación: la materia prima del golden-set de
- * evaluación del router. Dos sinks independientes, porque ningún almacén único
- * sobrevive a todos los entornos:
- * <ul>
- *   <li><b>Fichero JSONL</b> (dev/local): una línea por turno. Sobrevive a H2 en
- *   memoria (se borra al reiniciar) y al reset del seed. Inútil en K8s: el disco
- *   del pod es efímero.</li>
- *   <li><b>Tabla {@code turn_log}</b> (local/prod): persiste en Postgres, sobrevive
- *   al reinicio del pod. Está EXCLUIDA del reset del seed (no aparece en data*.sql),
- *   así que recargar la demo no la borra. Se escribe con {@link JdbcTemplate} —sin
- *   entidad JPA— para no acoplarla al {@code ddl-auto: validate} de prod: si la
- *   tabla faltara, el insert falla y se traga, pero la app arranca igual.</li>
- * </ul>
- * Ambos sinks están desactivados por defecto y nunca deben romper un turno:
- * cualquier fallo se traga con un warn.
- */
 @Component
 @Slf4j
 public class TurnLogger {
@@ -56,7 +39,7 @@ public class TurnLogger {
         this.jdbc = jdbc;
     }
 
-    /** Persiste el turno en los sinks activos. Silencioso si fallan o están desactivados. */
+    // Logging must never break a turn: both sinks swallow failures with a warning.
     public void record(TurnLog turn) {
         Instant ts = Instant.now();
         if (fileEnabled) {
@@ -91,12 +74,13 @@ public class TurnLogger {
                         StandardOpenOption.CREATE, StandardOpenOption.APPEND);
             }
         } catch (IOException | RuntimeException e) {
-            log.warn("No se pudo registrar el turno en el fichero {}", file, e);
+            log.warn("Could not record the turn in file {}", file, e);
         }
     }
 
     private void writeToDb(Instant ts, TurnLog turn) {
         try {
+            // Plain JDBC instead of an entity keeps turn_log out of the schema validation of the main model.
             jdbc.update("""
                     INSERT INTO turn_log
                         (ts, conversation_id, user_id, message, intent, awaiting,
@@ -106,14 +90,10 @@ public class TurnLogger {
                     turn.intent(), turn.awaiting(), turn.orderId(), turn.ordersShown(),
                     turn.ticketsCreated(), turn.resolved(), turn.reply());
         } catch (RuntimeException e) {
-            log.warn("No se pudo registrar el turno en la tabla turn_log", e);
+            log.warn("Could not record the turn in table turn_log", e);
         }
     }
 
-    /**
-     * Foto de un turno para el log. Campos pensados para etiquetar después la
-     * decisión correcta del router (golden-set).
-     */
     public record TurnLog(String conversationId, String userId, String message,
                           String intent, String awaiting, Long orderId,
                           int ordersShown, int ticketsCreated, boolean resolved,

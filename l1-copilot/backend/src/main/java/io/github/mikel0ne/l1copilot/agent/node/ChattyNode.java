@@ -8,16 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * Modo "chatty": charla informal sin relación con la tienda ("¿cómo te llamas?",
- * "¿a qué hora cierras?", bromas...). Se responde de forma breve y neutra.
- * <p>
- * Es la "paja" de la conversación: deliberadamente NO toca ningún canal de negocio
- * (foco {@code orderId}, {@code awaiting}, {@code ticketDraft}), de modo que no
- * influye en pedidos ni incidencias. Si llega en mitad de una gestión, el router
- * lo trata como digresión (igual que FAQ) y la retoma después. Se conserva en el
- * historial para que la conversación tenga sentido, pero no es una acción de negocio.
- */
 @Component
 @Slf4j
 public class ChattyNode implements NodeAction<SupportState> {
@@ -25,7 +15,7 @@ public class ChattyNode implements NodeAction<SupportState> {
     @Override
     public Map<String, Object> apply(SupportState state) {
         boolean digression = state.awaiting() != Awaiting.NOTHING;
-        log.debug("---CHATTY--- digresión={}", digression);
+        log.debug("---CHATTY--- digression={}", digression);
 
         return Map.of(
                 "toolResult", "El usuario ha hecho un comentario de charla informal (saludo, broma, "

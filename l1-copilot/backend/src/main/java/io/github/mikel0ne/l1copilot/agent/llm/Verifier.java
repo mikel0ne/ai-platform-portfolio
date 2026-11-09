@@ -4,15 +4,6 @@ import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
 
-/**
- * Segunda opinión antes de ejecutar una acción. El router clasifica; el
- * verificador juzga —de forma binaria y estrecha— si esa acción es CLARAMENTE
- * lo que el usuario pide. Su único cometido es decidir SEGURO/DUDA: ni elige
- * opciones ni redacta nada (eso es de {@code ClarifyNode} + {@code Responder}).
- * <p>
- * Es la red que evita "actuar a lo loco" con un modelo flojo: ante cualquier
- * ambigüedad razonable devuelve DUDA y el flujo pregunta en vez de ejecutar.
- */
 public interface Verifier {
 
     @SystemMessage("""
@@ -58,12 +49,6 @@ public interface Verifier {
                     @V("intent") String intent,
                     @V("focus") String focus);
 
-    /**
-     * Veredicto del verificador.
-     *
-     * @param verdict SURE | DOUBT | REJECT
-     * @param reason  justificación breve (para logs y depuración)
-     */
     record Decision(String verdict, String reason) {
     }
 }

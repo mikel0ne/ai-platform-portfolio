@@ -1,14 +1,7 @@
-# ─────────────────────────────────────────────────────────────────────────────
-# Perfil PROD — Kubernetes
-# PostgreSQL: postgres.infra.svc.cluster.local:5432/l1_copilot
-# ─────────────────────────────────────────────────────────────────────────────
-# La BD `l1_copilot` se crea con scripts/setup-l1-copilot-db.sh dentro del
-# Postgres compartido del clúster (namespace `infra`). Ver docs/infraestructura.
-# Credenciales sensibles vienen de Secrets de K8s montados como env vars.
-# ─────────────────────────────────────────────────────────────────────────────
-
+# Kubernetes profile. The l1_copilot database lives in the shared PostgreSQL of the `infra` namespace
+# (created by l1-copilot/scripts/setup-l1-copilot-db.sh); credentials arrive as env vars from Secrets.
 server:
-  port: 8080   # debe coincidir con container.port del chart Helm
+  port: 8080   # must match container.port in the Helm values
 
 spring:
   datasource:
@@ -19,7 +12,7 @@ logging:
     io.github.mikel0ne.l1copilot: INFO
     dev.langchain4j: WARN
 
-# Filesystem del pod efímero: el fichero de turnos no sobrevive a un reinicio.
+# The pod filesystem is ephemeral, so only the database sink is kept.
 copilot:
   turn-log:
     file:

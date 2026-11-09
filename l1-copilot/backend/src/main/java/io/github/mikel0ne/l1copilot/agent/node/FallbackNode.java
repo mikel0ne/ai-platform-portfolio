@@ -8,17 +8,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * Camino por defecto (intención OTHER). Tiene dos caras según el contador de
- * aclaración que fija el router:
- * <ul>
- *   <li>sin gestión en curso → presentación de capacidades (smalltalk/onboarding);</li>
- *   <li>con una gestión en curso (mensaje ambiguo) → modo aclaración: en vez de
- *   volcar el menú, se pide al usuario que concrete sobre el pedido en foco, y si
- *   se repite ({@code clarifyAttempts >= 2}) se sugiere volver al menú principal.</li>
- * </ul>
- * No toca base de datos ni LLM; la redacción la hace respond.
- */
 @Component
 @Slf4j
 public class FallbackNode implements NodeAction<SupportState> {

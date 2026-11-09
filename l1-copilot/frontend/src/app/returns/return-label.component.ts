@@ -221,12 +221,7 @@ export class ReturnLabelComponent {
 
   readonly loading = computed(() => this.state().kind === 'loading');
 
-  /**
-   * Genera las barras de un código de barras EAN-13 real a partir del valor.
-   * Cada dígito se codifica en 7 módulos según las tablas L/G/R del estándar,
-   * con guardas de inicio (101), central (01010) y final (101) más altas.
-   * Si el valor no son 13 dígitos, recurre a un trazado determinista simple.
-   */
+  // Real EAN-13 bars: 7 modules per digit from the L/G/R tables, taller start/centre/end guards.
   bars(value: string): { width: number; gap: boolean; tall: boolean }[] {
     const MODULE = 2; // px por módulo
     const digits = (value ?? '').replace(/\D/g, '');
@@ -235,14 +230,13 @@ export class ReturnLabelComponent {
       return this.fallbackBars(value, MODULE);
     }
 
-    // Tablas de codificación EAN-13.
     const L = ['0001101', '0011001', '0010011', '0111101', '0100011',
                '0110001', '0101111', '0111011', '0110111', '0001011'];
     const G = ['0100111', '0110011', '0011011', '0100001', '0011101',
                '0111001', '0000101', '0010001', '0001001', '0010111'];
     const R = ['1110010', '1100110', '1101100', '1000010', '1011100',
                '1001110', '1010000', '1000100', '1001000', '1110100'];
-    // Patrón de paridad del lado izquierdo según el primer dígito.
+    // The first digit selects the parity pattern of the left half.
     const PARITY = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG',
                     'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
 
@@ -255,27 +249,21 @@ export class ReturnLabelComponent {
       }
     };
 
-    // Guarda de inicio.
     emit('101', true);
-    // 6 dígitos izquierdos según la paridad marcada por el primer dígito.
     const parity = PARITY[d[0]];
     for (let i = 0; i < 6; i++) {
       const table = parity[i] === 'L' ? L : G;
       emit(table[d[i + 1]], false);
     }
-    // Guarda central.
     emit('01010', true);
-    // 6 dígitos derechos (tabla R).
     for (let i = 7; i < 13; i++) {
       emit(R[d[i]], false);
     }
-    // Guarda final.
     emit('101', true);
 
     return out;
   }
 
-  /** Trazado determinista de reserva cuando el valor no es EAN-13 válido. */
   private fallbackBars(value: string, module: number): { width: number; gap: boolean; tall: boolean }[] {
     const out: { width: number; gap: boolean; tall: boolean }[] = [];
     out.push({ width: module, gap: false, tall: true }, { width: module, gap: true, tall: true }, { width: module, gap: false, tall: true });

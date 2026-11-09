@@ -15,15 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * Skill TICKETS: consulta de SOLO LECTURA de las incidencias (tickets de
- * soporte) que el usuario ya tiene abiertas. Es análoga a la consulta de envíos
- * (TRACKING): no abre ni modifica nada, solo informa del estado actual.
- * <p>
- * Importante: una vez creada, la incidencia queda en manos del personal humano
- * de soporte. El asistente puede mostrarla y decir en qué estado está, pero NO
- * puede acelerarla, cerrarla ni gestionarla; eso queda fuera de su alcance.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -73,4 +64,3 @@ public class TicketsNode implements NodeAction<SupportState> {
         return card;
     }
 }
-

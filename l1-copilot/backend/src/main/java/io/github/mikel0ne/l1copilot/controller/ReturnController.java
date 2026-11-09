@@ -13,12 +13,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Consulta de la etiqueta de devolución de un pedido para la página de detalle
- * del frontend ({@code /returns/{id}}). Es de solo lectura y pública (sin
- * cabecera {@code X-User-Id}): el enlace de la etiqueta debe poder abrirse
- * directamente en una ventana emergente, igual que el detalle de un ticket.
- */
 @Tag(name = "Returns", description = "Etiqueta de devolución de un pedido")
 @RestController
 @RequestMapping("/copilot/returns")
@@ -31,13 +25,12 @@ public class ReturnController {
     @Operation(summary = "Etiqueta de devolución de un pedido por id")
     @GetMapping("/{id}")
     public ReturnLabelDto returnLabel(@PathVariable Long id) {
-        log.debug("Consulta de la etiqueta de devolución del pedido {}", id);
+        log.debug("Return label requested for order {}", id);
         return orderRepository.findById(id)
                 .map(ReturnLabelDto::from)
                 .orElseThrow(() -> new ReturnNotFoundException(id));
     }
 
-    /** No existe el pedido / devolución solicitada. */
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public static class ReturnNotFoundException extends RuntimeException {
         public ReturnNotFoundException(Long id) {
@@ -45,4 +38,3 @@ public class ReturnController {
         }
     }
 }
-

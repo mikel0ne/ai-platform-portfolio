@@ -12,11 +12,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * Skill CANCEL, paso 2: ejecuta la cancelación. Solo se llega aquí tras la
- * confirmación del usuario; la tool revalida igualmente las reglas (el estado
- * del pedido pudo cambiar entre turnos).
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -27,7 +22,7 @@ public class CancelExecNode implements NodeAction<SupportState> {
     @Override
     public Map<String, Object> apply(SupportState state) {
         Long orderId = state.orderId()
-                .orElseThrow(() -> new IllegalStateException("cancel_exec sin orderId resuelto"));
+                .orElseThrow(() -> new IllegalStateException("cancel_exec without a resolved orderId"));
         log.debug("---CANCEL EXEC--- orderId={}", orderId);
 
         CancellationResult result = orderTools.cancelOrder(orderId, state.userId());

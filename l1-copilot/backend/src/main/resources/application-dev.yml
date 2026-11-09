@@ -1,7 +1,4 @@
-# Perfil de desarrollo
-# La API key NUNCA va en este fichero: define la variable de entorno GEMINI_API_KEY
-# (obtenla gratis en https://aistudio.google.com/app/apikey)
-
+# Development profile: in-memory H2 seeded on startup. GEMINI_API_KEY comes from the environment.
 spring:
   datasource:
     url: jdbc:h2:mem:copilot;DB_CLOSE_DELAY=-1
@@ -14,12 +11,12 @@ spring:
       platform: h2
   h2:
     console:
-      enabled: true   # http://localhost:8079/h2-console (JDBC URL: jdbc:h2:mem:copilot)
+      enabled: true
 
 management:
   endpoint:
     env:
-      show-values: always   # solo en local
+      show-values: always
 
 copilot:
   turn-log:

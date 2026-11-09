@@ -21,14 +21,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
-/**
- * Caché de respuestas LLM con persistencia opcional en fichero.
- * <p>
- * El mapa en memoria es la fuente principal. Cuando
- * {@code cache.file.enabled=true} se vuelca cada entrada a {@code <cacheDir>/<key>.cache}
- * (escritura atómica vía fichero temporal + move) y al arrancar se recargan las que
- * sigan vigentes.
- */
 @Component
 public class FileCacheManager {
 
@@ -52,27 +44,22 @@ public class FileCacheManager {
         this.defaultTtlSeconds = properties.ttlSeconds();
     }
 
-    /**
-     * Crea el directorio (si la persistencia está activa) y recarga las entradas vigentes.
-     * Se invoca desde {@code CacheInitializer} en {@code @PostConstruct}.
-     */
     public void init() {
         if (!fileEnabled) {
-            log.info("Caché solo en memoria (cache.file.enabled=false)");
+            log.info("In-memory cache only (cache.file.enabled=false)");
             return;
         }
         cacheDir = Paths.get(cachePath);
         try {
             Files.createDirectories(cacheDir);
             int loaded = loadCacheFromDisk();
-            log.info("Caché inicializada en {} — {} entradas recargadas",
+            log.info("Cache initialised at {}: {} entries reloaded",
                     cacheDir.toAbsolutePath(), loaded);
         } catch (IOException e) {
-            log.error("Error al crear directorio de caché: {}", cachePath, e);
+            log.error("Could not create the cache directory: {}", cachePath, e);
         }
     }
 
-    /** Obtiene un valor del caché y actualiza el contador de hits/misses. */
     public Object get(String key) {
         CacheEntry entry = memoryCache.get(key);
 
@@ -82,33 +69,30 @@ public class FileCacheManager {
         }
 
         if (entry.isExpired()) {
-            log.debug("Entrada de caché expirada: {}", key);
+            log.debug("Cache entry expired: {}", key);
             remove(key);
             misses.incrementAndGet();
             return null;
         }
 
         hits.incrementAndGet();
-        log.debug("Valor encontrado en caché: {}", key);
+        log.debug("Cache hit: {}", key);
         return entry.getValue();
     }
 
-    /** Almacena un valor con el TTL por defecto. */
     public void put(String key, Object value) {
         put(key, value, defaultTtlSeconds);
     }
 
-    /** Almacena un valor con TTL personalizado. */
     public void put(String key, Object value, long ttlSeconds) {
         CacheEntry entry = new CacheEntry(value, ttlSeconds);
         memoryCache.put(key, entry);
         if (fileEnabled) {
             saveCacheToDisk(key, entry);
         }
-        log.debug("Valor almacenado en caché: {} (TTL: {} segundos)", key, ttlSeconds);
+        log.debug("Cached value: {} (TTL: {} seconds)", key, ttlSeconds);
     }
 
-    /** Elimina una entrada (memoria + disco si procede). */
     public void remove(String key) {
         memoryCache.remove(key);
         if (!fileEnabled || cacheDir == null) {
@@ -117,17 +101,16 @@ public class FileCacheManager {
         try {
             Files.deleteIfExists(cacheDir.resolve(key + SUFFIX));
         } catch (IOException e) {
-            log.error("Error al eliminar entrada de caché: {}", key, e);
+            log.error("Could not delete cache entry: {}", key, e);
         }
     }
 
-    /** Vacía caché y contadores. */
     public void clear() {
         memoryCache.clear();
         hits.set(0);
         misses.set(0);
         if (!fileEnabled || cacheDir == null) {
-            log.info("Caché en memoria limpiada");
+            log.info("In-memory cache cleared");
             return;
         }
         try (Stream<Path> files = Files.list(cacheDir)) {
@@ -136,28 +119,23 @@ public class FileCacheManager {
                         try {
                             Files.delete(p);
                         } catch (IOException e) {
-                            log.error("Error al limpiar caché ({}): {}",
+                            log.error("Could not clear the cache ({}): {}",
                                     p.getFileName(), e.getMessage());
                         }
                     });
-            log.info("Caché limpiada (memoria + disco en {})", cacheDir.toAbsolutePath());
+            log.info("Cache cleared (memory and disk at {})", cacheDir.toAbsolutePath());
         } catch (IOException e) {
-            log.error("Error al limpiar directorio de caché", e);
+            log.error("Could not clear the cache directory", e);
         }
     }
 
-    /**
-     * Escritura atómica: serializa a {@code <key>.cache.tmp} y mueve sobre el destino,
-     * para que un fallo a mitad de escritura no deje un fichero corrupto que rompa la
-     * próxima recarga.
-     */
     private void saveCacheToDisk(String key, CacheEntry entry) {
         Path target = cacheDir.resolve(key + SUFFIX);
         Path tmp = cacheDir.resolve(key + TMP_SUFFIX);
         try (ObjectOutputStream oos = new ObjectOutputStream(Files.newOutputStream(tmp))) {
             oos.writeObject(entry);
         } catch (IOException e) {
-            log.error("Error al escribir caché temporal para {}: {}", key, e.getMessage());
+            log.error("Could not write the temporary cache file for {}: {}", key, e.getMessage());
             deleteQuietly(tmp);
             return;
         }
@@ -169,27 +147,22 @@ public class FileCacheManager {
             try {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING);
             } catch (IOException ex) {
-                log.error("Error al renombrar caché para {}: {}", key, ex.getMessage());
+                log.error("Could not rename the cache file for {}: {}", key, ex.getMessage());
                 deleteQuietly(tmp);
             }
         } catch (IOException e) {
-            log.error("Error al mover caché para {}: {}", key, e.getMessage());
+            log.error("Could not move the cache file for {}: {}", key, e.getMessage());
             deleteQuietly(tmp);
         }
     }
 
-    /**
-     * Recarga entradas vigentes desde disco. Ficheros corruptos, bloqueados (Windows)
-     * o de versiones incompatibles se borran sin propagar el error: el arranque no
-     * puede quedarse colgado por una entrada de caché podrida.
-     */
     private int loadCacheFromDisk() {
         int loaded = 0;
         List<Path> files;
         try (Stream<Path> stream = Files.list(cacheDir)) {
             files = stream.filter(p -> {
                 String n = p.getFileName().toString();
-                // Limpia los .tmp que quedaron de un crash a mitad de escritura.
+
                 if (n.endsWith(TMP_SUFFIX)) {
                     deleteQuietly(p);
                     return false;
@@ -197,7 +170,7 @@ public class FileCacheManager {
                 return n.endsWith(SUFFIX);
             }).toList();
         } catch (IOException e) {
-            log.error("Error al listar el directorio de caché {}", cacheDir, e);
+            log.error("Could not list the cache directory {}", cacheDir, e);
             return 0;
         }
 
@@ -215,10 +188,10 @@ public class FileCacheManager {
                     log.debug("Entrada recargada: {}", key);
                 }
             } catch (ClassNotFoundException | InvalidClassException e) {
-                log.warn("Fichero de caché incompatible, se elimina: {}", fileName);
+                log.warn("Incompatible cache file, deleting it: {}", fileName);
                 deleteQuietly(p);
             } catch (IOException e) {
-                log.warn("No se pudo leer el fichero de caché '{}': {}",
+                log.warn("Could not read cache file '{}': {}",
                         fileName, e.getMessage());
             }
         }
@@ -229,11 +202,10 @@ public class FileCacheManager {
         try {
             Files.deleteIfExists(p);
         } catch (IOException e) {
-            log.warn("No se pudo eliminar '{}': {}", p.getFileName(), e.getMessage());
+            log.warn("Could not delete '{}': {}", p.getFileName(), e.getMessage());
         }
     }
 
-    /** Estadísticas — expuestas por {@code GET /api/cache/status}. */
     public Map<String, Object> getStats() {
         long h = hits.get();
         long m = misses.get();

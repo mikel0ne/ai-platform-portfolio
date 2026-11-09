@@ -8,20 +8,14 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Las aristas condicionales son funciones puras sobre el estado:
- * se testean sin LLM, sin Spring y sin base de datos.
- */
 class SupportRoutingTest {
 
     private SupportState state(Map<String, Object> data) {
         return new SupportState(new HashMap<>(data));
     }
 
-    // ---- fromRouter ----
-
     @Test
-    @DisplayName("TRACKING fresco pasa por verify (con o sin orderId)")
+    @DisplayName("Fresh TRACKING goes through verify (with or without orderId)")
     void trackingFreshGoesToVerify() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TRACKING"))))
                 .isEqualTo(SupportRouting.TO_VERIFY);
@@ -30,7 +24,7 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("TRACKING respondiendo a una elección de pedido NO re-verifica: va directo")
+    @DisplayName("TRACKING answering an order choice does NOT re-verify: goes straight through")
     void trackingMidFlowSkipsVerify() {
         assertThat(SupportRouting.fromRouter(state(Map.of(
                 "intent", "TRACKING", "awaiting", "ORDER_CHOICE"))))
@@ -41,7 +35,7 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("CANCEL fresco pasa por verify (con o sin orderId)")
+    @DisplayName("Fresh CANCEL goes through verify (with or without orderId)")
     void cancelFreshGoesToVerify() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "CANCEL"))))
                 .isEqualTo(SupportRouting.TO_VERIFY);
@@ -50,28 +44,26 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("CANCEL respondiendo a una confirmación pendiente NO re-verifica: va directo")
+    @DisplayName("CANCEL answering a pending confirmation does NOT re-verify: goes straight through")
     void cancelMidFlowSkipsVerify() {
-        // Hay algo pendiente (CANCEL_CONFIRM): es una respuesta nuestra, no una petición fresca
         assertThat(SupportRouting.fromRouter(state(Map.of(
                 "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM"))))
                 .isEqualTo(SupportRouting.TO_CANCEL_CHECK);
     }
 
     @Test
-    @DisplayName("SUPPORT NO pasa por verify: genérica al gate; sobre un pedido sin foco identifica primero")
+    @DisplayName("SUPPORT does NOT go through verify: generic goes to the gate; on an unfocused order it identifies first")
     void supportRouting() {
-        // Incidencia genérica (orderRelated=false): directa al gate de incidencia, sin verify
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
-        // Sobre un pedido sin foco → identificar el pedido primero (como CANCEL/RETURN)
+
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "orderRelated", true))))
                 .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
-        // Sobre un pedido pero con foco ya resuelto → directa al gate, sin re-preguntar
+
         assertThat(SupportRouting.fromRouter(state(Map.of(
                 "intent", "SUPPORT", "orderRelated", true, "orderId", 300L))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
-        // En el gate (borrador o pregunta pendiente): directa a support, no re-identifica
+
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "ticketDraft", "algo"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "awaiting", "TICKET_CONFIRM"))))
@@ -82,7 +74,7 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("OTHER/NONE al fallback")
+    @DisplayName("OTHER/NONE go to fallback")
     void fallbackRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "OTHER"))))
                 .isEqualTo(SupportRouting.TO_FALLBACK);
@@ -91,11 +83,8 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("Navegación 'volver al listado' NO re-verifica: va directo a resolve_order")
+    @DisplayName("'Back to list' navigation does NOT re-verify: goes straight to resolve_order")
     void navigationSkipsVerify() {
-        // El router fuerza TRACKING/CANCEL para re-listar, pero marca navigating=true: la
-        // navegación no es una petición fresca, así que NO debe pasar por verify (que re-leería
-        // el "volver atrás" como una consulta y lo rechazaría → clarify en bucle).
         assertThat(SupportRouting.fromRouter(state(Map.of(
                 "intent", "TRACKING", "navigating", true))))
                 .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
@@ -104,10 +93,8 @@ class SupportRoutingTest {
                 .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
     }
 
-    // ---- fromVerify ----
-
     @Test
-    @DisplayName("REJECT manda a clarify, sea lectura o acción")
+    @DisplayName("REJECT sends to clarify, for reads and actions alike")
     void verifyRejectGoesToClarify() {
         assertThat(SupportRouting.fromVerify(state(Map.of("intent", "SUPPORT", "verdict", "REJECT"))))
                 .isEqualTo(SupportRouting.TO_CLARIFY);
@@ -116,14 +103,13 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("DOUBT en una ACCIÓN va a clarify; en una LECTURA sigue adelante (tono tentativo)")
+    @DisplayName("DOUBT on an ACTION goes to clarify; on a READ it carries on (tentative tone)")
     void verifyDoubtDependsOnRisk() {
-        // Acciones (costosas): DOUBT pregunta antes de tocar nada
         assertThat(SupportRouting.fromVerify(state(Map.of("intent", "SUPPORT", "verdict", "DOUBT"))))
                 .isEqualTo(SupportRouting.TO_CLARIFY);
         assertThat(SupportRouting.fromVerify(state(Map.of("intent", "CANCEL", "verdict", "DOUBT"))))
                 .isEqualTo(SupportRouting.TO_CLARIFY);
-        // Lecturas (inocuas): DOUBT sigue adelante con normalidad
+
         assertThat(SupportRouting.fromVerify(state(Map.of("intent", "TRACKING", "verdict", "DOUBT"))))
                 .isEqualTo(SupportRouting.TO_RESOLVE_ORDER);
         assertThat(SupportRouting.fromVerify(state(Map.of(
@@ -132,7 +118,7 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("SURE sigue el flujo normal de la gestión")
+    @DisplayName("SURE follows the normal flow of the request")
     void verifySureContinuesFlow() {
         assertThat(SupportRouting.fromVerify(state(Map.of("intent", "SUPPORT", "verdict", "SURE"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
@@ -147,47 +133,45 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("Una intención no reconocida del LLM degrada a fallback, nunca rompe")
+    @DisplayName("An unrecognised LLM intent degrades to fallback and never breaks")
     void unknownIntentDegradesToFallback() {
         var s = state(Map.of("intent", "BANANA"));
         assertThat(SupportRouting.fromRouter(s)).isEqualTo(SupportRouting.TO_FALLBACK);
     }
 
     @Test
-    @DisplayName("FAQ va a la skill de preguntas frecuentes")
+    @DisplayName("FAQ goes to the FAQ skill")
     void faqRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "FAQ"))))
                 .isEqualTo(SupportRouting.TO_FAQ);
     }
 
     @Test
-    @DisplayName("TICKETS (consulta de incidencias) es una lectura: va directa, sin verify")
+    @DisplayName("TICKETS (ticket lookup) is a read: goes straight through, without verify")
     void ticketsRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TICKETS"))))
                 .isEqualTo(SupportRouting.TO_TICKETS);
-        // No es una acción: ni siquiera una petición fresca pasa por verify
+
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "TICKETS", "awaiting", "NOTHING"))))
                 .isEqualTo(SupportRouting.TO_TICKETS);
     }
 
     @Test
-    @DisplayName("CHATTY va al modo de charla informal")
+    @DisplayName("CHATTY goes to small-talk mode")
     void chattyRouting() {
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "CHATTY"))))
                 .isEqualTo(SupportRouting.TO_CHATTY);
     }
 
-    // ---- fromResolveOrder ----
-
     @Test
-    @DisplayName("Sin pedido resuelto se pregunta al usuario")
+    @DisplayName("Without a resolved order, the user is asked")
     void unresolvedOrderAsksUser() {
         var s = state(Map.of("intent", "TRACKING"));
         assertThat(SupportRouting.fromResolveOrder(s)).isEqualTo(SupportRouting.TO_ASK_USER);
     }
 
     @Test
-    @DisplayName("Con pedido resuelto se continúa el flujo de la intención vigente")
+    @DisplayName("With a resolved order, the current intent's flow continues")
     void resolvedOrderContinuesFlow() {
         assertThat(SupportRouting.fromResolveOrder(state(Map.of("intent", "TRACKING", "orderId", 123L))))
                 .isEqualTo(SupportRouting.TO_TRACKING);
@@ -198,21 +182,18 @@ class SupportRoutingTest {
     }
 
     @Test
-    @DisplayName("SUPPORT sin pedidos abre incidencia genérica; con varios pendientes de elegir, pregunta")
+    @DisplayName("SUPPORT without orders opens a generic ticket; with several to choose from, it asks")
     void supportResolveOrderEdgeCases() {
-        // Sin pedidos que identificar (awaiting NOTHING) → incidencia genérica, no se deja sin vía
         assertThat(SupportRouting.fromResolveOrder(state(Map.of("intent", "SUPPORT"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
-        // Varios pedidos ofrecidos (ORDER_CHOICE): se pregunta sobre cuál es el problema
+
         assertThat(SupportRouting.fromResolveOrder(state(Map.of(
                 "intent", "SUPPORT", "awaiting", "ORDER_CHOICE"))))
                 .isEqualTo(SupportRouting.TO_ASK_USER);
     }
 
-    // ---- fromCancelCheck ----
-
     @Test
-    @DisplayName("Solo se ejecuta la cancelación con regla de negocio Y confirmación explícita")
+    @DisplayName("Cancellation only runs with the business rule AND explicit confirmation")
     void cancelExecutionRequiresBothConditions() {
         assertThat(SupportRouting.fromCancelCheck(state(Map.of("cancellable", true, "confirmation", "YES"))))
                 .isEqualTo(SupportRouting.TO_CANCEL_EXEC);

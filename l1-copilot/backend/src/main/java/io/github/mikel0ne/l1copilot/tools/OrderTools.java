@@ -19,17 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * Herramientas deterministas sobre pedidos. Los nodos del grafo las invocan
- * explícitamente (no hay function-calling autónomo del LLM): el modelo decide
- * el flujo, pero la consulta, las reglas de negocio y la seguridad viven aquí.
- * <p>
- * Las anotaciones {@code @Tool}/{@code @P} documentan el contrato y permiten,
- * como extensión futura, registrarlas en un {@code AiServices} con tool-calling.
- * <p>
- * Seguridad: el {@code userId} llega siempre del estado del grafo (fijado desde
- * la sesión HTTP), nunca de la salida del LLM.
- */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -46,7 +35,6 @@ public class OrderTools {
                 .toList();
     }
 
-    /** Resumen de un pedido del usuario para usarlo como contexto, o vacío si no es suyo. */
     @Transactional(readOnly = true)
     public java.util.Optional<OrderSummary> findOrder(Long orderId, String userId) {
         return orderRepository.findByIdAndUserId(orderId, userId)
@@ -79,14 +67,14 @@ public class OrderTools {
     @Transactional
     public CancellationResult cancelOrder(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
-        // Revalida en el momento de ejecutar: el estado pudo cambiar entre turnos
+
         if (!o.getStatus().isCancellable()) {
             return new CancellationResult(orderId, false, String.format(
                     "Rechazada: el pedido está en estado %s", o.getStatus()));
         }
         o.setStatus(OrderStatus.CANCELLED);
         orderRepository.save(o);
-        log.info("Pedido {} cancelado por el usuario {}", orderId, userId);
+        log.info("Order {} cancelled by user {}", orderId, userId);
         return new CancellationResult(orderId, true, String.format(
                 "El pedido '%s' se ha cancelado correctamente", o.getDescription()));
     }
@@ -108,7 +96,7 @@ public class OrderTools {
     @Transactional
     public ReturnResult requestReturn(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
-        // Revalida en el momento de ejecutar: el estado pudo cambiar entre turnos
+
         if (!o.getStatus().isReturnable()) {
             return new ReturnResult(orderId, false, null, String.format(
                     "Rechazada: el pedido está en estado %s", o.getStatus()));
@@ -116,7 +104,7 @@ public class OrderTools {
         o.setStatus(OrderStatus.RETURN_REQUESTED);
         orderRepository.save(o);
         String reference = ReturnCardDto.code(orderId);
-        log.info("Devolución del pedido {} iniciada por el usuario {}", orderId, userId);
+        log.info("Return of order {} started by user {}", orderId, userId);
         return new ReturnResult(orderId, true, reference, String.format(
                 "La devolución del pedido '%s' se ha iniciado correctamente", o.getDescription()));
     }

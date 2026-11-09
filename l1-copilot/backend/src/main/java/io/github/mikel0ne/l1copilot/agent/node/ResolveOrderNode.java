@@ -12,12 +12,6 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Subflujo reutilizable de desambiguación (lo comparten TRACKING, CANCEL, RETURN
- * y las incidencias SUPPORT que son sobre un pedido). En vez de pedir el id a
- * ciegas, busca proactivamente los pedidos recientes del usuario: si hay uno solo
- * lo autoselecciona; si hay varios, los ofrece y el turno terminará preguntando.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -47,7 +41,7 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
         }
 
         if (recent.size() == 1) {
-            log.debug("---RESOLVE ORDER--- único candidato: {}", recent.get(0).id());
+            log.debug("---RESOLVE ORDER--- single candidate: {}", recent.get(0).id());
             return Map.of(
                     "orderId", recent.get(0).id(),
                     "candidates", candidates,
@@ -56,7 +50,7 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
         }
 
         String listing = String.join("; ", candidates);
-        log.debug("---RESOLVE ORDER--- {} candidatos, se pide elección", recent.size());
+        log.debug("---RESOLVE ORDER--- {} candidates, asking the user to choose", recent.size());
         return Map.of(
                 "candidates", candidates,
                 "orderCards", orderCards,
