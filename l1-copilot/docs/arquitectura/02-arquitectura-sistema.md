@@ -85,7 +85,7 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 
 ### ADR-1: LangGraph4j para el agente, no cadenas LangChain4j
 **Decisión:** El flujo del agente se modela como `StateGraph` con aristas condicionales y ciclos.
-**Motivo:** El requisito central es manejar ambigüedad con vueltas atrás (pedir clarificación y reanudar). Las cadenas lineales no modelan ciclos ni estado mutable compartido. Regla obligatoria del proyecto (`copilot-instructions.md`).
+**Motivo:** El requisito central es manejar ambigüedad con vueltas atrás (pedir clarificación y reanudar). Las cadenas lineales no modelan ciclos ni estado mutable compartido.
 
 ### ADR-2: Un turno HTTP = una invocación del grafo
 **Decisión:** Cada mensaje del usuario es un `graph.invoke(...)` con `threadId` = `conversationId`. El grafo siempre llega a `END` en cada turno (terminando con respuesta final o con pregunta de clarificación).

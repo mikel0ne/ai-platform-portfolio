@@ -1,122 +1,102 @@
-# AutoOps MCP & L1 Support Copilot
+# AI Platform Portfolio: AutoOps MCP and L1 Support Copilot
 
-> Monorepo de portfolio con **dos proyectos independientes** desplegados en el mismo clúster local:
-> **[AutoOps MCP](#autoops-mcp)** (servidor MCP para depurar Kubernetes + RAG) y
-> **[L1 Support Copilot](#l1-support-copilot)** (agente de soporte L1 con LangGraph4j). Comparten clúster,
-> Postgres, Weaviate y el pipeline de despliegue — ver [Infraestructura compartida](#infraestructura-compartida).
+Two generative-AI applications in **Java 17 / Spring Boot**, built on **LangChain4j** and **LangGraph4j**,
+deployed to a local **Kubernetes (k3s)** cluster that they share with a common platform: one Helm chart, one
+PostgreSQL, one Weaviate, one Loki/Grafana stack and one deployment script.
 
----
+| Project | What it is | Highlights |
+|---|---|---|
+| [**AutoOps MCP**](autoops/README.md) | An **MCP server** that gives AI assistants (Claude Code, GitHub Copilot) read-only access to a Kubernetes cluster and an advanced RAG over internal docs | Spring AI MCP Server, corrective RAG (CRAG) as a LangGraph4j subgraph, hybrid search + reranking on Weaviate, Loki log queries, least-privilege RBAC |
+| [**L1 Support Copilot**](l1-copilot/README.md) | An autonomous **level-1 support agent** for an e-commerce site that tracks, cancels and returns orders and opens tickets | LangGraph4j state graph with checkpointing, the LLM classifies but Java code decides, human-in-the-loop confirmations, prompt-injection test suite |
 
-## AutoOps MCP
-
-**AutoOps** es un **servidor MCP (Model Context Protocol)** que da a un asistente de IA —Claude Code, GitHub
-Copilot o cualquier cliente MCP— acceso a los servicios de la empresa para **depurar errores de aplicaciones
-en ejecución** sobre Kubernetes, y a la **documentación interna** mediante **RAG avanzado**.
-
-No es un copiloto ni una aplicación de chat cerrada: el que razona es el cliente MCP; AutoOps solo **expone
-herramientas y datos** de forma segura (lectura, nunca escritura sobre el clúster).
-
-```
-Claude Code / GitHub Copilot ──MCP (Streamable HTTP)──▶  autoops-mcp (Java · Spring Boot, en Kubernetes)
-                                                    ├─ search_docs        → Weaviate  (RAG avanzado / CRAG)
-                                                    ├─ diagnose_pod   → API K8s   (read-only)
-                                                    ├─ pod_logs, eventos… → API K8s   (read-only)
-                                                    └─ (chat de búsqueda)  ← front secundario sobre el mismo RAG
-```
-
-### Qué resuelve
-
-Cuando una aplicación falla en el clúster, el desarrollador salta entre `kubectl describe`, eventos, logs y la
-documentación interna para entender qué pasa. AutoOps pone todo eso **al alcance del asistente de IA que ya
-usa**: el asistente pide el diagnóstico de un pod, sus logs, o el estándar interno aplicable, y razona la causa
-con datos reales del clúster en vez de inventarlos.
-
-### Capacidades (tools MCP)
-
-| Tool | Para qué |
-|---|---|
-| `search_docs` | RAG avanzado sobre documentación interna (Weaviate: búsqueda híbrida + reranking + bucle correctivo CRAG). |
-| `diagnose_pod` | Dossier estructurado de un pod: fase, condiciones, eventos, reinicios y cola de logs, en una sola llamada. |
-| `list_pods` / `list_workloads` | Estado de pods y workloads de un namespace. |
-| `describe_pod` / `list_events` / `pod_logs` | Piezas individuales para que el cliente componga su propio análisis. |
-| `query_logs` | Histórico agregado cross-pod vía Loki (no solo el log en vivo del pod). |
-
-Todo el acceso a Kubernetes es **estrictamente de solo lectura** (RBAC sin escritura ni acceso a Secrets).
-
-Además del MCP, un **chat de búsqueda** (REST + UI mínima) reutiliza el mismo motor RAG para consultar la
-documentación sin necesidad de un cliente MCP.
-
-### Documentación
-
-- **Arquitectura** (qué es y cómo se diseña el código): [`autoops/docs/arquitectura/`](autoops/docs/arquitectura/README.md)
-- **Infraestructura** (despliegue en Kubernetes local): [`autoops/docs/infraestructura/`](autoops/docs/infraestructura/README.md)
-
-### Stack
-
-Java 17 + Spring Boot · **Spring AI MCP Server** (protocolo MCP) · **LangChain4j** + **Weaviate** (RAG) ·
-**LangGraph4j** (subgrafo del bucle correctivo CRAG) · cliente Kubernetes (fabric8) · proveedor LLM/embeddings
-abstraído (por defecto Gemini, capa gratuita). Despliegue en Kubernetes local (Rancher Desktop / k3s).
-
----
-
-## L1 Support Copilot
-
-**L1 Support Copilot** es un agente de soporte de nivel 1 **autónomo** para un e-commerce, construido con
-**Spring Boot + LangChain4j + LangGraph4j + Gemini**. No es un bot de comandos: enruta la conversación
-semánticamente, maneja ambigüedad de forma proactiva, mantiene estado conversacional entre turnos mediante un
-grafo de estado con checkpointing, ejecuta acciones reales contra base de datos (consultar envíos, cancelar
-pedidos, iniciar devoluciones) y escala a un humano creando tickets.
-
-```text
-Usuario:  ¿Dónde está mi pedido?
-Agente:   Tienes dos pedidos recientes: un portátil (#123) y un ratón (#456).
-          ¿Sobre cuál quieres consultar el estado?
-Usuario:  El portátil
-Agente:   Tu pedido #123 está EN REPARTO y llegará mañana con SEUR.
+```mermaid
+flowchart LR
+    subgraph clients[Clients]
+        cc[Claude Code / Copilot]
+        browser[Browser]
+    end
+    subgraph k3s[k3s cluster - Rancher Desktop]
+        traefik[Traefik Ingress]
+        subgraph autoops[ns autoops]
+            amcp[autoops backend<br/>MCP + /search]
+            afe[autoops frontend]
+        end
+        subgraph l1[ns l1-copilot]
+            lbe[l1-copilot backend<br/>/api]
+            lfe[l1-copilot frontend]
+        end
+        subgraph infra[ns infra]
+            pg[(PostgreSQL)]
+            wv[(Weaviate + reranker)]
+        end
+        subgraph obs[ns observability]
+            loki[(Loki)] --- graf[Grafana]
+        end
+        wiki[Wiki.js<br/>ns wiki]
+    end
+    gemini[[Gemini API]]
+    cc -- MCP Streamable HTTP --> traefik
+    browser --> traefik
+    traefik --> amcp & afe & lbe & lfe
+    amcp --> wv
+    amcp -- read-only --> k8sapi[[Kubernetes API]]
+    amcp --> loki
+    amcp --> wiki
+    lbe --> pg
+    wiki --> pg
+    amcp & lbe --> gemini
 ```
 
-Ese diálogo ejercita lo que diferencia a este agente: detección de intención, detección de información
-faltante, ejecución proactiva de tools (buscar los pedidos recientes en vez de pedir el ID a ciegas), un
-**ciclo de clarificación** que sobrevive entre peticiones HTTP (checkpointer `MemorySaver` por `threadId`) y
-resolución de referencias ("el portátil" → #123).
+AutoOps can diagnose the L1 Copilot pods, and its RAG indexes this very repository's documentation, so the
+two projects double as each other's test bed.
 
-### Qué resuelve
+## Repository layout
 
-Un agente de comandos clásico solo ejecuta lo que el usuario pide literalmente. Este copiloto va más allá:
-clasifica la intención con el LLM pero deja que **código Java determinista decida** el flujo (aristas
-condicionales testeables sin modelo) y las reglas de negocio (p. ej. `OrderStatus.isCancellable()` rechaza
-cancelar un pedido ya enviado, no un prompt). El `userId` viene siempre de la sesión HTTP, nunca del texto del
-usuario, para que un prompt malicioso no pueda cruzar datos entre usuarios.
+```
+autoops/        AutoOps MCP: backend (Spring Boot), frontend (Angular), docs, sample corpus
+l1-copilot/     L1 Support Copilot: backend (Spring Boot), frontend (Angular), docs, DB scripts
+infra/          Shared platform: generic Helm chart, values per app, Weaviate, Loki, RBAC, scripts
+docker/         Shared Dockerfiles (backend, frontend) and nginx config
+wiki/           Wiki.js content (an extra RAG source) and its seeding scripts
+scripts/        Local start/stop of the L1 Copilot without Kubernetes
+.github/        CI: Maven verify of both backends, build and tests of both frontends
+```
 
-### Capacidades (intents del router)
+## Quick start
 
-| Intent | Para qué |
-|---|---|
-| `TRACKING` | Consultar el estado/envío de un pedido (`resolve_order` si hace falta desambiguar). |
-| `CANCEL` | Cancelar un pedido, con verificación de reglas de negocio + confirmación. |
-| `RETURN` | Iniciar una devolución, con verificación + confirmación. |
-| `SUPPORT` | Recopilar contexto y crear un ticket para un humano. |
-| `TICKETS` | Consultar tickets ya abiertos por el usuario. |
-| `FAQ` | Responder preguntas frecuentes con una base de conocimiento propia. |
-| `CHATTY` / `OTHER` | Conversación social o fuera de alcance, sin tocar datos. |
+Each project's README has the details. The short version:
 
-Todo acceso a datos pasa por tools Java deterministas (`OrderTools`, `TicketTools`) sobre Spring Data JPA.
+```bash
+# Unit and integration tests, no external services needed
+cd autoops/backend && ./mvnw verify
+cd l1-copilot/backend && ./mvnw verify
+```
 
-### Documentación
+```bash
+# L1 Copilot locally with H2, no Kubernetes (needs GEMINI_API_KEY)
+export GEMINI_API_KEY=...        # free key at https://aistudio.google.com/app/apikey
+./scripts/start.sh               # backend :8079/api, frontend :4199
+```
 
-- **Arquitectura** (ADRs, grafo, modelo de datos, API): [`l1-copilot/docs/arquitectura/`](l1-copilot/docs/arquitectura/README.md)
-- **Infraestructura** (despliegue en Kubernetes local): [`l1-copilot/docs/infraestructura/`](l1-copilot/docs/infraestructura/README.md)
+Full platform on a local k3s cluster (Windows + Rancher Desktop):
 
-### Stack
+```bash
+cp infra/.env.local.example infra/.env.local    # fill in the secrets, it is gitignored
+bash infra/scripts/02-setup-registry.sh         # then 03..08, see infra/INFRA.md
+./infra/scripts/deploy.sh --project autoops --component all
+./infra/scripts/setup-app-ingress.sh --project autoops
+./infra/scripts/deploy.sh --project l1-copilot --component all
+./infra/scripts/setup-app-ingress.sh --project l1-copilot
+```
 
-Java 17 + **Spring Boot** · **LangChain4j** (AiServices: `IntentClassifier`, `Verifier`, `Responder`) ·
-**LangGraph4j** (grafo del agente con checkpointing) · Gemini (Google AI Studio) · PostgreSQL (H2 en local) ·
-**Angular** (frontend de chat). Despliegue en Kubernetes local (Rancher Desktop / k3s).
+## Notes
 
----
-
-## Infraestructura compartida
-
-Ambos proyectos comparten clúster local (Rancher Desktop / k3s), un único PostgreSQL y un único Weaviate
-(namespace `infra`), el stack de observabilidad (Loki + Grafana) y el pipeline de despliegue genérico
-(`infra/scripts/deploy.sh --project <autoops|l1-copilot>`). Detalles completos en [`infra/INFRA.md`](infra/INFRA.md).
+- **Internal docs are in Spanish.** Architecture docs, ADRs and infrastructure guides live in each project's
+  `docs/` folder and in [`infra/INFRA.md`](infra/INFRA.md). Code, scripts, configuration and READMEs are in English.
+- **Product language is Spanish.** The L1 agent talks to Spanish-speaking customers and the RAG answers in
+  Spanish, so LLM prompts, UI texts and demo data are in Spanish.
+- **Synthetic demo data.** The RAG corpus (`autoops/corpus`), the wiki pages (`wiki/content`), the
+  e-commerce seed (orders, users, tickets) and the FAQ are invented for the demo. No real company data.
+- **AI-generated avatars.** The two demo user pictures in `l1-copilot/frontend/src/assets/avatars` were
+  generated with an AI image tool; they do not depict real people.
+- Developed between May and June 2026. Commit dates are the real ones.

@@ -26,8 +26,6 @@ backend (servidor MCP) es **una sola aplicación Spring Boot** en `autoops/backe
 │   └── rbac-autoops.yaml            # SA read-only para las tools K8s
 ├── docker/                          # backend.Dockerfile · frontend.Dockerfile, COMPARTIDOS (multi-stage genéricos)
 ├── scripts/  .run/                  # deploy.sh / setup-app-ingress.sh genéricos por `--project`; run configs IntelliJ
-├── llms-lc4j.txt  llms-lgraph.txt   # referencias LangChain4j / LangGraph4j (raíz, aplican a todo el monorepo)
-├── CLAUDE.md
 └── README.md
 ```
 
