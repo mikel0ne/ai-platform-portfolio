@@ -1,61 +1,36 @@
-# Spring Boot
+# Build output
+target/
 *.jar
 *.war
-*.nar
-*.ear
-*.zip
-*.tar.gz
-*.rar
-
-target/
-.mvn/wrapper/maven-wrapper.jar
-.mvn/wrapper/maven-wrapper.properties
+**/frontend/dist/
+**/node_modules/
+.angular/
 
 # IDE
 .idea/
 .vscode/
-*.swp
-*.swo
-*~
 *.iml
+*.swp
+*~
 .DS_Store
 
-# Maven
-pom.xml.tag
-pom.xml.releaseBackup
-pom.xml.versionsBackup
-pom.xml.next
-release.properties
-dependency-reduced-pom.xml
-
-# Gradle
-.gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
-gradle-app.setting
-
-# Logs
+# Logs and runtime data (LLM response cache lives in <module>/cache at runtime)
 *.log
 logs/
-log.txt
+/cache/
+**/backend/cache/
+.running.pids
 
-# Credenciales / API keys (red de seguridad)
+# Credentials (safety net: real values live in infra/.env.local)
+.env
+.env.local
 credentials.json
 service-account-key.json
 *-credential.json
 
-# Environment
-.env
-.env.local
-*.properties.local
-
-cache/
-# infra/ ahora SÍ se versiona (monorepo): charts, scripts y manifests compartidos.
-# Sus secretos locales (.env.*.local) los ignora infra/.gitignore.
-# Artefactos que deploy.sh copia al contexto de build (no versionar). Monorepo:
-# cada proyecto en su carpeta (autoops/, l1-copilot/).
+# Build context artifacts copied by infra/scripts/deploy.sh
 **/backend/corpus/
 **/frontend/nginx.conf
-**/frontend/dist
-**/node_modules
+
+# Maven wrapper binary is downloaded on first run
+.mvn/wrapper/maven-wrapper.jar
