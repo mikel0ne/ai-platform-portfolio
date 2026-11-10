@@ -7,6 +7,7 @@ import dev.langchain4j.model.embedding.EmbeddingModel;
 import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.weaviate.client.WeaviateClient;
 import io.weaviate.client.base.Result;
+import io.weaviate.client.v1.batch.model.ObjectGetResponse;
 import io.weaviate.client.v1.data.model.WeaviateObject;
 import io.weaviate.client.v1.filters.Operator;
 import io.weaviate.client.v1.filters.WhereFilter;
@@ -24,12 +25,14 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class WeaviateGateway implements DocRetriever {
@@ -109,27 +112,45 @@ public class WeaviateGateway implements DocRetriever {
 
     private static final int MAX_RATE_LIMIT_RETRIES = 10;
 
+    // Below the 100-content limit of Gemini batchEmbedContents.
+    private static final int EMBEDDING_BATCH_SIZE = 50;
+
+    // Replaces each document as a whole, so re-ingesting never duplicates chunks nor leaves stale ones behind.
+    // Everything is embedded first: a quota failure halfway must not leave documents deleted.
     public int ingest(List<Chunk> chunks) {
         if (chunks.isEmpty()) {
             return 0;
         }
         EmbeddingModel embedder = docEmbeddingModel.getObject();
-        int ingested = 0;
-
-        for (Chunk c : chunks) {
-            Embedding embedding = embedWithRetry(embedder, c.text());
-            insert(c, embedding);
-            ingested++;
+        List<Embedding> embeddings = new ArrayList<>(chunks.size());
+        for (int from = 0; from < chunks.size(); from += EMBEDDING_BATCH_SIZE) {
+            int to = Math.min(from + EMBEDDING_BATCH_SIZE, chunks.size());
+            embeddings.addAll(embedWithRetry(embedder, chunks.subList(from, to)));
         }
 
-        log.info("Weaviate ingestion: {} chunks inserted into {}", ingested, props.className());
-        return ingested;
+        chunks.stream().map(Chunk::docId).distinct().forEach(this::deleteDocument);
+        for (int from = 0; from < chunks.size(); from += EMBEDDING_BATCH_SIZE) {
+            int to = Math.min(from + EMBEDDING_BATCH_SIZE, chunks.size());
+            insert(chunks.subList(from, to), embeddings.subList(from, to));
+        }
+
+        log.info("Weaviate ingestion: {} chunks inserted into {}", chunks.size(), props.className());
+        return chunks.size();
     }
 
-    private Embedding embedWithRetry(EmbeddingModel embedder, String text) {
+    private void deleteDocument(String docId) {
+        Result<?> result = client.batch().objectsBatchDeleter()
+                .withClassName(props.className())
+                .withWhere(WhereFilter.builder().path(DOC_ID).operator(Operator.Equal).valueText(docId).build())
+                .run();
+        failOnError("deleting the previous chunks of " + docId, result);
+    }
+
+    private List<Embedding> embedWithRetry(EmbeddingModel embedder, List<Chunk> batch) {
+        List<TextSegment> segments = batch.stream().map(c -> TextSegment.from(c.text())).toList();
         for (int attempt = 1; ; attempt++) {
             try {
-                return embedder.embed(TextSegment.from(text)).content();
+                return embedder.embedAll(segments).content();
             } catch (RuntimeException e) {
                 if (!isRateLimited(e) || attempt > MAX_RATE_LIMIT_RETRIES) {
                     throw e;
@@ -141,7 +162,22 @@ public class WeaviateGateway implements DocRetriever {
         }
     }
 
-    private void insert(Chunk c, Embedding embedding) {
+    private void insert(List<Chunk> batch, List<Embedding> embeddings) {
+        WeaviateObject[] objects = new WeaviateObject[batch.size()];
+        for (int i = 0; i < batch.size(); i++) {
+            objects[i] = toObject(batch.get(i), embeddings.get(i));
+        }
+        Result<ObjectGetResponse[]> result = client.batch().objectsBatcher().withObjects(objects).run();
+        failOnError("inserting chunks", result);
+        for (ObjectGetResponse response : result.getResult()) {
+            if (response.getResult() != null && response.getResult().getErrors() != null) {
+                throw new IllegalStateException("Weaviate rejected chunk " + response.getId() + ": "
+                        + response.getResult().getErrors());
+            }
+        }
+    }
+
+    private WeaviateObject toObject(Chunk c, Embedding embedding) {
         Map<String, Object> properties = new LinkedHashMap<>();
         properties.put(TEXT, c.text());
         properties.put(TITLE, c.title());
@@ -154,16 +190,17 @@ public class WeaviateGateway implements DocRetriever {
         properties.put(ORDER, c.order());
         properties.put(SECTION_CHARS, c.sectionChars());
 
-        WeaviateObject obj = WeaviateObject.builder()
+        return WeaviateObject.builder()
+                .id(objectId(props.className(), c))
                 .className(props.className())
                 .properties(properties)
                 .vector(toFloatArray(embedding))
                 .build();
+    }
 
-        Result<?> result = client.batch().objectsBatcher()
-                .withObjects(obj)
-                .run();
-        failOnError("inserting chunk " + c.docId(), result);
+    static String objectId(String className, Chunk c) {
+        return UUID.nameUUIDFromBytes((className + "|" + c.docId() + "|" + c.order())
+                .getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     static boolean isRateLimited(Throwable e) {
