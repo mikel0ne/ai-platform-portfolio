@@ -36,8 +36,8 @@ public class CragState extends AgentState {
         return this.<List<String>>value("questions").orElseGet(() -> List.of(query()));
     }
 
-    public List<String> questionCoverage() {
-        return this.<List<String>>value("questionCoverage").orElseGet(List::of);
+    public List<Coverage> questionCoverage() {
+        return this.<List<Coverage>>value("questionCoverage").orElseGet(List::of);
     }
 
     public double bestScore() {

@@ -5,9 +5,6 @@ Genera {{n}} reformulaciones ALTERNATIVAS y distintas entre sí de la siguiente 
 ampliar la búsqueda: usa sinónimos del dominio, cambia el ángulo o el nivel de detalle, o separa
 los aspectos de una pregunta compuesta. No repitas la consulta original ni te repitas entre ellas.
 
-Devuelve EXACTAMENTE {{n}} líneas, una reformulación por línea, sin numerar, sin comillas ni
-explicaciones.
-
 Consulta: {{query}}
 
-Variantes (una por línea):
+Variantes: EXACTAMENTE {{n}} reformulaciones en `variants`, sin numerar, sin comillas ni explicaciones.

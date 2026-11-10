@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static io.github.mikel0ne.autoops.rag.crag.TestSupport.grades;
+import static io.github.mikel0ne.autoops.rag.crag.TestSupport.variants;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CragLoopTest {
@@ -29,7 +31,7 @@ class CragLoopTest {
         var retriever = new TestSupport.FakeRetriever(0.9);
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        RagResult result = service(retriever, props, List.of("1: SUFICIENTE"), List.of())
+        RagResult result = service(retriever, props, List.of(grades("SUFFICIENT")), List.of())
                 .search("probes", 5);
 
         assertThat(result.iterations()).isZero();
@@ -44,7 +46,7 @@ class CragLoopTest {
         var retriever = new TestSupport.FakeRetriever(0.9);
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        service(retriever, props, List.of("1: SUFICIENTE"), List.of()).search("probes", 500);
+        service(retriever, props, List.of(grades("SUFFICIENT")), List.of()).search("probes", 500);
 
         assertThat(retriever.receivedKs).containsExactly(12);
     }
@@ -55,7 +57,7 @@ class CragLoopTest {
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
         RagResult result = service(retriever, props,
-                List.of("1: INSUFICIENTE", "1: SUFICIENTE\n2: INSUFICIENTE"), List.of("prbs reformulada"))
+                List.of(grades("INSUFFICIENT"), grades("SUFFICIENT", "INSUFFICIENT")), List.of("prbs reformulada"))
                 .search("prbs", 5);
 
         assertThat(result.iterations()).isEqualTo(1);
@@ -70,8 +72,8 @@ class CragLoopTest {
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
         RagResult result = service(retriever, props,
-                List.of("1: INSUFICIENTE", "1: INSUFICIENTE\n2: INSUFICIENTE",
-                        "1: INSUFICIENTE\n2: INSUFICIENTE\n3: INSUFICIENTE"),
+                List.of(grades("INSUFFICIENT"), grades("INSUFFICIENT", "INSUFFICIENT"),
+                        grades("INSUFFICIENT", "INSUFFICIENT", "INSUFFICIENT")),
                 List.of("reformulada 1", "reformulada 2"))
                 .search("consulta rara", 5);
 
@@ -91,8 +93,8 @@ class CragLoopTest {
         var retriever = new TestSupport.MultiChunkRetriever(List.of(List.of(n1, n2)));
         var props = new CragProperties(5, 0, 0.5, 3, 12, 2);
         var chat = new TestSupport.ScriptedChatModel(
-                List.of("1: SUFICIENTE\n2: INSUFICIENTE\nPREGUNTA 1: CUBIERTA\nPREGUNTA 2: SIN_CUBRIR"),
-                List.of(), List.of("variante"));
+                List.of(grades(List.of("SUFFICIENT", "INSUFFICIENT"), List.of("COVERED", "NOT_COVERED"))),
+                List.of(), List.of(variants("variante")));
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
 
         RagResult result = new RagService(graph, props).search("pregunta compuesta", 0);
@@ -108,7 +110,8 @@ class CragLoopTest {
         var retriever = new TestSupport.MultiChunkRetriever(List.of(List.of(n1)));
         var props = new CragProperties(5, 0, 0.5, 3, 12, 1);
 
-        RagResult result = service(retriever, props, List.of("1: AMBIGUO\nPREGUNTA 1: PARCIAL"), List.of())
+        RagResult result = service(retriever, props,
+                List.of(grades(List.of("AMBIGUOUS"), List.of("PARTIAL"))), List.of())
                 .search("pregunta dudosa", 5);
 
         assertThat(result.confidence()).isEqualTo(Confidence.LOW);
@@ -121,7 +124,7 @@ class CragLoopTest {
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
         RagResult result = service(retriever, props,
-                List.of("1: INSUFICIENTE", "1: INSUFICIENTE\n2: SUFICIENTE"), List.of("reformulada"))
+                List.of(grades("INSUFFICIENT"), grades("INSUFFICIENT", "SUFFICIENT")), List.of("reformulada"))
                 .search("recursos minimos de un microservicio", 5);
 
         assertThat(result.iterations()).isEqualTo(1);
@@ -134,7 +137,8 @@ class CragLoopTest {
         var retriever = new TestSupport.FakeRetriever(0.9, 0.5, 0.5);
         var props = new CragProperties(2, 2, 0.5, 3, 12, 3);
         var chat = new TestSupport.ScriptedChatModel(
-                List.of("1: SUFICIENTE\n2: SUFICIENTE"), List.of(), List.of("variante uno\nvariante dos"));
+                List.of(grades("SUFFICIENT", "SUFFICIENT")), List.of(),
+                List.of(variants("variante uno", "variante dos")));
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
 
         RagResult result = new RagService(graph, props).search("consulta original", 0);
@@ -153,7 +157,7 @@ class CragLoopTest {
         var retriever = new TestSupport.FakeRetriever(0.9);
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        var chat = new TestSupport.ScriptedChatModel(List.of("1: SUFICIENTE"), List.of());
+        var chat = new TestSupport.ScriptedChatModel(List.of(grades("SUFFICIENT")), List.of());
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
 
         RagResult result = new RagService(graph, props).search("probes", 0);
@@ -175,7 +179,7 @@ class CragLoopTest {
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
         RagResult result = service(retriever, props,
-                List.of("1: SUFICIENTE\n2: INSUFICIENTE\n3: SUFICIENTE"), List.of())
+                List.of(grades("SUFFICIENT", "INSUFFICIENT", "SUFFICIENT")), List.of())
                 .search("configuracion de probes", 5);
 
         assertThat(result.chunks()).containsExactly(good1, good2);
@@ -200,8 +204,8 @@ class CragLoopTest {
 
         RagResult result = service(retriever, props,
                 List.of(
-                        "1: INSUFICIENTE\n2: INSUFICIENTE",
-                        "1: SUFICIENTE\n2: INSUFICIENTE\n3: INSUFICIENTE\n4: INSUFICIENTE"),
+                        grades("INSUFFICIENT", "INSUFFICIENT"),
+                        grades("SUFFICIENT", "INSUFFICIENT", "INSUFFICIENT", "INSUFFICIENT")),
                 List.of("probes reformulada"))
                 .search("configuracion de probes", 5);
 
@@ -223,7 +227,7 @@ class CragLoopTest {
                 Map.of("doc-probes", List.of(part1, part2)));
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        RagResult result = service(retriever, props, List.of("1: SUFICIENTE"), List.of())
+        RagResult result = service(retriever, props, List.of(grades("SUFFICIENT")), List.of())
                 .search("timeouts de las probes", 5);
 
         assertThat(result.chunks()).hasSize(1);
@@ -250,7 +254,7 @@ class CragLoopTest {
                 Map.of("doc-x", List.of(f1, f2, f3)));
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        RagResult result = service(retriever, props, List.of("1: SUFICIENTE\n2: SUFICIENTE"), List.of())
+        RagResult result = service(retriever, props, List.of(grades("SUFFICIENT", "SUFFICIENT")), List.of())
                 .search("timeouts", 5);
 
         assertThat(result.chunks()).hasSize(1);
@@ -274,7 +278,7 @@ class CragLoopTest {
                 Map.of("doc-z", List.of(before, hit, after, farChunk)));
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        RagResult result = service(retriever, props, List.of("1: SUFICIENTE"), List.of())
+        RagResult result = service(retriever, props, List.of(grades("SUFFICIENT")), List.of())
                 .search("timeouts", 5);
 
         assertThat(result.chunks()).hasSize(1);
@@ -292,7 +296,7 @@ class CragLoopTest {
         var retriever = new TestSupport.MultiChunkRetriever(List.of(List.of(n1, n2)), Map.of());
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
-        RagResult result = service(retriever, props, List.of("1: SUFICIENTE\n2: SUFICIENTE"), List.of())
+        RagResult result = service(retriever, props, List.of(grades("SUFFICIENT", "SUFFICIENT")), List.of())
                 .search("timeouts", 5);
 
         assertThat(result.chunks()).containsExactly(n1, n2);

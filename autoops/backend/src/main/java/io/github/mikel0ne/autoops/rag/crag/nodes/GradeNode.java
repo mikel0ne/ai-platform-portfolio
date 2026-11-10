@@ -1,38 +1,31 @@
 package io.github.mikel0ne.autoops.rag.crag.nodes;
 
-import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.autoops.rag.DocChunk;
+import io.github.mikel0ne.autoops.rag.crag.ChunkVerdict;
+import io.github.mikel0ne.autoops.rag.crag.Coverage;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import io.github.mikel0ne.autoops.rag.crag.llm.GradeResult;
+import io.github.mikel0ne.autoops.rag.crag.llm.Grader;
 import org.bsc.langgraph4j.action.NodeAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Objects;
 
 public class GradeNode implements NodeAction<CragState> {
 
-    private static final String SUFFICIENT = "SUFICIENTE";
-    private static final String AMBIGUOUS = "AMBIGUO";
+    private static final Logger log = LoggerFactory.getLogger(GradeNode.class);
 
-    public static final String COVERED = "CUBIERTA";
-    public static final String PARTIAL = "PARCIAL";
-    public static final String NOT_COVERED = "SIN_CUBRIR";
-
-    private static final Pattern CHUNK_LINE = Pattern.compile("^\\s*\\[?(\\d+)]?\\s*[:.\\-]?\\s*(.*)$");
-
-    private static final Pattern QUESTION_LINE =
-            Pattern.compile("(?i)^\\s*PREGUNTA\\s*(\\d+)\\s*[:.\\-]?\\s*(.*)$");
-
-    private final ChatModel chatModel;
-    private final String promptTemplate;
+    private final Grader grader;
     private final int maxIterations;
 
-    public GradeNode(ChatModel chatModel, String promptTemplate, int maxIterations) {
-        this.chatModel = chatModel;
-        this.promptTemplate = promptTemplate;
+    public GradeNode(Grader grader, int maxIterations) {
+        this.grader = grader;
         this.maxIterations = maxIterations;
     }
 
@@ -45,41 +38,36 @@ public class GradeNode implements NodeAction<CragState> {
         if (candidates.isEmpty()) {
             return Map.of("bestScore", best, "sufficient", false,
                     "candidates", List.of(),
-                    "questionCoverage", questions.stream().map(p -> NOT_COVERED).toList());
+                    "questionCoverage", questions.stream().map(q -> Coverage.NOT_COVERED).toList());
         }
 
         // Relevance is always judged by the LLM: a high hybrid/rerank score is not a reliable proxy for it.
-        String answer = chatModel.chat(promptTemplate
-                .replace("{{questions}}", buildQuestions(questions))
-                .replace("{{context}}", buildContext(candidates)));
-
-        Map<Integer, String> chunkVerdicts = parseChunkVerdicts(answer);
-        Map<Integer, String> explicitCoverage = parseQuestionCoverage(answer);
+        GradeResult result = grade(questions, candidates);
+        Map<Integer, ChunkVerdict> verdicts = new HashMap<>();
+        nonNull(result.chunks()).forEach(c -> verdicts.putIfAbsent(c.index(), c.verdict()));
+        Map<Integer, Coverage> explicitCoverage = new HashMap<>();
+        nonNull(result.questions()).forEach(q -> explicitCoverage.putIfAbsent(q.index(), q.coverage()));
 
         List<DocChunk> kept = new ArrayList<>();
         boolean hasSufficient = false;
         boolean hasAmbiguous = false;
         for (int i = 0; i < candidates.size(); i++) {
-            String v = chunkVerdicts.get(i + 1);
-            if (SUFFICIENT.equals(v)) {
+            ChunkVerdict verdict = verdicts.getOrDefault(i + 1, ChunkVerdict.INSUFFICIENT);
+            if (verdict == ChunkVerdict.SUFFICIENT) {
                 kept.add(candidates.get(i));
                 hasSufficient = true;
-            } else if (AMBIGUOUS.equals(v)) {
+            } else if (verdict == ChunkVerdict.AMBIGUOUS) {
                 kept.add(candidates.get(i));
                 hasAmbiguous = true;
             }
         }
-        String fallback = hasSufficient ? COVERED : hasAmbiguous ? PARTIAL : NOT_COVERED;
+        Coverage fallback = hasSufficient ? Coverage.COVERED : hasAmbiguous ? Coverage.PARTIAL : Coverage.NOT_COVERED;
 
-        List<String> coverage = new ArrayList<>(questions.size());
-        boolean sufficient = true;
-        for (int p = 1; p <= questions.size(); p++) {
-            String questionStatus = explicitCoverage.getOrDefault(p, fallback);
-            coverage.add(questionStatus);
-            if (!COVERED.equals(questionStatus)) {
-                sufficient = false;
-            }
+        List<Coverage> coverage = new ArrayList<>(questions.size());
+        for (int q = 1; q <= questions.size(); q++) {
+            coverage.add(Objects.requireNonNullElse(explicitCoverage.get(q), fallback));
         }
+        boolean sufficient = coverage.stream().allMatch(Coverage.COVERED::equals);
 
         // Only the last round filters for good: a chunk misgraded once gets re-evaluated on the next retry.
         boolean terminal = sufficient || state.iterations() >= maxIterations;
@@ -87,6 +75,19 @@ public class GradeNode implements NodeAction<CragState> {
 
         return Map.of("bestScore", best, "sufficient", sufficient,
                 "candidates", outputCandidates, "questionCoverage", coverage);
+    }
+
+    private GradeResult grade(List<String> questions, List<DocChunk> candidates) {
+        try {
+            return grader.grade(buildQuestions(questions), buildContext(candidates));
+        } catch (OutputParsingException e) {
+            log.warn("Unparseable grading, treating every chunk as insufficient: {}", e.getMessage());
+            return GradeResult.UNGRADED;
+        }
+    }
+
+    private static <T> List<T> nonNull(List<T> list) {
+        return list == null ? List.of() : list.stream().filter(Objects::nonNull).toList();
     }
 
     private static String buildQuestions(List<String> questions) {
@@ -111,54 +112,5 @@ public class GradeNode implements NodeAction<CragState> {
                     .append("]\n").append(c.text());
         }
         return sb.toString();
-    }
-
-    private static Map<Integer, String> parseChunkVerdicts(String answer) {
-        Map<Integer, String> verdicts = new LinkedHashMap<>();
-        for (String line : answer.lines().toList()) {
-            if (QUESTION_LINE.matcher(line).matches()) {
-                continue;
-            }
-            Matcher m = CHUNK_LINE.matcher(line);
-            if (!m.matches() || m.group(2).isBlank()) {
-                continue;
-            }
-            int index = Integer.parseInt(m.group(1));
-            String verdict = m.group(2).trim().toUpperCase();
-
-            String type;
-            // "INSUFICIENTE" contains "SUF", so the other verdicts are checked first.
-            if (verdict.contains("AMBIG")) {
-                type = AMBIGUOUS;
-            } else if (verdict.contains("INSUF")) {
-                continue;
-            } else if (verdict.contains("SUF")) {
-                type = SUFFICIENT;
-            } else {
-                continue;
-            }
-            verdicts.put(index, type);
-        }
-        return verdicts;
-    }
-
-    private static Map<Integer, String> parseQuestionCoverage(String answer) {
-        Map<Integer, String> coverage = new LinkedHashMap<>();
-        for (String line : answer.lines().toList()) {
-            Matcher m = QUESTION_LINE.matcher(line);
-            if (!m.matches() || m.group(2).isBlank()) {
-                continue;
-            }
-            int index = Integer.parseInt(m.group(1));
-            String state = m.group(2).trim().toUpperCase();
-            if (state.contains("SIN")) {
-                coverage.put(index, NOT_COVERED);
-            } else if (state.contains("PARCIAL")) {
-                coverage.put(index, PARTIAL);
-            } else if (state.contains("CUBIERTA")) {
-                coverage.put(index, COVERED);
-            }
-        }
-        return coverage;
     }
 }

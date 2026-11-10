@@ -1,8 +1,11 @@
 package io.github.mikel0ne.autoops.rag.crag;
 
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.service.AiServices;
 import io.github.mikel0ne.autoops.config.PromptLoader;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
+import io.github.mikel0ne.autoops.rag.crag.llm.Grader;
+import io.github.mikel0ne.autoops.rag.crag.llm.QueryVariantGenerator;
 import io.github.mikel0ne.autoops.rag.crag.nodes.ExpandNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.GradeNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.MultiQueryNode;
@@ -57,11 +60,11 @@ public class CragGraph {
 
     private CompiledGraph<CragState> build() {
         ChatModel llm = chatModel.getObject();
-        GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"), props.maxIterations());
+        GradeNode grade = new GradeNode(AiServices.create(Grader.class, llm), props.maxIterations());
         RewriteNode rewrite = new RewriteNode(
                 llm, prompts.load("crag_rewrite.txt"), props.kStep(), props.kMax());
         MultiQueryNode multiQuery = new MultiQueryNode(
-                retriever, llm, prompts.load("crag_multiquery.txt"), props.multiQueryN());
+                retriever, AiServices.create(QueryVariantGenerator.class, llm), props.multiQueryN());
         try {
             return new StateGraph<>(CragState::new)
                     .addNode("multiQuery", node_async(multiQuery))

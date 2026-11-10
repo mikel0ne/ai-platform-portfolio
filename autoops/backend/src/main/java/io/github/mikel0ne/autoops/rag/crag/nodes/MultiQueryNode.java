@@ -1,26 +1,25 @@
 package io.github.mikel0ne.autoops.rag.crag.nodes;
 
-import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import io.github.mikel0ne.autoops.rag.crag.llm.QueryVariantGenerator;
 import org.bsc.langgraph4j.action.NodeAction;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class MultiQueryNode implements NodeAction<CragState> {
 
     private final DocRetriever retriever;
-    private final ChatModel chatModel;
-    private final String promptTemplate;
+    private final QueryVariantGenerator generator;
     private final int n;
 
-    public MultiQueryNode(DocRetriever retriever, ChatModel chatModel, String promptTemplate, int n) {
+    public MultiQueryNode(DocRetriever retriever, QueryVariantGenerator generator, int n) {
         this.retriever = retriever;
-        this.chatModel = chatModel;
-        this.promptTemplate = promptTemplate;
+        this.generator = generator;
         this.n = n;
     }
 
@@ -46,13 +45,14 @@ public class MultiQueryNode implements NodeAction<CragState> {
     }
 
     private List<String> generateVariants(String query, int count) {
-        String prompt = promptTemplate
-                .replace("{{query}}", query)
-                .replace("{{n}}", String.valueOf(count));
-        String answer = chatModel.chat(prompt);
-        return answer.lines()
+        List<String> generated = generator.generate(query, count).variants();
+        if (generated == null) {
+            return List.of();
+        }
+        return generated.stream()
+                .filter(Objects::nonNull)
                 .map(String::trim)
-                .filter(line -> !line.isBlank() && !line.equalsIgnoreCase(query))
+                .filter(v -> !v.isBlank() && !v.equalsIgnoreCase(query))
                 .distinct()
                 .limit(count)
                 .toList();
