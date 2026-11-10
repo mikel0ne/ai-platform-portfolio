@@ -7,7 +7,8 @@ import org.bsc.langgraph4j.action.NodeAction;
 import java.util.List;
 import java.util.Map;
 
-public class RerankNode implements NodeAction<CragState> {
+// Reranking already happened inside the Weaviate query; this keeps the best k after fusion.
+public class TopKNode implements NodeAction<CragState> {
 
     @Override
     public Map<String, Object> apply(CragState state) {

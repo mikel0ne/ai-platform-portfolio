@@ -209,7 +209,7 @@ public class CragState extends AgentState {
   `multiQuery`. **Acumula** los candidatos con los que ya hubiera en el estado (en vez de sobreescribirlos) y
   deduplica por fuente+sección+texto (`DocChunk` no tiene id propio): un fragmento bueno encontrado en una
   vuelta no se pierde si la siguiente reformulación no vuelve a traerlo en el nuevo top-k.
-- **`rerank`** — reordena por el score que ya trae cada candidato y recorta a `k`.
+- **`topK`** — el reranking ya ocurrió dentro de la query de Weaviate; este nodo recorta a `k` tras la fusión.
 - **`grade`** — el **LLM interno evalúa, fragmento por fragmento, en una sola llamada** si cada candidato
   aporta algo a la consulta (prompt `crag_grade.txt`, salida estructurada vía `AiServices`: un record
   `GradeResult` con un veredicto `SUFFICIENT/AMBIGUOUS/INSUFFICIENT` por fragmento y la cobertura de cada

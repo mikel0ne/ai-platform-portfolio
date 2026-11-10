@@ -17,11 +17,11 @@ final class RrfFusion {
         Map<String, Double> rrfScore = new LinkedHashMap<>();
         Map<String, DocChunk> representativeByKey = new LinkedHashMap<>();
         for (List<DocChunk> list : lists) {
-            for (int range = 0; range < list.size(); range++) {
-                DocChunk candidate = list.get(range);
-                String sectionKey = sectionKey(candidate);
-                rrfScore.merge(sectionKey, 1.0 / (RRF_K + range + 1), Double::sum);
-                representativeByKey.merge(sectionKey, candidate,
+            for (int rank = 0; rank < list.size(); rank++) {
+                DocChunk candidate = list.get(rank);
+                String key = candidate.contentKey();
+                rrfScore.merge(key, 1.0 / (RRF_K + rank + 1), Double::sum);
+                representativeByKey.merge(key, candidate,
                         (a, b) -> a.score() >= b.score() ? a : b);
             }
         }
@@ -29,9 +29,5 @@ final class RrfFusion {
                 .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                 .map(entry -> representativeByKey.get(entry.getKey()))
                 .toList();
-    }
-
-    private static String sectionKey(DocChunk c) {
-        return c.source() + "|" + c.section() + "|" + c.text();
     }
 }

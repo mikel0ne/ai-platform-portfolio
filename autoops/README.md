@@ -49,9 +49,9 @@ grader confirms that the chunks cover every aspect of the question, or the itera
 ```mermaid
 flowchart LR
     start((start)) --> mq[multiQuery<br/>query variants + RRF]
-    mq --> rerank --> grade{grade<br/>LLM per chunk<br/>+ per question}
+    mq --> topK[topK<br/>best k after fusion] --> grade{grade<br/>LLM per chunk<br/>+ per question}
     grade -- covered or cap reached --> expand[expand<br/>section auto-merging] --> done((end))
-    grade -- retry --> rewrite[rewrite<br/>query + wider k] --> retrieve --> rerank
+    grade -- retry --> rewrite[rewrite<br/>query + wider k] --> retrieve --> topK
 ```
 
 - **Hybrid search + native reranking** in a single Weaviate query (vector + BM25, cross-encoder rerank).
