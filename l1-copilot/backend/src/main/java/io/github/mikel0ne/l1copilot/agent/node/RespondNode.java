@@ -5,7 +5,7 @@ import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.llm.Responder;
 import io.github.mikel0ne.l1copilot.config.ConversationHistoryProperties;
 import io.github.mikel0ne.l1copilot.config.qualifier.ChattyResponder;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -24,7 +24,7 @@ public class RespondNode implements NodeAction<SupportState> {
     @ChattyResponder
     private final Responder chattyResponder;
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
     private final ConversationHistoryProperties history;
 
     @Override
@@ -51,7 +51,7 @@ public class RespondNode implements NodeAction<SupportState> {
 
     private String describeFocusOrder(SupportState state) {
         return state.orderId()
-                .flatMap(id -> orderTools.findOrder(id, state.userId()))
+                .flatMap(id -> orderService.findOrder(id, state.userId()))
                 .map(o -> "#" + o.id() + " '" + o.description() + "' (" + o.status() + ")")
                 .orElse("(ninguno)");
     }

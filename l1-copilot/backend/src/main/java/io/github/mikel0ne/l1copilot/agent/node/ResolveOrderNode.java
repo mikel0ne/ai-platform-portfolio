@@ -2,8 +2,8 @@ package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
-import io.github.mikel0ne.l1copilot.dto.tools.OrderSummary;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.OrderSummary;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -17,12 +17,12 @@ import java.util.Map;
 @Slf4j
 public class ResolveOrderNode implements NodeAction<SupportState> {
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
         log.debug("---RESOLVE ORDER---");
-        List<OrderSummary> recent = orderTools.getRecentOrders(state.userId());
+        List<OrderSummary> recent = orderService.getRecentOrders(state.userId());
         List<String> candidates = recent.stream()
                 .map(ResolveOrderNode::describeCandidate)
                 .toList();

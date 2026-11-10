@@ -9,9 +9,9 @@ import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter;
 import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter.TicketDraft;
 import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
 import io.github.mikel0ne.l1copilot.dto.TicketCardDto;
-import io.github.mikel0ne.l1copilot.dto.tools.TicketCreated;
-import io.github.mikel0ne.l1copilot.tools.OrderNotFoundException;
-import io.github.mikel0ne.l1copilot.tools.TicketTools;
+import io.github.mikel0ne.l1copilot.dto.result.TicketCreated;
+import io.github.mikel0ne.l1copilot.service.OrderNotFoundException;
+import io.github.mikel0ne.l1copilot.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -31,7 +31,7 @@ public class SupportNode implements NodeAction<SupportState> {
     private static final int SUBJECT_MAX_LENGTH = 120;
     private static final int DESCRIPTION_MAX_LENGTH = 2000;
 
-    private final TicketTools ticketTools;
+    private final TicketService ticketService;
     private final TicketWriter ticketWriter;
     private final Verifier verifier;
 
@@ -119,9 +119,9 @@ public class SupportNode implements NodeAction<SupportState> {
         Map<String, Object> updates = new HashMap<>();
         TicketCreated ticket;
         try {
-            ticket = ticketTools.createTicket(state.userId(), orderId, draft.subject(), draft.description());
+            ticket = ticketService.createTicket(state.userId(), orderId, draft.subject(), draft.description());
         } catch (OrderNotFoundException e) {
-            ticket = ticketTools.createTicket(state.userId(), null, draft.subject(), draft.description());
+            ticket = ticketService.createTicket(state.userId(), null, draft.subject(), draft.description());
         }
 
         String code = TicketCardDto.code(ticket.ticketId());

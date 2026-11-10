@@ -4,9 +4,9 @@ import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
 import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
-import io.github.mikel0ne.l1copilot.dto.tools.ShipmentStatus;
-import io.github.mikel0ne.l1copilot.tools.OrderNotFoundException;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.ShipmentStatus;
+import io.github.mikel0ne.l1copilot.service.OrderNotFoundException;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -23,7 +23,7 @@ import java.util.Map;
 @Slf4j
 public class TrackingNode implements NodeAction<SupportState> {
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
@@ -32,7 +32,7 @@ public class TrackingNode implements NodeAction<SupportState> {
         log.debug("---TRACKING--- orderId={}", orderId);
 
         try {
-            ShipmentStatus s = orderTools.trackShipment(orderId, state.userId());
+            ShipmentStatus s = orderService.trackShipment(orderId, state.userId());
 
             Map<String, Object> updates = new HashMap<>();
             updates.put("resolved", true);

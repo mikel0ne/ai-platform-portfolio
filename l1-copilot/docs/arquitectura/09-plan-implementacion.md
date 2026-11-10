@@ -40,7 +40,7 @@ gantt
 
 1. Entidades `User`, `Order` (+`OrderStatus`), `Ticket` (+`TicketStatus`); repositorios con variantes `...AndUserId`.
 2. Esquema y seed separados por dialecto: `schema-h2.sql`/`data-h2.sql` (perfil `dev`, `platform=h2`) y `schema-postgresql.sql`/`data-postgresql.sql` (perfiles `local`/`prod`, `platform=postgresql`); fechas relativas a `CURRENT_DATE`.
-3. Records de `dto/tools` (`OrderSummary`, `ShipmentStatus`, `CancellationResult`, `TicketCreated`).
+3. Records de `dto/result` (`OrderSummary`, `ShipmentStatus`, `CancellationResult`, `TicketCreated`).
 4. Tests `@DataJpaTest`: seed cargado, `findTop3ByUserIdOrderByOrderDateDesc` devuelve orden correcto, `findByIdAndUserId` no cruza usuarios.
 
 **DoD:** tests verdes; consola H2 muestra los datos del seed.
@@ -49,7 +49,7 @@ gantt
 
 **Releer:** [05 — Tools Java](05-tools-java.md).
 
-1. `OrderTools` (`getRecentOrders`, `trackShipment`, `checkCancellable`, `cancelOrder`) y `TicketTools` (`createTicket`), con `@Tool`/`@P` y transaccionalidad.
+1. `OrderService` (`getRecentOrders`, `trackShipment`, `checkCancellable`, `cancelOrder`) y `TicketService` (`createTicket`), con `@Tool`/`@P` y transaccionalidad.
 2. `OrderNotFoundException` + reglas de cancelación en `OrderStatus.isCancellable()`.
 3. Tests unitarios de reglas y de propiedad (matriz del doc 05).
 

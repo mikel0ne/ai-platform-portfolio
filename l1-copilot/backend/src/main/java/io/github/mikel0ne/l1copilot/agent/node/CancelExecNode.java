@@ -2,8 +2,8 @@ package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
-import io.github.mikel0ne.l1copilot.dto.tools.CancellationResult;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.CancellationResult;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -17,7 +17,7 @@ import java.util.Map;
 @Slf4j
 public class CancelExecNode implements NodeAction<SupportState> {
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
@@ -25,7 +25,7 @@ public class CancelExecNode implements NodeAction<SupportState> {
                 .orElseThrow(() -> new IllegalStateException("cancel_exec without a resolved orderId"));
         log.debug("---CANCEL EXEC--- orderId={}", orderId);
 
-        CancellationResult result = orderTools.cancelOrder(orderId, state.userId());
+        CancellationResult result = orderService.cancelOrder(orderId, state.userId());
         return Map.of(
                 "toolResult", result.reason(),
                 "resolved", result.cancelled(),

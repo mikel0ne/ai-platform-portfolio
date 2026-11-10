@@ -54,11 +54,11 @@ CREATED ──> PAID ──> SHIPPED ──> IN_DELIVERY ──> DELIVERED ─�
 
 | Regla | Implementación |
 |---|---|
-| Solo se puede cancelar en `CREATED` o `PAID` | `OrderTools.cancelOrder` — validación Java, devuelve resultado tipado con motivo del rechazo |
-| Solo se puede devolver un pedido `DELIVERED` | `OrderTools.requestReturn` — validación Java (`isReturnable()`); pasa el pedido a `RETURN_REQUESTED` |
+| Solo se puede cancelar en `CREATED` o `PAID` | `OrderService.cancelOrder` — validación Java, devuelve resultado tipado con motivo del rechazo |
+| Solo se puede devolver un pedido `DELIVERED` | `OrderService.requestReturn` — validación Java (`isReturnable()`); pasa el pedido a `RETURN_REQUESTED` |
 | Cancelar y devolver son excluyentes | se cancela antes del envío y se devuelve tras la entrega; "cancelar" un pedido entregado se reconduce a devolución |
 | Un pedido `CANCELLED` no se puede volver a cancelar | misma validación |
-| El seguimiento de un pedido `CANCELLED` informa de la cancelación, no de envío | `OrderTools.trackShipment` |
+| El seguimiento de un pedido `CANCELLED` informa de la cancelación, no de envío | `OrderService.trackShipment` |
 | Un usuario solo ve/opera sus propios pedidos | todas las queries filtran por `user_id` tomado del `AgentState`, ver [05 — Tools](05-tools-java.md) |
 
 La enumeración Java:
@@ -185,7 +185,7 @@ public record TicketSummary(Long id, String subject, String status) {}
 public record TicketCreated(Long ticketId, String subject, String status) {}
 ```
 
-> Estos records viven en `dto/tools/`. El catálogo completo incluye `OrderSummary`,
+> Estos records viven en `dto/result/`. El catálogo completo incluye `OrderSummary`,
 > `ShipmentStatus`, `CancellationCheck`, `CancellationResult`, `ReturnCheck`, `ReturnResult`,
 > `TicketSummary` y `TicketCreated`. (Las tarjetas para la UI son DTOs aparte en `dto/`:
 > `OrderCardDto`, `TicketCardDto`/`TicketDetailDto`, `ReturnCardDto`/`ReturnLabelDto`,

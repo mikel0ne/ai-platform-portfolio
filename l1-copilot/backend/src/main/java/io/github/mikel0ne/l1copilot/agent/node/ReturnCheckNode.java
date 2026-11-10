@@ -4,9 +4,9 @@ import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
 import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
-import io.github.mikel0ne.l1copilot.dto.tools.ReturnCheck;
-import io.github.mikel0ne.l1copilot.tools.OrderNotFoundException;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.ReturnCheck;
+import io.github.mikel0ne.l1copilot.service.OrderNotFoundException;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -23,7 +23,7 @@ import java.util.Map;
 @Slf4j
 public class ReturnCheckNode implements NodeAction<SupportState> {
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
@@ -34,7 +34,7 @@ public class ReturnCheckNode implements NodeAction<SupportState> {
         Map<String, Object> updates = new HashMap<>();
         ReturnCheck check;
         try {
-            check = orderTools.checkReturnable(orderId, state.userId());
+            check = orderService.checkReturnable(orderId, state.userId());
         } catch (OrderNotFoundException e) {
             updates.put("toolResult", String.format(
                     "No existe el pedido #%d entre los pedidos del usuario.", orderId));
@@ -112,7 +112,7 @@ public class ReturnCheckNode implements NodeAction<SupportState> {
         Map<String, Object> card = new HashMap<>();
         card.put("id", orderId);
         card.put("code", ReturnCardDto.code(orderId));
-        card.put("description", orderTools.findOrder(orderId, userId)
+        card.put("description", orderService.findOrder(orderId, userId)
                 .map(o -> o.description()).orElse("Devolución"));
         card.put("status", OrderStatus.RETURN_REQUESTED.name());
         card.put("createdAt", Instant.now().toString());

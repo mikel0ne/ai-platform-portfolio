@@ -15,7 +15,7 @@ User:   El portátil                             (The laptop)
 Agent:  Tu pedido #123 está EN REPARTO y llegará mañana con SEUR.
 ```
 
-That exchange exercises intent detection, missing-information detection, a proactive tool call (fetch the
+That exchange exercises intent detection, missing-information detection, a proactive lookup (fetch the
 recent orders instead of asking for an id), a clarification loop that survives between requests and
 reference resolution ("the laptop" -> #123).
 
@@ -23,7 +23,7 @@ reference resolution ("the laptop" -> #123).
 
 Classic support bots either follow rigid menus or let the LLM decide everything, including whether an order
 can be cancelled. This agent splits the work: **the LLM classifies, Java code decides**. Routing is a set of
-pure functions over the graph state, business rules live in the tools (`OrderStatus.isCancellable()`, not a
+pure functions over the graph state, business rules live in the domain services (`OrderStatus.isCancellable()`, not a
 prompt) and every irreversible action needs an explicit confirmation from the user.
 
 ## Agent graph
@@ -70,7 +70,7 @@ The ADRs are in [`docs/arquitectura/02-arquitectura-sistema.md`](docs/arquitectu
 |---|---|
 | 1 | LangGraph4j state graph instead of LangChain4j chains: the agent needs cycles and shared mutable state. |
 | 2 | One HTTP turn is one graph invocation that always reaches the end; the checkpointer resumes it. |
-| 3 | The LLM only produces a label and slots (structured output); Java `switch` edges route, tools enforce the rules. |
+| 3 | The LLM only produces a label and slots (structured output); Java `switch` edges route, domain services enforce the rules. |
 | 4 | The `userId` comes from the session, never from the user's text, so a prompt cannot reach another user's data. |
 | 5 | H2 in development, PostgreSQL when deployed, with SQL scripts per dialect. |
 | 6 | In-memory `MemorySaver` checkpointer: single replica and `Recreate` strategy until a Postgres-backed saver exists. |
