@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.chat;
 
+import io.github.mikel0ne.autoops.error.TooManyRequestsException;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import io.github.mikel0ne.autoops.rag.RagService;
@@ -17,14 +18,19 @@ public class SearchController {
 
     private final RagService ragService;
     private final AnswerComposer answerComposer;
+    private final SearchRateLimiter rateLimiter;
 
-    public SearchController(RagService ragService, AnswerComposer answerComposer) {
+    public SearchController(RagService ragService, AnswerComposer answerComposer, SearchRateLimiter rateLimiter) {
         this.ragService = ragService;
         this.answerComposer = answerComposer;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/search")
     public SearchResponse search(@Valid @RequestBody SearchRequest request) {
+        if (!rateLimiter.tryAcquire()) {
+            throw new TooManyRequestsException("Too many searches, try again in a minute");
+        }
         RagResult rag = ragService.search(request.query(), 0);
 
         String answer = answerComposer.compose(request.query(), rag);

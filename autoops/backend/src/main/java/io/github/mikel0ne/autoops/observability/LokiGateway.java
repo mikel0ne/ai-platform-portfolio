@@ -14,6 +14,11 @@ import java.util.Map;
 @Service
 public class LokiGateway {
 
+    static final int DEFAULT_LINES = 200;
+    static final int MAX_LINES = 1000;
+    static final int DEFAULT_WINDOW_MINUTES = 15;
+    static final int MAX_WINDOW_MINUTES = 24 * 60;
+
     private final RestClient client;
 
     public LokiGateway(RestClient lokiClient) {
@@ -24,7 +29,7 @@ public class LokiGateway {
                                       String from, String to, Integer windowMinutes, Integer lines) {
         TimeWindow window = resolveWindow(from, to, windowMinutes);
         String query = buildLogQl(namespace, pod, container, text);
-        int limit = lines == null ? 200 : lines;
+        int limit = clamp(lines, DEFAULT_LINES, MAX_LINES);
 
         LokiResponse answer = client.get()
                 .uri(uri -> uri.path("/loki/api/v1/query_range")
@@ -47,8 +52,12 @@ public class LokiGateway {
         Instant fin = (to != null && !to.isBlank()) ? Instant.parse(to) : Instant.now();
         Instant start = (from != null && !from.isBlank())
                 ? Instant.parse(from)
-                : fin.minus(Duration.ofMinutes(windowMinutes == null ? 15 : windowMinutes));
+                : fin.minus(Duration.ofMinutes(clamp(windowMinutes, DEFAULT_WINDOW_MINUTES, MAX_WINDOW_MINUTES)));
         return new TimeWindow(start, fin);
+    }
+
+    private static int clamp(Integer value, int defaultValue, int max) {
+        return value == null ? defaultValue : Math.max(1, Math.min(value, max));
     }
 
     record TimeWindow(Instant from, Instant to) {}

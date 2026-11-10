@@ -58,7 +58,7 @@ public class KubernetesTools {
     }
 
     @Tool(name = "list_events",
-          description = "Recent events of a namespace or of a single object (type, reason, message and age).")
+          description = "Most recent events (up to 50) of a namespace or of a single object (type, reason, message and age).")
     public List<PodDiagnosis.EventInfo> listEvents(
             @ToolParam(description = "Namespace") String namespace,
             @ToolParam(required = false, description = "Object name to filter by (optional)") String object) {
@@ -71,7 +71,7 @@ public class KubernetesTools {
             @ToolParam(description = "Pod namespace") String namespace,
             @ToolParam(description = "Pod name") String name,
             @ToolParam(required = false, description = "Container (when the pod has several)") String container,
-            @ToolParam(required = false, description = "Number of lines (default 200)") Integer lines,
+            @ToolParam(required = false, description = "Number of lines (default 200, max 1000)") Integer lines,
             @ToolParam(required = false, description = "Logs of the previous start") Boolean previous) {
         return k8s.logs(namespace, name, container,
                 lines == null ? DEFAULT_LOG_LINES : lines,

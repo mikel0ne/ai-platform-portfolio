@@ -22,7 +22,7 @@ public class DocsTools {
                   + "returns the corrective-loop iterations and a confidence level.")
     public RagResult searchDocs(
             @ToolParam(description = "Natural-language query") String query,
-            @ToolParam(required = false, description = "Number of chunks to return (default 5)") Integer k) {
+            @ToolParam(required = false, description = "Number of chunks to return (default 5, capped at autoops.crag.k-max)") Integer k) {
         return ragService.search(query, k == null ? 0 : k);
     }
 }
