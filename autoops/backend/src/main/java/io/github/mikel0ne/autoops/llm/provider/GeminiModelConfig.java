@@ -4,6 +4,9 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
+import io.github.mikel0ne.autoops.cache.CachingChatModel;
+import io.github.mikel0ne.autoops.cache.FileCacheManager;
+import io.github.mikel0ne.autoops.config.CacheProperties;
 import io.github.mikel0ne.autoops.config.LlmProperties;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -45,14 +48,15 @@ public class GeminiModelConfig {
 
     @Bean
     @Lazy
-    public ChatModel chatModel(LlmProperties props,
+    public ChatModel chatModel(LlmProperties props, CacheProperties cacheProps, FileCacheManager cache,
                                @Value("${GEMINI_API_KEY:}") String apiKey) {
-        return GoogleAiGeminiChatModel.builder()
+        ChatModel model = GoogleAiGeminiChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.chatModelName())
                 .temperature(props.temperature())
                 .timeout(props.timeout())
                 .maxRetries(props.maxRetries())
                 .build();
+        return cacheProps.isCacheEnabled() ? new CachingChatModel(model, cache) : model;
     }
 }
