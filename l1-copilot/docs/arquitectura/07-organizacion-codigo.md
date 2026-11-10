@@ -82,8 +82,8 @@ Criterios:
 <properties>
     <java.version>17</java.version>
     <!-- Par validado en la Fase 0 contra Maven Central -->
-    <langchain4j.version>1.16.2</langchain4j.version>
-    <langgraph4j.version>1.8.17</langgraph4j.version>
+    <langchain4j.version>1.23.0</langchain4j.version>
+    <langgraph4j.version>1.8.27</langgraph4j.version>
 </properties>
 
 <dependencies>
