@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.rag.source;
 
+import io.github.mikel0ne.autoops.error.InvalidRequestException;
 import io.github.mikel0ne.autoops.github.GitHubGateway;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +29,7 @@ public class GitHubMarkdownSource {
         String[] ownerRepo = ownerRepo(repo.url());
         String branch = github.defaultBranch(ownerRepo[0], ownerRepo[1]);
         if (branch == null || branch.isBlank()) {
-            throw new IllegalArgumentException("Could not determine the default branch of " + repo.url());
+            throw new InvalidRequestException("Could not determine the default branch of " + repo.url());
         }
         return new GitRepo(repo.url(), branch, repo.subdir(), repo.webBase());
     }
@@ -81,7 +82,7 @@ public class GitHubMarkdownSource {
         int slash = clean.lastIndexOf('/');
         int previousSlash = slash > 0 ? clean.lastIndexOf('/', slash - 1) : -1;
         if (slash < 0 || previousSlash < 0) {
-            throw new IllegalArgumentException("Invalid GitHub URL (expected owner/repo): " + url);
+            throw new InvalidRequestException("Invalid GitHub URL (expected owner/repo): " + url);
         }
         return new String[]{clean.substring(previousSlash + 1, slash), clean.substring(slash + 1)};
     }
