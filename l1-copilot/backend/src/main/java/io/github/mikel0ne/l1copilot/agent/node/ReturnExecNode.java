@@ -1,17 +1,18 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
+import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
 import io.github.mikel0ne.l1copilot.dto.result.ReturnResult;
 import io.github.mikel0ne.l1copilot.service.OrderService;
+import io.github.mikel0ne.l1copilot.dto.result.OrderSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
 import org.bsc.langgraph4j.state.AgentState;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,34 +33,29 @@ public class ReturnExecNode implements NodeAction<SupportState> {
         ReturnResult result = orderService.requestReturn(orderId, state.userId());
 
         Map<String, Object> updates = new HashMap<>();
-        updates.put("confirmation", "NONE");
-        updates.put("awaiting", Awaiting.NOTHING.name());
+        updates.put(SupportState.CONFIRMATION, Confirmation.NONE.name());
+        updates.put(SupportState.AWAITING, Awaiting.NOTHING.name());
 
         if (!result.returned()) {
-            updates.put("toolResult", result.reason());
-            updates.put("resolved", false);
+            updates.put(SupportState.TOOL_RESULT, result.reason());
+            updates.put(SupportState.RESOLVED, false);
             return updates;
         }
 
         String code = result.reference();
-        Map<String, Object> card = new HashMap<>();
-        card.put("id", orderId);
-        card.put("code", code);
-        card.put("description", orderService.findOrder(orderId, state.userId())
-                .map(o -> o.description()).orElse("Devolución"));
-        card.put("status", "RETURN_REQUESTED");
-        card.put("createdAt", Instant.now().toString());
+        ReturnCardDto card = ReturnCardDto.requested(orderId, orderService.findOrder(orderId, state.userId())
+                .map(OrderSummary::description).orElse("Devolución"));
 
-        updates.put("toolResult", String.format(
+        updates.put(SupportState.TOOL_RESULT, String.format(
                 "Devolución %s iniciada para el pedido #%d. Hay que informar al cliente de que su "
                 + "devolución ya se ha iniciado y que, justo debajo, la interfaz muestra un enlace a "
                 + "la etiqueta de devolución que puede abrir para imprimirla y entregar el paquete al "
                 + "transportista. No inventes plazos ni datos.", code, orderId));
-        updates.put("returnCards", List.of(card));
-        updates.put("resolved", true);
+        updates.put(SupportState.RETURN_CARDS, List.of(card));
+        updates.put(SupportState.RESOLVED, true);
 
-        updates.put("orderId", AgentState.MARK_FOR_REMOVAL);
-        updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
+        updates.put(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        updates.put(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
         return updates;
     }
 }

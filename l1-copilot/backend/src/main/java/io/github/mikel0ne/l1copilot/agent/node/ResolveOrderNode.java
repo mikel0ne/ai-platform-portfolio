@@ -4,6 +4,7 @@ import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.dto.result.OrderSummary;
 import io.github.mikel0ne.l1copilot.service.OrderService;
+import io.github.mikel0ne.l1copilot.dto.OrderCardDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -26,36 +27,32 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
         List<String> candidates = recent.stream()
                 .map(ResolveOrderNode::describeCandidate)
                 .toList();
-        List<Map<String, Object>> orderCards = recent.stream()
-                .map(o -> Map.<String, Object>of(
-                        "id", o.id(),
-                        "description", o.description(),
-                        "status", o.status(),
-                        "imageUrl", o.imageUrl() != null ? o.imageUrl() : ""))
+        List<OrderCardDto> orderCards = recent.stream()
+                .map(o -> new OrderCardDto(o.id(), o.description(), o.status(), o.imageUrl()))
                 .toList();
 
         if (recent.isEmpty()) {
             return Map.of(
-                    "toolResult", "El usuario no tiene ningún pedido registrado.",
-                    "awaiting", Awaiting.NOTHING.name());
+                    SupportState.TOOL_RESULT, "El usuario no tiene ningún pedido registrado.",
+                    SupportState.AWAITING, Awaiting.NOTHING.name());
         }
 
         if (recent.size() == 1) {
             log.debug("---RESOLVE ORDER--- single candidate: {}", recent.get(0).id());
             return Map.of(
-                    "orderId", recent.get(0).id(),
-                    "candidates", candidates,
-                    "orderCards", orderCards,
-                    "awaiting", Awaiting.NOTHING.name());
+                    SupportState.ORDER_ID, recent.get(0).id(),
+                    SupportState.CANDIDATES, candidates,
+                    SupportState.ORDER_CARDS, orderCards,
+                    SupportState.AWAITING, Awaiting.NOTHING.name());
         }
 
         String listing = String.join("; ", candidates);
         log.debug("---RESOLVE ORDER--- {} candidates, asking the user to choose", recent.size());
         return Map.of(
-                "candidates", candidates,
-                "orderCards", orderCards,
-                "awaiting", Awaiting.ORDER_CHOICE.name(),
-                "toolResult", String.format(
+                SupportState.CANDIDATES, candidates,
+                SupportState.ORDER_CARDS, orderCards,
+                SupportState.AWAITING, Awaiting.ORDER_CHOICE.name(),
+                SupportState.TOOL_RESULT, String.format(
                         "El usuario tiene varios pedidos recientes: %s. Hay que preguntarle a cuál de "
                         + "ellos se refiere la gestión en curso (sobre cuál quiere actuar, o cuál es "
                         + "el del problema si está reportando una incidencia).", listing));

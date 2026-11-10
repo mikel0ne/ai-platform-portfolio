@@ -91,13 +91,13 @@ public final class SupportRouting {
     }
 
     public static String fromCancelCheck(SupportState state) {
-        return state.cancellable() && "YES".equals(state.confirmation())
+        return state.cancellable() && state.confirmation() == Confirmation.YES
                 ? TO_CANCEL_EXEC
                 : TO_ASK_USER;
     }
 
     public static String fromReturnCheck(SupportState state) {
-        return state.returnable() && "YES".equals(state.confirmation())
+        return state.returnable() && state.confirmation() == Confirmation.YES
                 ? TO_RETURN_EXEC
                 : TO_ASK_USER;
     }

@@ -41,7 +41,7 @@ public class FallbackNode implements NodeAction<SupportState> {
                 : CAPABILITIES;
 
         return Map.of(
-                "toolResult", toolResult,
-                "awaiting", Awaiting.NOTHING.name());
+                SupportState.TOOL_RESULT, toolResult,
+                SupportState.AWAITING, Awaiting.NOTHING.name());
     }
 }

@@ -23,8 +23,8 @@ public class FaqNode implements NodeAction<SupportState> {
         log.debug("---FAQ--- digression={}", digression);
 
         return Map.of(
-                "toolResult", "Base de conocimiento de la tienda (usa solo lo "
+                SupportState.TOOL_RESULT, "Base de conocimiento de la tienda (usa solo lo "
                         + "relevante para la pregunta del usuario):\n" + knowledgeBase.content(),
-                "resolved", !digression);
+                SupportState.RESOLVED, !digression);
     }
 }

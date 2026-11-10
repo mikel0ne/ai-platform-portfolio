@@ -2,7 +2,6 @@ package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.SupportRouting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
-import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.Verdict;
 import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
@@ -41,9 +40,9 @@ public class VerifyNode implements NodeAction<SupportState> {
                 state.intent(), verdict, decision.reason());
 
         Map<String, Object> updates = new HashMap<>();
-        updates.put("verdict", verdict.name());
+        updates.put(SupportState.VERDICT, verdict.name());
 
-        updates.put("tentative", verdict == Verdict.DOUBT);
+        updates.put(SupportState.TENTATIVE, verdict == Verdict.DOUBT);
 
         if (SupportRouting.proceedsAfterVerify(verdict, state.intent())) {
             commitProposedFocus(state, updates);
@@ -69,8 +68,8 @@ public class VerifyNode implements NodeAction<SupportState> {
 
     private void commitProposedFocus(SupportState state, Map<String, Object> updates) {
         state.proposedOrderId().ifPresent(id -> {
-            updates.put("orderId", id);
-            updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
+            updates.put(SupportState.ORDER_ID, id);
+            updates.put(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
         });
     }
 

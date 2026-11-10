@@ -40,9 +40,9 @@ public class ClarifyNode implements NodeAction<SupportState> {
                   + "naturalidad) y mencionando " + guess + " solo si acaso, al final.";
 
         Map<String, Object> updates = new HashMap<>();
-        updates.put("toolResult", instruction);
+        updates.put(SupportState.TOOL_RESULT, instruction);
 
-        updates.put("awaiting", Awaiting.NOTHING.name());
+        updates.put(SupportState.AWAITING, Awaiting.NOTHING.name());
         return updates;
     }
 }

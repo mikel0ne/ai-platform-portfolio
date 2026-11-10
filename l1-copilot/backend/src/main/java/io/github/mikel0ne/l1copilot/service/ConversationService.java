@@ -2,6 +2,7 @@ package io.github.mikel0ne.l1copilot.service;
 
 import dev.langchain4j.exception.LangChain4jException;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
+import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Treatment;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
@@ -43,26 +44,26 @@ public class ConversationService {
                 .build();
 
         Map<String, Object> input = new HashMap<>();
-        input.put("userId", userId);
-        input.put("treatment", treatment.name());
-        input.put("userMessage", message);
-        input.put("history", List.of("USER: " + message));
-        input.put("confirmation", "NONE");
-        input.put("tentative", false);
+        input.put(SupportState.USER_ID, userId);
+        input.put(SupportState.TREATMENT, treatment.name());
+        input.put(SupportState.USER_MESSAGE, message);
+        input.put(SupportState.HISTORY, List.of("USER: " + message));
+        input.put(SupportState.CONFIRMATION, Confirmation.NONE.name());
+        input.put(SupportState.TENTATIVE, false);
 
-        input.put("navigating", false);
+        input.put(SupportState.NAVIGATING, false);
 
-        input.put("proposedOrderId", 0L);
-        input.put("toolResult", "");
-        input.put("reply", "");
-        input.put("resolved", false);
-        input.put("orderCards", List.of());
-        input.put("ticketCards", List.of());
-        input.put("returnCards", List.of());
+        input.put(SupportState.PROPOSED_ORDER_ID, 0L);
+        input.put(SupportState.TOOL_RESULT, "");
+        input.put(SupportState.REPLY, "");
+        input.put(SupportState.RESOLVED, false);
+        input.put(SupportState.ORDER_CARDS, List.of());
+        input.put(SupportState.TICKET_CARDS, List.of());
+        input.put(SupportState.RETURN_CARDS, List.of());
 
-        input.put("pendingCancelId", 0L);
+        input.put(SupportState.PENDING_CANCEL_ID, 0L);
 
-        input.put("pendingReturnId", 0L);
+        input.put(SupportState.PENDING_RETURN_ID, 0L);
 
         SupportState state;
         try {
@@ -81,31 +82,9 @@ public class ConversationService {
 
         log.debug("Turno completado: intent={} resolved={}", state.intent(), state.resolved());
 
-        List<OrderCardDto> orders = state.orderCards().stream()
-                .map(m -> new OrderCardDto(
-                        m.get("id") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(m.get("id"))),
-                        String.valueOf(m.get("description")),
-                        String.valueOf(m.get("status")),
-                        m.get("imageUrl") != null ? String.valueOf(m.get("imageUrl")) : null))
-                .toList();
-
-        List<TicketCardDto> tickets = state.ticketCards().stream()
-                .map(m -> new TicketCardDto(
-                        m.get("id") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(m.get("id"))),
-                        String.valueOf(m.get("code")),
-                        String.valueOf(m.get("title")),
-                        String.valueOf(m.get("status")),
-                        String.valueOf(m.get("createdAt"))))
-                .toList();
-
-        List<ReturnCardDto> returns = state.returnCards().stream()
-                .map(m -> new ReturnCardDto(
-                        m.get("id") instanceof Number n ? n.longValue() : Long.parseLong(String.valueOf(m.get("id"))),
-                        String.valueOf(m.get("code")),
-                        String.valueOf(m.get("description")),
-                        String.valueOf(m.get("status")),
-                        String.valueOf(m.get("createdAt"))))
-                .toList();
+        List<OrderCardDto> orders = state.orderCards();
+        List<TicketCardDto> tickets = state.ticketCards();
+        List<ReturnCardDto> returns = state.returnCards();
 
         ConfirmActionDto confirm = state.pendingCancelId()
                 .map(id -> cancelConfirmation(id, state.treatment()))

@@ -45,8 +45,8 @@ public class RespondNode implements NodeAction<SupportState> {
                 history.responder().render(state.history()));
 
         return Map.of(
-                "reply", reply,
-                "history", List.of("AGENT: " + reply));
+                SupportState.REPLY, reply,
+                SupportState.HISTORY, List.of("AGENT: " + reply));
     }
 
     private String describeFocusOrder(SupportState state) {

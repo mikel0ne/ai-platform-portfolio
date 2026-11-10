@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
+import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.dto.result.CancellationResult;
 import io.github.mikel0ne.l1copilot.service.OrderService;
@@ -27,11 +28,11 @@ public class CancelExecNode implements NodeAction<SupportState> {
 
         CancellationResult result = orderService.cancelOrder(orderId, state.userId());
         return Map.of(
-                "toolResult", result.reason(),
-                "resolved", result.cancelled(),
-                "orderId", AgentState.MARK_FOR_REMOVAL,
-                "candidates", AgentState.MARK_FOR_REMOVAL,
-                "confirmation", "NONE",
-                "awaiting", Awaiting.NOTHING.name());
+                SupportState.TOOL_RESULT, result.reason(),
+                SupportState.RESOLVED, result.cancelled(),
+                SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL,
+                SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL,
+                SupportState.CONFIRMATION, Confirmation.NONE.name(),
+                SupportState.AWAITING, Awaiting.NOTHING.name());
     }
 }
