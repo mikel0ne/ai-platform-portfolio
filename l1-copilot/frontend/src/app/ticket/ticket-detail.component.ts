@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap, startWith } from 'rxjs';
@@ -13,7 +13,6 @@ type State =
 
 @Component({
   selector: 'app-ticket-detail',
-  standalone: true,
   imports: [CommonModule],
   template: `
     <main class="ticket-page">
@@ -49,6 +48,7 @@ type State =
 
     </main>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .ticket-page {

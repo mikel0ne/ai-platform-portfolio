@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 import { ChatApiService } from '../core/chat-api.service';
@@ -7,9 +6,9 @@ import { UserDto } from '../core/models';
 
 @Component({
   selector: 'app-login',
-  standalone: true,
-  imports: [CommonModule],
+  imports: [],
   templateUrl: './login.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './login.component.css',
 })
 export class LoginComponent {

@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { AfterViewChecked, Component, ElementRef, ViewChild, effect, inject } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, ViewChild, effect, inject, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../core/auth.service';
 import { OrderCard } from '../core/models';
@@ -9,10 +8,10 @@ import { TypingIndicatorComponent } from './typing-indicator.component';
 
 @Component({
   selector: 'app-chat',
-  standalone: true,
-  imports: [CommonModule, FormsModule, MessageBubbleComponent, TypingIndicatorComponent],
+  imports: [FormsModule, MessageBubbleComponent, TypingIndicatorComponent],
   providers: [ChatStore],
   templateUrl: './chat.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './chat.component.css',
 })
 export class ChatComponent implements AfterViewChecked {

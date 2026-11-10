@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap, startWith } from 'rxjs';
@@ -13,8 +12,7 @@ type State =
 
 @Component({
   selector: 'app-return-label',
-  standalone: true,
-  imports: [CommonModule],
+  imports: [],
   template: `
     <main class="return-page">
       @if (label(); as l) {
@@ -82,6 +80,7 @@ type State =
       }
     </main>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: block; }
     .return-page {
