@@ -59,11 +59,20 @@ ok "grafana repo updated"
 # 3. Install / upgrade loki-stack
 # =============================================================================
 step "Installing loki-stack (Loki + Promtail + Grafana)..."
+# The password goes in a private values file: --set-string would show it in the process list.
+admin_values="$(mktemp)"
+chmod 600 "$admin_values"
+backslash='\'
+quote='"'
+escaped_password="${GRAFANA_ADMIN_PASSWORD//"$backslash"/"$backslash$backslash"}"
+escaped_password="${escaped_password//"$quote"/"$backslash$quote"}"
+printf 'grafana:\n  adminPassword: "%s"\n' "$escaped_password" > "$admin_values"
 helm upgrade --install "$RELEASE" grafana/loki-stack \
-  --set-string grafana.adminPassword="${GRAFANA_ADMIN_PASSWORD}" \
   --namespace "$NS" \
   -f "$VALUES" \
+  -f "$admin_values" \
   --wait --timeout 5m
+rm -f "$admin_values"
 ok "loki-stack deployed"
 
 # =============================================================================

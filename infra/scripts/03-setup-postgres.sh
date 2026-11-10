@@ -66,11 +66,14 @@ step "Creating Secret 'postgres-credentials' in namespace '$NS'..."
 if kubectl get secret postgres-credentials -n "$NS" &>/dev/null; then
   warn "Secret already exists, skipping (credentials are never overwritten)."
 else
+  # Through a private temp file: a --from-literal value would show up in the process list.
+  creds_file="$(mktemp)"
+  chmod 600 "$creds_file"
+  printf 'POSTGRES_USER=%s\nPOSTGRES_PASSWORD=%s\nPOSTGRES_DB=%s\n' "$PG_USER" "$PG_PASSWORD" "$PG_DB" > "$creds_file"
   kubectl create secret generic postgres-credentials \
     --namespace "$NS" \
-    --from-literal=POSTGRES_USER="$PG_USER" \
-    --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
-    --from-literal=POSTGRES_DB="$PG_DB"
+    --from-env-file="$creds_file"
+  rm -f "$creds_file"
   ok "Secret created"
 fi
 
