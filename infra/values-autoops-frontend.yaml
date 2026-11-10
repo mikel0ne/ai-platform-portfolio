@@ -21,7 +21,7 @@ strategy:
   type: RollingUpdate
 
 container:
-  port: 80           # nginx:alpine; 8080 with nginx-unprivileged for runAsNonRoot
+  port: 8080   # nginx-unprivileged
   portName: http
 
 service:
@@ -61,7 +61,7 @@ resources:
 
 securityContext:
   allowPrivilegeEscalation: false
-  runAsNonRoot: false   # nginx:alpine runs as root; use nginx-unprivileged to set true
+  runAsNonRoot: true
 
 # The Ingress is created by setup-app-ingress.sh --project autoops ("/" -> this Service).
 ingress:
