@@ -10,8 +10,6 @@
 # BaseCheckpointSaver is in place.
 # =============================================================================
 
-namespace: l1-copilot
-
 image:
   repository: registry.local/l1-copilot-backend
   tag: "1.0.0"
@@ -52,6 +50,14 @@ secretEnv:
     secretKey: POSTGRES_PASSWORD
 
 probes:
+  # Up to 150s for the JVM to start before liveness may restart it.
+  startup:
+    enabled: true
+    httpGet:
+      path: /api/actuator/health/liveness
+      port: http
+    periodSeconds: 5
+    failureThreshold: 30
   # The backend lives under /api (server.servlet.context-path in application.yml),
   # so actuator is at /api/actuator/health/*.
   readiness:
@@ -59,7 +65,7 @@ probes:
     httpGet:
       path: /api/actuator/health/readiness
       port: http
-    initialDelaySeconds: 30
+    initialDelaySeconds: 0
     periodSeconds: 10
     failureThreshold: 6
   liveness:
@@ -67,7 +73,7 @@ probes:
     httpGet:
       path: /api/actuator/health/liveness
       port: http
-    initialDelaySeconds: 60
+    initialDelaySeconds: 0
     periodSeconds: 15
     failureThreshold: 3
 
@@ -82,6 +88,10 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 # Ingress: single host l1-copilot.local, path routing on port 80. It is managed by
 # infra/scripts/setup-app-ingress.sh --project l1-copilot, so it stays disabled here

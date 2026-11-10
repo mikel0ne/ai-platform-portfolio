@@ -16,8 +16,6 @@
 #   - Always RollingUpdate (no in-memory state)
 # =============================================================================
 
-namespace: default   # your project's namespace
-
 image:
   repository: my-frontend
   tag: "1.0.0"
@@ -70,6 +68,10 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: false   # nginx:alpine runs as root; use nginx-unprivileged to set true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 # Ingress: the frontend usually serves "/" and the backend "/api". Both can share
 # the backend's Ingress host through ingressExtraPaths, or the frontend can enable

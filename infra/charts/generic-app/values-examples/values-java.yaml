@@ -8,8 +8,6 @@
 #     --set image.tag=1.0.0
 # =============================================================================
 
-namespace: default   # your project's namespace
-
 image:
   repository: my-backend   # image built locally or pushed to a registry
   tag: "1.0.0"
@@ -77,6 +75,10 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 # Ingress: uncomment and adjust when external access is needed
 # ingress:

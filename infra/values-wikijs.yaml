@@ -13,8 +13,6 @@
 # wiki/scripts/setup-wiki-db.sh). No PVC of its own.
 # =============================================================================
 
-namespace: wiki
-
 image:
   repository: requarks/wiki
   tag: "2"
@@ -88,6 +86,8 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: false
+  seccompProfile:
+    type: RuntimeDefault
 
 # The chart itself renders the Ingress (single Service, no backend/frontend
 # convention): setup-app-ingress.sh is not used for this project.
