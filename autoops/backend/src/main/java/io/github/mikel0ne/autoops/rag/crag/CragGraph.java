@@ -9,9 +9,9 @@ import io.github.mikel0ne.autoops.rag.crag.llm.QueryVariantGenerator;
 import io.github.mikel0ne.autoops.rag.crag.nodes.ExpandNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.GradeNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.MultiQueryNode;
-import io.github.mikel0ne.autoops.rag.crag.nodes.RerankNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RetrieveNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RewriteNode;
+import io.github.mikel0ne.autoops.rag.crag.nodes.TopKNode;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
@@ -69,15 +69,15 @@ public class CragGraph {
             return new StateGraph<>(CragState::new)
                     .addNode("multiQuery", node_async(multiQuery))
                     .addNode("retrieve", node_async(new RetrieveNode(retriever)))
-                    .addNode("rerank", node_async(new RerankNode()))
+                    .addNode("topK", node_async(new TopKNode()))
                     .addNode("grade", node_async(grade))
                     .addNode("expand", node_async(new ExpandNode(retriever)))
                     .addNode("rewrite", node_async(rewrite))
 
                     .addEdge(START, "multiQuery")
-                    .addEdge("multiQuery", "rerank")
-                    .addEdge("retrieve", "rerank")
-                    .addEdge("rerank", "grade")
+                    .addEdge("multiQuery", "topK")
+                    .addEdge("retrieve", "topK")
+                    .addEdge("topK", "grade")
 
                     // The iteration cap lives on the edge, which guarantees termination whatever the grader says.
                     .addConditionalEdges("grade",

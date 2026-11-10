@@ -13,12 +13,8 @@ final class DocChunkDedup {
 
     static List<DocChunk> merge(List<DocChunk> earlier, List<DocChunk> fresh) {
         Map<String, DocChunk> byKey = new LinkedHashMap<>();
-        earlier.forEach(c -> byKey.put(sectionKey(c), c));
-        fresh.forEach(c -> byKey.put(sectionKey(c), c));
+        earlier.forEach(c -> byKey.put(c.contentKey(), c));
+        fresh.forEach(c -> byKey.put(c.contentKey(), c));
         return List.copyOf(byKey.values());
-    }
-
-    private static String sectionKey(DocChunk c) {
-        return c.source() + "" + c.section() + "" + c.text();
     }
 }
