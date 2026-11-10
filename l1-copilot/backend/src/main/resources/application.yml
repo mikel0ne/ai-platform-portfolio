@@ -1,8 +1,9 @@
 spring:
   application:
     name: l1-copilot-backend
+  # Only when nothing else is active: Kubernetes sets SPRING_PROFILES_ACTIVE=prod.
   profiles:
-    active: dev
+    default: dev
   datasource:
     driver-class-name: org.postgresql.Driver
     username: ${SPRING_DATASOURCE_USERNAME:appuser}
@@ -33,7 +34,7 @@ logging:
   level:
     root: INFO
     io.github.mikel0ne.l1copilot: DEBUG
-    dev.langchain4j: DEBUG
+    dev.langchain4j: INFO
 
 # API key from the environment: GEMINI_API_KEY (free at https://aistudio.google.com/app/apikey).
 langchain4j:
