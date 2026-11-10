@@ -15,19 +15,6 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class GitHubGatewayTest {
 
     @Test
-    void latestCommitSha_reads_the_branch_sha() {
-        RestClient.Builder builder = RestClient.builder().baseUrl("https://api.github.com");
-        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
-        server.expect(requestTo("https://api.github.com/repos/org/repo/commits/main"))
-                .andRespond(withSuccess("{\"sha\":\"abc123\"}", MediaType.APPLICATION_JSON));
-
-        GitHubGateway gateway = new GitHubGateway(builder.build());
-
-        assertThat(gateway.latestCommitSha("org", "repo", "main")).isEqualTo("abc123");
-        server.verify();
-    }
-
-    @Test
     void defaultBranch_reads_the_repo_default_branch() {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://api.github.com");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

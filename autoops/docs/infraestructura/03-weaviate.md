@@ -69,7 +69,6 @@ El backend recibe la conexión por el ConfigMap del chart (`infra/values-autoops
 ```
 AUTOOPS_WEAVIATE_HOST=weaviate.infra.svc.cluster.local
 AUTOOPS_WEAVIATE_PORT=8080
-AUTOOPS_WEAVIATE_GRPC_PORT=50051
 AUTOOPS_WEAVIATE_CLASS_NAME=AutoopsDocChunk
 ```
 

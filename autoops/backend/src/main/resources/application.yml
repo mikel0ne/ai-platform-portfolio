@@ -41,7 +41,6 @@ autoops:
     scheme: http
     host: localhost
     port: 8088
-    grpc-port: 50051
     class-name: DocChunk
   loki:
     scheme: http

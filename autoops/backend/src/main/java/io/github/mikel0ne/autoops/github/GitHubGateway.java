@@ -28,17 +28,9 @@ public class GitHubGateway {
         return info == null ? null : info.defaultBranch();
     }
 
-    public String latestCommitSha(String owner, String repo, String branch) {
-        CommitRef ref = client.get()
-                .uri("/repos/{owner}/{repo}/commits/{branch}", owner, repo, branch)
-                .retrieve()
-                .body(CommitRef.class);
-        return ref == null ? null : ref.sha();
-    }
-
-    public List<String> markdownFiles(String owner, String repo, String sha) {
+    public List<String> markdownFiles(String owner, String repo, String ref) {
         TreeResponse tree = client.get()
-                .uri("/repos/{owner}/{repo}/git/trees/{sha}?recursive=1", owner, repo, sha)
+                .uri("/repos/{owner}/{repo}/git/trees/{ref}?recursive=1", owner, repo, ref)
                 .retrieve()
                 .body(TreeResponse.class);
         if (tree == null || tree.tree() == null) {
@@ -69,8 +61,6 @@ public class GitHubGateway {
     }
 
     record RepoInfo(@JsonProperty("default_branch") String defaultBranch) {}
-
-    record CommitRef(String sha) {}
 
     record TreeResponse(List<TreeEntry> tree) {}
 

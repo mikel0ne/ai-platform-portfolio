@@ -4,7 +4,6 @@ import io.github.mikel0ne.l1copilot.agent.SupportRouting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Verdict;
 import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
-import io.github.mikel0ne.l1copilot.domain.OrderStatus;
 import io.github.mikel0ne.l1copilot.dto.result.OrderSummary;
 import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
@@ -48,22 +47,6 @@ public class VerifyNode implements NodeAction<SupportState> {
             commitProposedFocus(state, updates);
         }
         return updates;
-    }
-
-    private boolean isCancellable(OrderSummary order) {
-        try {
-            return OrderStatus.valueOf(order.status()).isCancellable();
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
-    }
-
-    private boolean isReturnable(OrderSummary order) {
-        try {
-            return OrderStatus.valueOf(order.status()).isReturnable();
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
     }
 
     private void commitProposedFocus(SupportState state, Map<String, Object> updates) {
