@@ -81,7 +81,7 @@ cannot write anything and cannot read Secrets.
 
 Java 17 · Spring Boot 4.1 · **Spring AI 2.0 MCP Server** (Streamable HTTP) · **LangChain4j 1.16** (Gemini chat
 and embeddings) · **LangGraph4j 1.8** (CRAG subgraph) · Weaviate 1.27 + reranker-transformers · fabric8 Kubernetes
-client · Loki · Angular 17 · Helm on k3s (Rancher Desktop).
+client · Loki · Angular 22 · Helm on k3s (Rancher Desktop).
 
 ## Running it
 

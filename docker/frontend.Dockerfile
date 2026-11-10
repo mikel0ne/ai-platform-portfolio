@@ -2,7 +2,7 @@
 # docker/frontend-nginx.conf to <context>/nginx.conf before building.
 #   docker build -f docker/frontend.Dockerfile -t registry.local/<project>-frontend:<tag> ./autoops/frontend
 
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /workspace
 
 COPY package*.json ./

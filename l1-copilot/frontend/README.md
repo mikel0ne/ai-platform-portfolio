@@ -1,6 +1,6 @@
 # L1 Support Copilot (frontend)
 
-Angular 17 chat for the L1 support agent: simulated login with the demo users, chat with order/ticket cards
+Angular 22 chat for the L1 support agent: simulated login with the demo users, chat with order/ticket cards
 and confirmation buttons, ticket detail and printable return label.
 
 ## Development
