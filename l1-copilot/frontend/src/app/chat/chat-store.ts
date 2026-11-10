@@ -49,7 +49,7 @@ export class ChatStore {
       .subscribe({
         next: r => this.messages.update(m => [
           ...m,
-          { from: 'agent', text: this.stripThoughts(r.reply), intent: r.intent, at: new Date(), orders: r.orders, ordersSelectable: r.ordersSelectable, tickets: r.tickets, returns: r.returns, confirm: r.confirm },
+          { from: 'agent', text: r.reply, intent: r.intent, at: new Date(), orders: r.orders, ordersSelectable: r.ordersSelectable, tickets: r.tickets, returns: r.returns, confirm: r.confirm },
         ]),
         error: () => this.messages.update(m => [
           ...m,
@@ -68,10 +68,5 @@ export class ChatStore {
     this._conversationId = randomConversationId();
     this.messages.set([]);
     this.greet(name, formal);
-  }
-
-  /** Strips <thought>...</thought> blocks the LLM may include in its reply. */
-  private stripThoughts(text: string): string {
-    return text.replace(/\s*<thought>[\s\S]*?<\/thought>\s*/gi, '').trim();
   }
 }
