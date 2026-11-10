@@ -1,7 +1,6 @@
 package io.github.mikel0ne.autoops;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
