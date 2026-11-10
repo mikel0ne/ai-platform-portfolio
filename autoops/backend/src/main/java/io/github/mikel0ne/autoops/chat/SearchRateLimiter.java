@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.chat;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
@@ -17,6 +18,7 @@ public class SearchRateLimiter {
     private Instant windowStart;
     private int used;
 
+    @Autowired
     public SearchRateLimiter(SearchProperties props) {
         this(props.maxRequestsPerMinute(), Clock.systemUTC());
     }
