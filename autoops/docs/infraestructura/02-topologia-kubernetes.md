@@ -68,17 +68,11 @@ metadata:
     app.kubernetes.io/part-of: autoops
 rules:
   - apiGroups: [""]
-    resources: ["pods", "pods/log", "events", "services", "configmaps", "namespaces", "nodes"]
-    verbs: ["get", "list", "watch"]
+    resources: ["pods", "pods/log", "events"]
+    verbs: ["get", "list"]
   - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["batch"]
-    resources: ["jobs", "cronjobs"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses"]
-    verbs: ["get", "list", "watch"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
