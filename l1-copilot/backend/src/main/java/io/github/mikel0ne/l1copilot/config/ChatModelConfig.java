@@ -19,9 +19,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.util.StringUtils;
 
 @Configuration
-public class Config {
+public class ChatModelConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(Config.class);
+    private static final Logger log = LoggerFactory.getLogger(ChatModelConfig.class);
 
     private static final String GOOGLE_OPENAI_BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/openai/";

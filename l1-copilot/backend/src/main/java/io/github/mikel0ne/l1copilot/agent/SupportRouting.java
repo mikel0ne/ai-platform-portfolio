@@ -5,7 +5,7 @@ public final class SupportRouting {
     public static final String TO_RESOLVE_ORDER = "resolve_order";
     public static final String TO_TRACKING = "tracking";
     public static final String TO_CANCEL_CHECK = "cancel_check";
-    public static final String TO_CANCEL_EXEC = "execute";
+    public static final String TO_CANCEL_EXEC = "cancel_exec";
     public static final String TO_RETURN_CHECK = "return_check";
     public static final String TO_RETURN_EXEC = "return_exec";
     public static final String TO_SUPPORT = "support";
