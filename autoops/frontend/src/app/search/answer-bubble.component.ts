@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, Input, ChangeDetectionStrategy } from '@angular/core';
 import { MarkdownComponent } from 'ngx-markdown';
 import { Origin, SearchMessage } from '../core/models';
 
@@ -7,7 +7,6 @@ type ScoreLevel = 'top' | 'mid' | 'low';
 
 @Component({
   selector: 'app-answer-bubble',
-  standalone: true,
   imports: [CommonModule, MarkdownComponent],
   template: `
     <div class="bubble"
@@ -74,6 +73,7 @@ type ScoreLevel = 'top' | 'mid' | 'low';
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host { display: flex; flex-direction: column; }
     .bubble {

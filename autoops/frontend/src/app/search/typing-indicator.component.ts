@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 
 @Component({
   selector: 'app-typing-indicator',
@@ -8,6 +8,7 @@ import { Component } from '@angular/core';
       <span></span><span></span><span></span>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     .typing {
       align-self: flex-start;

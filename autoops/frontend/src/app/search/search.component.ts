@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { AfterViewChecked, Component, ElementRef, ViewChild, effect, inject } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, ViewChild, effect, inject, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { SearchStore } from './search-store';
 import { AnswerBubbleComponent } from './answer-bubble.component';
@@ -7,10 +6,10 @@ import { TypingIndicatorComponent } from './typing-indicator.component';
 
 @Component({
   selector: 'app-search',
-  standalone: true,
-  imports: [CommonModule, FormsModule, AnswerBubbleComponent, TypingIndicatorComponent],
+  imports: [FormsModule, AnswerBubbleComponent, TypingIndicatorComponent],
   providers: [SearchStore],
   templateUrl: './search.component.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './search.component.css',
 })
 export class SearchComponent implements AfterViewChecked {

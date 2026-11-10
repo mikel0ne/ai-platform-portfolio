@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 import { SearchStore } from './search-store';
 import { SearchResponse } from '../core/models';
 
@@ -10,7 +10,7 @@ describe('SearchStore', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [SearchStore, provideHttpClient(), provideHttpClientTesting()],
+      providers: [SearchStore, provideHttpClient(withXhr()), provideHttpClientTesting()],
     });
     store = TestBed.inject(SearchStore);
     httpMock = TestBed.inject(HttpTestingController);
