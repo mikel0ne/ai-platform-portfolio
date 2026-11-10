@@ -5,7 +5,7 @@ public class OrderNotFoundException extends RuntimeException {
     private final Long orderId;
 
     public OrderNotFoundException(Long orderId) {
-        super("Pedido " + orderId + " no encontrado para este usuario");
+        super("Order " + orderId + " not found for this user");
         this.orderId = orderId;
     }
 

@@ -30,21 +30,21 @@ public class Config {
     @Primary
     @Deterministic
     public ChatModel chatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("determinista", properties.temperatures().deterministic(),
+        return buildModel("deterministic", properties.temperatures().deterministic(),
                 properties.thinkingLevels().deterministic(), properties, cacheProperties, cache);
     }
 
     @Bean
     @TicketModel
     public ChatModel ticketChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("tickets", properties.temperatures().ticket(),
+        return buildModel("ticket", properties.temperatures().ticket(),
                 properties.thinkingLevels().ticket(), properties, cacheProperties, cache);
     }
 
     @Bean
     @ResponseModel
     public ChatModel responseChatModel(LangChain4jProperties properties, CacheProperties cacheProperties, FileCacheManager cache) {
-        return buildModel("respuesta", properties.temperatures().response(),
+        return buildModel("response", properties.temperatures().response(),
                 properties.thinkingLevels().response(), properties, cacheProperties, cache);
     }
 
@@ -80,10 +80,10 @@ public class Config {
                     .build();
         } else {
             GeminiThinkingLevel level = parseThinkingLevel(thinkingLevel);
-            log.info("Inicializando Google AI Studio Gemini ChatModel [{}] "
-                    + "(modelo: {}, temperatura: {}, thinking: {}, timeout: {}s, reintentos: {})",
+            log.info("Initialising Google AI Studio Gemini [{}] "
+                    + "(model: {}, temperature: {}, thinking: {}, timeout: {}s, retries: {})",
                     role, modelName, temperature,
-                    level != null ? level : "NONE (desactivado)",
+                    level != null ? level : "NONE",
                     properties.timeout().toSeconds(), properties.maxRetries());
             var builder = GoogleAiGeminiChatModel.builder()
                     .apiKey(properties.apiKey())

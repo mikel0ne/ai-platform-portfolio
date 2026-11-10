@@ -80,7 +80,7 @@ public class ConversationService {
             throw new ConversationException("Error processing the message", e);
         }
 
-        log.debug("Turno completado: intent={} resolved={}", state.intent(), state.resolved());
+        log.debug("Turn completed: intent={} resolved={}", state.intent(), state.resolved());
 
         List<OrderCardDto> orders = state.orderCards();
         List<TicketCardDto> tickets = state.ticketCards();
@@ -155,7 +155,7 @@ public class ConversationService {
 
     public static class LlmUnavailableException extends RuntimeException {
         public LlmUnavailableException(Throwable cause) {
-            super("El modelo de lenguaje no está disponible", cause);
+            super("The language model is unavailable", cause);
         }
     }
 

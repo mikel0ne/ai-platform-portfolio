@@ -52,13 +52,13 @@ class RouterEvalTest {
         }
 
         double accuracy = (double) hits / cases.size();
-        report.append(String.format("Precisión: %d/%d = %.0f%%%n", hits, cases.size(), accuracy * 100));
+        report.append(String.format("Accuracy: %d/%d = %.0f%%%n", hits, cases.size(), accuracy * 100));
         System.out.println(report);
 
         double min = Double.parseDouble(
                 System.getenv().getOrDefault("ROUTER_EVAL_MIN", String.valueOf(DEFAULT_MIN_ACCURACY)));
         assertThat(accuracy)
-                .as("Precisión del router sobre el golden-set (umbral %.0f%%)", min * 100)
+                .as("Router accuracy on the golden set (threshold %.0f%%)", min * 100)
                 .isGreaterThanOrEqualTo(min);
     }
 }
