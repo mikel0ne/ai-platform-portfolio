@@ -25,6 +25,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,20 @@ import java.util.Map;
 public class WeaviateGateway implements DocRetriever {
 
     private static final Logger log = LoggerFactory.getLogger(WeaviateGateway.class);
+
+    static final String TEXT = "text";
+    private static final String TITLE = "title";
+    private static final String SOURCE = "source";
+    private static final String SECTION = "section";
+    private static final String URL = "url";
+    private static final String ORIGIN = "origin";
+    private static final String DOC_ID = "docId";
+    private static final String HASH = "hash";
+    private static final String ORDER = "order";
+    private static final String SECTION_CHARS = "sectionChars";
+
+    private static final List<String> RESULT_PROPERTIES =
+            List.of(TEXT, TITLE, SOURCE, SECTION, URL, ORIGIN, DOC_ID, SECTION_CHARS, ORDER);
 
     private final WeaviateClient client;
     // Gemini embeds documents and queries with different task types (RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY).
@@ -65,20 +80,24 @@ public class WeaviateGateway implements DocRetriever {
                 .vectorizer("none")
                 .moduleConfig(Map.of("reranker-transformers", Map.of()))
                 .properties(List.of(
-                        Property.builder().name("text").dataType(List.of("text")).build(),
-                        Property.builder().name("title").dataType(List.of("text")).build(),
-                        Property.builder().name("source").dataType(List.of("text")).tokenization("field").build(),
-                        Property.builder().name("section").dataType(List.of("text")).build(),
-                        Property.builder().name("url").dataType(List.of("text")).tokenization("field").build(),
-                        Property.builder().name("origin").dataType(List.of("text")).tokenization("field").build(),
-                        Property.builder().name("docId").dataType(List.of("text")).tokenization("field").build(),
-                        Property.builder().name("hash").dataType(List.of("text")).tokenization("field").build(),
-                        Property.builder().name("order").dataType(List.of("int")).build(),
-                        Property.builder().name("sectionChars").dataType(List.of("int")).build()))
+                        textProperty(TEXT, null),
+                        textProperty(TITLE, null),
+                        textProperty(SOURCE, "field"),
+                        textProperty(SECTION, null),
+                        textProperty(URL, "field"),
+                        textProperty(ORIGIN, "field"),
+                        textProperty(DOC_ID, "field"),
+                        textProperty(HASH, "field"),
+                        Property.builder().name(ORDER).dataType(List.of("int")).build(),
+                        Property.builder().name(SECTION_CHARS).dataType(List.of("int")).build()))
                 .build();
         Result<Boolean> created = client.schema().classCreator().withClass(clazz).run();
         failOnError("creating class " + props.className(), created);
         log.info("Weaviate schema created: class {}", props.className());
+    }
+
+    private static Property textProperty(String name, String tokenization) {
+        return Property.builder().name(name).dataType(List.of("text")).tokenization(tokenization).build();
     }
 
     public void dropSchema() {
@@ -123,16 +142,16 @@ public class WeaviateGateway implements DocRetriever {
 
     private void insert(Chunk c, Embedding embedding) {
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("text", c.text());
-        properties.put("title", c.title());
-        properties.put("source", c.source());
-        properties.put("section", c.section());
-        properties.put("url", c.url());
-        properties.put("origin", c.origin());
-        properties.put("docId", c.docId());
-        properties.put("hash", c.hash());
-        properties.put("order", c.order());
-        properties.put("sectionChars", c.sectionChars());
+        properties.put(TEXT, c.text());
+        properties.put(TITLE, c.title());
+        properties.put(SOURCE, c.source());
+        properties.put(SECTION, c.section());
+        properties.put(URL, c.url());
+        properties.put(ORIGIN, c.origin());
+        properties.put(DOC_ID, c.docId());
+        properties.put(HASH, c.hash());
+        properties.put(ORDER, c.order());
+        properties.put(SECTION_CHARS, c.sectionChars());
 
         WeaviateObject obj = WeaviateObject.builder()
                 .className(props.className())
@@ -161,26 +180,11 @@ public class WeaviateGateway implements DocRetriever {
                 .alpha(crag.alpha().floatValue())
                 .build();
 
-        Field additional = Field.builder().name("_additional").fields(
-                Field.builder().name("score").build(),
-                Field.builder().name("rerank(property: \"texto\" query: \"" + escape(query) + "\") { score }").build()
-        ).build();
-
         Result<GraphQLResponse> result = client.graphQL().get()
                 .withClassName(props.className())
                 .withHybrid(hybrid)
                 .withLimit(k)
-                .withFields(
-                        Field.builder().name("text").build(),
-                        Field.builder().name("title").build(),
-                        Field.builder().name("source").build(),
-                        Field.builder().name("section").build(),
-                        Field.builder().name("url").build(),
-                        Field.builder().name("origin").build(),
-                        Field.builder().name("docId").build(),
-                        Field.builder().name("sectionChars").build(),
-                        Field.builder().name("order").build(),
-                        additional)
+                .withFields(searchFields(query))
                 .run();
         failOnError("searching Weaviate", result);
 
@@ -190,12 +194,12 @@ public class WeaviateGateway implements DocRetriever {
     @Override
     public List<DocChunk> fullSection(String docId, String section) {
         WhereFilter filter = WhereFilter.builder()
-                .path("docId")
+                .path(DOC_ID)
                 .operator(Operator.Equal)
                 .valueText(docId)
                 .build();
         SortArgument byOrder = SortArgument.builder()
-                .path(new String[]{"order"})
+                .path(new String[]{ORDER})
                 .order(SortOrder.asc)
                 .build();
 
@@ -203,16 +207,7 @@ public class WeaviateGateway implements DocRetriever {
                 .withClassName(props.className())
                 .withWhere(WhereArgument.builder().filter(filter).build())
                 .withSort(byOrder)
-                .withFields(
-                        Field.builder().name("text").build(),
-                        Field.builder().name("title").build(),
-                        Field.builder().name("source").build(),
-                        Field.builder().name("section").build(),
-                        Field.builder().name("url").build(),
-                        Field.builder().name("origin").build(),
-                        Field.builder().name("docId").build(),
-                        Field.builder().name("sectionChars").build(),
-                        Field.builder().name("order").build())
+                .withFields(resultFields())
                 .run();
         failOnError("fetching the section of " + docId, result);
 
@@ -226,15 +221,15 @@ public class WeaviateGateway implements DocRetriever {
         WhereFilter filter = WhereFilter.builder()
                 .operator(Operator.And)
                 .operands(new WhereFilter[]{
-                        WhereFilter.builder().path("docId").operator(Operator.Equal).valueText(docId).build(),
-                        WhereFilter.builder().path("order").operator(Operator.GreaterThanEqual)
+                        WhereFilter.builder().path(DOC_ID).operator(Operator.Equal).valueText(docId).build(),
+                        WhereFilter.builder().path(ORDER).operator(Operator.GreaterThanEqual)
                                 .valueInt(order - radius).build(),
-                        WhereFilter.builder().path("order").operator(Operator.LessThanEqual)
+                        WhereFilter.builder().path(ORDER).operator(Operator.LessThanEqual)
                                 .valueInt(order + radius).build()
                 })
                 .build();
         SortArgument byOrder = SortArgument.builder()
-                .path(new String[]{"order"})
+                .path(new String[]{ORDER})
                 .order(SortOrder.asc)
                 .build();
 
@@ -242,22 +237,31 @@ public class WeaviateGateway implements DocRetriever {
                 .withClassName(props.className())
                 .withWhere(WhereArgument.builder().filter(filter).build())
                 .withSort(byOrder)
-                .withFields(
-                        Field.builder().name("text").build(),
-                        Field.builder().name("title").build(),
-                        Field.builder().name("source").build(),
-                        Field.builder().name("section").build(),
-                        Field.builder().name("url").build(),
-                        Field.builder().name("origin").build(),
-                        Field.builder().name("docId").build(),
-                        Field.builder().name("sectionChars").build(),
-                        Field.builder().name("order").build())
+                .withFields(resultFields())
                 .run();
         failOnError("fetching neighbours of " + docId, result);
 
         return parse(result.getResult()).stream()
                 .filter(c -> c.section().equals(section))
                 .toList();
+    }
+
+    private static Field[] resultFields() {
+        return RESULT_PROPERTIES.stream().map(name -> Field.builder().name(name).build()).toArray(Field[]::new);
+    }
+
+    static Field[] searchFields(String query) {
+        Field additional = Field.builder().name("_additional").fields(
+                Field.builder().name("score").build(),
+                Field.builder().name(rerankExpression(query)).build()
+        ).build();
+        Field[] fields = Arrays.copyOf(resultFields(), RESULT_PROPERTIES.size() + 1);
+        fields[RESULT_PROPERTIES.size()] = additional;
+        return fields;
+    }
+
+    static String rerankExpression(String query) {
+        return "rerank(property: \"" + TEXT + "\" query: \"" + escape(query) + "\") { score }";
     }
 
     @SuppressWarnings("unchecked")
@@ -279,15 +283,15 @@ public class WeaviateGateway implements DocRetriever {
             if (!(row instanceof Map<?, ?> obj)) {
                 continue;
             }
-            String text = str(obj.get("text"));
-            String title = str(obj.get("title"));
-            String source = str(obj.get("source"));
-            String section = str(obj.get("section"));
-            String url = str(obj.get("url"));
-            String origin = str(obj.get("origin"));
-            String docId = str(obj.get("docId"));
-            int sectionChars = intOf(obj.get("sectionChars"));
-            int order = intOf(obj.get("order"));
+            String text = str(obj.get(TEXT));
+            String title = str(obj.get(TITLE));
+            String source = str(obj.get(SOURCE));
+            String section = str(obj.get(SECTION));
+            String url = str(obj.get(URL));
+            String origin = str(obj.get(ORIGIN));
+            String docId = str(obj.get(DOC_ID));
+            int sectionChars = intOf(obj.get(SECTION_CHARS));
+            int order = intOf(obj.get(ORDER));
             double score = scoreOf((Map<String, Object>) obj.get("_additional"));
             chunks.add(new DocChunk(text, title, source, section, url, origin, score, docId, sectionChars, order));
         }
@@ -353,7 +357,7 @@ public class WeaviateGateway implements DocRetriever {
     }
 
     private static String escape(String s) {
-        return s.replace("\\", "\\\\").replace("\"", "\\\"");
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replaceAll("\\s+", " ");
     }
 
     private static void failOnError(String action, Result<?> result) {
