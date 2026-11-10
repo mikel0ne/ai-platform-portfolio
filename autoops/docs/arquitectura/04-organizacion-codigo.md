@@ -135,8 +135,9 @@ io.github.mikel0ne.autoops
 │   ├── CacheProperties.java  CacheInitializer.java  PromptLoader.java
 ├── cache/                     # caché de respuestas LLM (desarrollo, evitar quemar cuota)
 │   ├── CachingChatModel.java  ChatModelCachePostProcessor.java  FileCacheManager.java
-└── controller/
-    └── ApiExceptionHandler.java     # RFC 7807
+└── error/
+    ├── ApiExceptionHandler.java     # RFC 7807 sobre ResponseEntityExceptionHandler
+    └── NotFoundException.java  InvalidRequestException.java
 
 src/main/resources/
 ├── application.yml                  # + application-k8s.yml

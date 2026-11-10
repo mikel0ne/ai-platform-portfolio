@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.k8s;
 
+import io.github.mikel0ne.autoops.error.NotFoundException;
 import io.github.mikel0ne.autoops.k8s.model.PodDescription;
 import io.github.mikel0ne.autoops.k8s.model.PodDiagnosis;
 import io.github.mikel0ne.autoops.k8s.model.PodStatus;
@@ -44,7 +45,7 @@ public class K8sInspectionService {
     public PodDiagnosis diagnose(String namespace, String name) {
         Pod pod = client().pods().inNamespace(namespace).withName(name).get();
         if (pod == null) {
-            throw new IllegalArgumentException("Pod not found: " + namespace + "/" + name);
+            throw new NotFoundException("Pod not found: " + namespace + "/" + name);
         }
         List<PodDiagnosis.EventInfo> events = events(namespace, name);
         String logs = safeLogs(namespace, name, null, DOSSIER_LOG_LINES, false);
@@ -123,7 +124,7 @@ public class K8sInspectionService {
     public PodDescription describe(String namespace, String name) {
         Pod pod = client().pods().inNamespace(namespace).withName(name).get();
         if (pod == null) {
-            throw new IllegalArgumentException("Pod not found: " + namespace + "/" + name);
+            throw new NotFoundException("Pod not found: " + namespace + "/" + name);
         }
         return toDescription(pod);
     }

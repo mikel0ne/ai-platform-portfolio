@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.rag.source;
 
+import io.github.mikel0ne.autoops.error.InvalidRequestException;
 import io.github.mikel0ne.autoops.github.GitHubGateway;
 import io.github.mikel0ne.autoops.rag.source.GitHubMarkdownSource.GitRepo;
 import org.junit.jupiter.api.Test;
@@ -52,7 +53,7 @@ class GitHubMarkdownSourceTest {
     @Test
     void url_without_recognisable_owner_repo_throws() {
         assertThatThrownBy(() -> GitHubMarkdownSource.ownerRepo("repo-sin-barras"))
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidRequestException.class);
     }
 
     @Test
