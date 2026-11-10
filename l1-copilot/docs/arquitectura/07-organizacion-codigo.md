@@ -9,7 +9,7 @@ El backend aporta:
 
 - Spring Boot **3.5.15** + Java 17 (`pom.xml`).
 - Integración Gemini/Google AI Studio (`langchain4j-google-ai-gemini`) y un cliente
-  OpenAI-compatible (`langchain4j-open-ai`) para Gemma; beans `ChatModel` en `config/Config.java`,
+  OpenAI-compatible (`langchain4j-open-ai`) para Gemma; beans `ChatModel` en `config/ChatModelConfig.java`,
   propiedades `langchain4j.gemini.*`.
 - Caché de respuestas en fichero (`cache/FileCacheManager` + `CachingChatModel`), Swagger, Actuator.
 
