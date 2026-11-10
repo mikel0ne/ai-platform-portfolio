@@ -13,15 +13,6 @@ spring:
     console:
       enabled: true
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,env
-  endpoint:
-    env:
-      show-values: always
-
 copilot:
   turn-log:
     db:

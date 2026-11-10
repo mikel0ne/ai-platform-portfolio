@@ -7,6 +7,7 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.ContextConsumer;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -36,6 +37,7 @@ class ProfileConfigTest {
             assertThat(env.getProperty("spring.datasource.driver-class-name")).isEqualTo("org.h2.Driver");
             assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("true");
             assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("false");
+            assertActuatorHidesEnvironment(env);
         });
     }
 
@@ -50,6 +52,7 @@ class ProfileConfigTest {
             assertThat(env.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("none");
             assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("true");
             assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("true");
+            assertActuatorHidesEnvironment(env);
         });
     }
 
@@ -65,7 +68,12 @@ class ProfileConfigTest {
             assertThat(env.getProperty("spring.jpa.open-in-view")).isEqualTo("false");
             assertThat(env.getProperty("copilot.turn-log.file.enabled")).isEqualTo("false");
             assertThat(env.getProperty("copilot.turn-log.db.enabled")).isEqualTo("true");
-            assertThat(env.getProperty("management.endpoint.env.show-values")).isNull();
+            assertActuatorHidesEnvironment(env);
         });
+    }
+
+    private static void assertActuatorHidesEnvironment(Environment env) {
+        assertThat(env.getProperty("management.endpoints.web.exposure.include")).isEqualTo("health,info");
+        assertThat(env.getProperty("management.endpoint.env.show-values")).isNull();
     }
 }
