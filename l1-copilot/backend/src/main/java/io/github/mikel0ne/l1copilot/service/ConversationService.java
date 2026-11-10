@@ -39,7 +39,7 @@ public class ConversationService {
                 .orElse(Treatment.TU);
 
         RunnableConfig config = RunnableConfig.builder()
-                .threadId(conversationId)
+                .threadId(threadId(userId, conversationId))
                 .build();
 
         Map<String, Object> input = new HashMap<>();
@@ -123,6 +123,11 @@ public class ConversationService {
 
         return new ChatResult(reply, state.intent().name(),
                 state.resolved(), orders, ordersSelectable, tickets, returns, confirm);
+    }
+
+    // The conversation id comes from the client, so the checkpoint is keyed by user too.
+    static String threadId(String userId, String conversationId) {
+        return userId + ":" + conversationId;
     }
 
     private static ConfirmActionDto cancelConfirmation(long orderId, Treatment treatment) {

@@ -28,7 +28,7 @@ prompt) and every irreversible action needs an explicit confirmation from the us
 
 ## Agent graph
 
-Every HTTP turn runs the graph from start to end; the `MemorySaver` checkpointer, keyed by conversation id,
+Every HTTP turn runs the graph from start to end; the `MemorySaver` checkpointer, keyed by user and conversation id,
 carries the state into the next turn.
 
 ```mermaid
