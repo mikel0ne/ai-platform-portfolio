@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
+import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.SupportRouting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
@@ -58,35 +59,35 @@ public class SupportNode implements NodeAction<SupportState> {
                         : "CLARIFY: no está claro si el usuario quiere abrir una incidencia. "
                           + "Pregunta de forma directa y breve sin asumir nada.";
                 return Map.of(
-                        "ticketDraft", ticketDraft,
-                        "toolResult", clarifyResult);
+                        SupportState.TICKET_DRAFT, ticketDraft,
+                        SupportState.TOOL_RESULT, clarifyResult);
             }
 
             return Map.of(
-                    "ticketDraft", ticketDraft,
-                    "awaiting", Awaiting.TICKET_INFO.name(),
-                    "toolResult", "El usuario quiere CONFIRMAR que se abra una incidencia. Confirma "
+                    SupportState.TICKET_DRAFT, ticketDraft,
+                    SupportState.AWAITING, Awaiting.TICKET_INFO.name(),
+                    SupportState.TOOL_RESULT, "El usuario quiere CONFIRMAR que se abra una incidencia. Confirma "
                             + "que vas a gestionarlo y pídele que describa con detalle el problema "
                             + "para poder registrar la incidencia correctamente.");
         }
 
         if (awaiting == Awaiting.TICKET_CONFIRM) {
-            if ("NO".equals(state.confirmation())) {
+            if (state.confirmation() == Confirmation.NO) {
                 Map<String, Object> declined = new HashMap<>();
-                declined.put("awaiting", Awaiting.NOTHING.name());
-                declined.put("ticketDraft", AgentState.MARK_FOR_REMOVAL);
-                declined.put("resolved", true);
-                declined.put("toolResult", "El usuario NO quiere abrir la incidencia. Reconduce con "
+                declined.put(SupportState.AWAITING, Awaiting.NOTHING.name());
+                declined.put(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
+                declined.put(SupportState.RESOLVED, true);
+                declined.put(SupportState.TOOL_RESULT, "El usuario NO quiere abrir la incidencia. Reconduce con "
                         + "naturalidad hacia en qué más puedes ayudarle, sin abrir nada.");
                 return declined;
             }
 
-            boolean briefConfirmation = "YES".equals(state.confirmation())
+            boolean briefConfirmation = state.confirmation() == Confirmation.YES
                     && message.length() < MIN_DETAIL_LENGTH;
             if (briefConfirmation) {
                 return Map.of(
-                        "awaiting", Awaiting.TICKET_INFO.name(),
-                        "toolResult", "El usuario confirma que quiere abrir la incidencia. Pídele que "
+                        SupportState.AWAITING, Awaiting.TICKET_INFO.name(),
+                        SupportState.TOOL_RESULT, "El usuario confirma que quiere abrir la incidencia. Pídele que "
                                 + "describa con detalle qué ha ocurrido para poder abrirla. No "
                                 + "inventes datos.");
             }
@@ -103,9 +104,9 @@ public class SupportNode implements NodeAction<SupportState> {
     private Map<String, Object> collectOrCreate(SupportState state, String rawDescription) {
         if (rawDescription.strip().length() < MIN_DETAIL_LENGTH) {
             return Map.of(
-                    "ticketDraft", rawDescription,
-                    "awaiting", Awaiting.TICKET_INFO.name(),
-                    "toolResult", "La descripción del problema sigue siendo demasiado breve. "
+                    SupportState.TICKET_DRAFT, rawDescription,
+                    SupportState.AWAITING, Awaiting.TICKET_INFO.name(),
+                    SupportState.TOOL_RESULT, "La descripción del problema sigue siendo demasiado breve. "
                             + "Hay que pedir al usuario más detalle para poder abrir la incidencia.");
         }
         return createTicket(state, rawDescription);
@@ -125,24 +126,20 @@ public class SupportNode implements NodeAction<SupportState> {
         }
 
         String code = TicketCardDto.code(ticket.ticketId());
-        Map<String, Object> card = new HashMap<>();
-        card.put("id", ticket.ticketId());
-        card.put("code", code);
-        card.put("title", ticket.subject());
-        card.put("status", ticket.status());
-        card.put("createdAt", ticket.createdAt().toString());
+        TicketCardDto card = new TicketCardDto(ticket.ticketId(), code, ticket.subject(), ticket.status(),
+                ticket.createdAt().toString());
 
-        updates.put("toolResult", String.format(
+        updates.put(SupportState.TOOL_RESULT, String.format(
                 "Ticket de soporte %s creado ('%s', estado %s). Un agente humano contactará con el "
                 + "usuario. La interfaz muestra debajo un enlace al ticket que el usuario puede "
                 + "abrir para ver el detalle.", code, ticket.subject(), ticket.status()));
-        updates.put("ticketCards", List.of(card));
-        updates.put("resolved", true);
-        updates.put("awaiting", Awaiting.NOTHING.name());
-        updates.put("ticketDraft", "");
+        updates.put(SupportState.TICKET_CARDS, List.of(card));
+        updates.put(SupportState.RESOLVED, true);
+        updates.put(SupportState.AWAITING, Awaiting.NOTHING.name());
+        updates.put(SupportState.TICKET_DRAFT, "");
 
-        updates.put("orderId", AgentState.MARK_FOR_REMOVAL);
-        updates.put("candidates", AgentState.MARK_FOR_REMOVAL);
+        updates.put(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        updates.put(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
         return updates;
     }
 

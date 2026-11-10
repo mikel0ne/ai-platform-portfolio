@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,14 +28,14 @@ public class TicketsNode implements NodeAction<SupportState> {
 
         if (tickets.isEmpty()) {
             return Map.of(
-                    "toolResult", "El usuario no tiene ninguna incidencia (ticket de soporte) abierta. "
+                    SupportState.TOOL_RESULT, "El usuario no tiene ninguna incidencia (ticket de soporte) abierta. "
                             + "Si tiene un problema concreto, se le puede ofrecer abrir una nueva incidencia "
                             + "para que la revise un agente humano.",
-                    "resolved", true,
-                    "awaiting", Awaiting.NOTHING.name());
+                    SupportState.RESOLVED, true,
+                    SupportState.AWAITING, Awaiting.NOTHING.name());
         }
 
-        List<Map<String, Object>> cards = tickets.stream()
+        List<TicketCardDto> cards = tickets.stream()
                 .map(TicketsNode::card)
                 .toList();
 
@@ -46,21 +45,17 @@ public class TicketsNode implements NodeAction<SupportState> {
                 .collect(Collectors.joining("; "));
 
         return Map.of(
-                "toolResult", "Incidencias del usuario (de la más reciente a la más antigua): " + summary
+                SupportState.TOOL_RESULT,
+                "Incidencias del usuario (de la más reciente a la más antigua): " + summary
                         + ". Estas incidencias ya están en manos del equipo humano de soporte: solo se puede "
                         + "informar de su estado actual, no acelerarlas, cerrarlas ni gestionarlas.",
-                "ticketCards", cards,
-                "resolved", true,
-                "awaiting", Awaiting.NOTHING.name());
+                SupportState.TICKET_CARDS, cards,
+                SupportState.RESOLVED, true,
+                SupportState.AWAITING, Awaiting.NOTHING.name());
     }
 
-    private static Map<String, Object> card(TicketSummary t) {
-        Map<String, Object> card = new HashMap<>();
-        card.put("id", t.ticketId());
-        card.put("code", TicketCardDto.code(t.ticketId()));
-        card.put("title", t.subject());
-        card.put("status", t.status());
-        card.put("createdAt", t.createdAt().toString());
-        return card;
+    private static TicketCardDto card(TicketSummary t) {
+        return new TicketCardDto(t.ticketId(), TicketCardDto.code(t.ticketId()), t.subject(), t.status(),
+                t.createdAt().toString());
     }
 }

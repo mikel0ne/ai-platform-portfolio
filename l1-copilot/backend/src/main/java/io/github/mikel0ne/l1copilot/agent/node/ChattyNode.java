@@ -18,7 +18,7 @@ public class ChattyNode implements NodeAction<SupportState> {
         log.debug("---CHATTY--- digression={}", digression);
 
         return Map.of(
-                "toolResult", "El usuario ha hecho un comentario de charla informal (saludo, broma, "
+                SupportState.TOOL_RESULT, "El usuario ha hecho un comentario de charla informal (saludo, broma, "
                         + "pregunta personal...), NO una gestión de la tienda. PRIORIDAD: responder "
                         + "de verdad a lo que ha dicho y seguir el hilo de la conversación, breve, "
                         + "cordial y natural, como en una conversación normal. NO inventes datos "
@@ -29,6 +29,6 @@ public class ChattyNode implements NodeAction<SupportState> {
                         + "insultos ni de opinar o debatir sobre temas polémicos (política, "
                         + "religión, sexo...); si el usuario los saca, declínalo con tacto y "
                         + "reconduce con amabilidad. No afecta a ninguna gestión.",
-                "resolved", !digression);
+                SupportState.RESOLVED, !digression);
     }
 }
