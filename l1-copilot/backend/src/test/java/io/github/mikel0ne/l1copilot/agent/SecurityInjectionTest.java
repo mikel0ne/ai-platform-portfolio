@@ -10,6 +10,7 @@ import io.github.mikel0ne.l1copilot.domain.OrderStatus;
 import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
 import io.github.mikel0ne.l1copilot.service.ConversationService;
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 // Own in-memory database: these scenarios mutate orders that the flow tests also use.
@@ -123,6 +126,22 @@ class SecurityInjectionTest {
                 .isEqualTo(OrderStatus.CREATED);
         assertThat(turn.confirm()).isNotNull();
         assertThat(turn.confirm().orderId()).isEqualTo(200L);
+    }
+
+    @Test
+    @DisplayName("Conversation hijack: another user reusing a conversation id does not see its history")
+    void conversationIdIsScopedToTheUser() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("CANCEL", 200L, "NONE", "NONE"))
+                .thenReturn(new RouterDecision("OTHER", null, "NONE", "NONE"));
+
+        conversationService.chat("u-002", "sec-shared-id", "quiero cancelar el 200");
+        conversationService.chat("u-001", "sec-shared-id", "¿de qué estábamos hablando?");
+
+        ArgumentCaptor<String> history = ArgumentCaptor.forClass(String.class);
+        verify(responder, atLeastOnce()).write(any(), any(), any(), any(), anyBoolean(), any(), any(), anyBoolean(),
+                history.capture());
+        assertThat(history.getValue()).doesNotContain("cancelar el 200");
     }
 
     @Test
