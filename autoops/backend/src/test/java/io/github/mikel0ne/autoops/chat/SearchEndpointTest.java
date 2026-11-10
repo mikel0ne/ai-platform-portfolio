@@ -43,7 +43,8 @@ class SearchEndpointTest {
 
         mockMvc.perform(post("/search").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"probes\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.answer").value("respuesta"));
+                .andExpect(jsonPath("$.answer").value("respuesta"))
+                .andExpect(jsonPath("$.confidence").value("none"));
     }
 
     @Test

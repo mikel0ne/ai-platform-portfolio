@@ -2,6 +2,7 @@ package io.github.mikel0ne.autoops.chat;
 
 import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.rag.Confidence;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,7 +23,7 @@ public class AnswerComposer {
     }
 
     public String compose(String query, RagResult rag) {
-        List<DocChunk> base = rag.chunks().isEmpty() ? rag.discardedCandidates() : rag.chunks();
+        List<DocChunk> base = rag.evidence();
         if (base.isEmpty()) {
             return "No he encontrado documentación interna que responda a esa consulta.";
         }
@@ -34,25 +35,25 @@ public class AnswerComposer {
         return chatModel.getObject().chat(prompt).trim();
     }
 
-    private static String warning(String confidence) {
+    private static String warning(Confidence confidence) {
         return switch (confidence) {
-            case RagResult.MEDIUM -> """
+            case MEDIUM -> """
                     - AVISO: la información recuperada solo cubre una parte de la pregunta. Responde con lo \
                     que sí está cubierto y señala explícitamente qué parte no has podido confirmar con la \
                     documentación.
                     """;
-            case RagResult.LOW -> """
+            case LOW -> """
                     - AVISO: la información recuperada es solo tangencial, no se ha confirmado como respuesta \
                     directa. Indica claramente, al PRINCIPIO y al FINAL de tu respuesta, que la información \
                     no se ha catalogado como buena y debe tomarse con cautela.
                     """;
-            case RagResult.NONE -> """
+            case NONE -> """
                     - AVISO IMPORTANTE: estos fragmentos fueron evaluados como NO relevantes para esta \
                     pregunta. Respóndelos solo si la conexión es clara e indudable; si no la encuentras, \
                     dilo. Indica EXPLÍCITAMENTE al PRINCIPIO y al FINAL de tu respuesta que no se ha \
                     encontrado documentación que responda con garantías a esta consulta.
                     """;
-            default -> "";
+            case HIGH -> "";
         };
     }
 

@@ -34,8 +34,7 @@ public class SearchController {
         RagResult rag = ragService.search(request.query(), 0);
 
         String answer = answerComposer.compose(request.query(), rag);
-        List<DocChunk> base = rag.chunks().isEmpty() ? rag.discardedCandidates() : rag.chunks();
-        return new SearchResponse(answer, groupBySection(base), rag.confidence());
+        return new SearchResponse(answer, groupBySection(rag.evidence()), rag.confidence());
     }
 
     static List<DocChunk> groupBySection(List<DocChunk> chunks) {

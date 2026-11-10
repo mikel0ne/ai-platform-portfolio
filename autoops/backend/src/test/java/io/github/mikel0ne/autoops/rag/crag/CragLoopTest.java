@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.rag.crag;
 
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.rag.Confidence;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.RagResult;
@@ -32,7 +33,7 @@ class CragLoopTest {
                 .search("probes", 5);
 
         assertThat(result.iterations()).isZero();
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
         assertThat(result.chunks()).isNotEmpty();
         assertThat(retriever.calls).isEqualTo(1);
         assertThat(retriever.receivedKs).containsExactly(5);
@@ -58,7 +59,7 @@ class CragLoopTest {
                 .search("prbs", 5);
 
         assertThat(result.iterations()).isEqualTo(1);
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
         assertThat(retriever.calls).isEqualTo(2);
         assertThat(retriever.receivedKs).containsExactly(5, 8);
     }
@@ -75,7 +76,7 @@ class CragLoopTest {
                 .search("consulta rara", 5);
 
         assertThat(result.iterations()).isEqualTo(2);
-        assertThat(result.confidence()).isEqualTo(RagResult.NONE);
+        assertThat(result.confidence()).isEqualTo(Confidence.NONE);
         assertThat(result.chunks()).isEmpty();
         assertThat(result.discardedCandidates()).isNotEmpty();
         assertThat(retriever.calls).isEqualTo(3);
@@ -96,7 +97,7 @@ class CragLoopTest {
 
         RagResult result = new RagService(graph, props).search("pregunta compuesta", 0);
 
-        assertThat(result.confidence()).isEqualTo(RagResult.MEDIUM);
+        assertThat(result.confidence()).isEqualTo(Confidence.MEDIUM);
         assertThat(result.chunks()).containsExactly(n1);
     }
 
@@ -110,7 +111,7 @@ class CragLoopTest {
         RagResult result = service(retriever, props, List.of("1: AMBIGUO\nPREGUNTA 1: PARCIAL"), List.of())
                 .search("pregunta dudosa", 5);
 
-        assertThat(result.confidence()).isEqualTo(RagResult.LOW);
+        assertThat(result.confidence()).isEqualTo(Confidence.LOW);
         assertThat(result.chunks()).containsExactly(n1);
     }
 
@@ -125,7 +126,7 @@ class CragLoopTest {
 
         assertThat(result.iterations()).isEqualTo(1);
         assertThat(retriever.calls).isEqualTo(2);
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
     }
 
     @Test
@@ -159,7 +160,7 @@ class CragLoopTest {
 
         assertThat(retriever.calls).isEqualTo(1);
         assertThat(retriever.receivedQueries).containsExactly("probes");
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
     }
 
     @Test
@@ -178,7 +179,7 @@ class CragLoopTest {
                 .search("configuracion de probes", 5);
 
         assertThat(result.chunks()).containsExactly(good1, good2);
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
         assertThat(result.iterations()).isZero();
     }
 
@@ -205,7 +206,7 @@ class CragLoopTest {
                 .search("configuracion de probes", 5);
 
         assertThat(result.iterations()).isEqualTo(1);
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
         assertThat(result.chunks()).containsExactly(good);
     }
 
@@ -229,7 +230,7 @@ class CragLoopTest {
         assertThat(result.chunks().get(0).text())
                 .contains("Las probes de liveness", "tabla de timeouts recomendados");
         assertThat(result.chunks().get(0).score()).isEqualTo(0.9);
-        assertThat(result.confidence()).isEqualTo(RagResult.HIGH);
+        assertThat(result.confidence()).isEqualTo(Confidence.HIGH);
     }
 
     @Test

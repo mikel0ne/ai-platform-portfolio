@@ -6,6 +6,7 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.rag.Confidence;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,7 @@ class AnswerComposerTest {
     void high_confidence_has_no_warning() {
         var chat = new CapturingChatModel();
         var composer = new AnswerComposer(provider(chat), prompts);
-        var rag = new RagResult(List.of(chunk("contenido bueno", 0.9)), 0, RagResult.HIGH, List.of());
+        var rag = new RagResult(List.of(chunk("contenido bueno", 0.9)), 0, Confidence.HIGH, List.of());
 
         String answer = composer.compose("¿qué probes hay?", rag);
 
@@ -73,7 +74,7 @@ class AnswerComposerTest {
     void medium_confidence_warns_about_partial_coverage() {
         var chat = new CapturingChatModel();
         var composer = new AnswerComposer(provider(chat), prompts);
-        var rag = new RagResult(List.of(chunk("solo cubre una parte", 0.7)), 1, RagResult.MEDIUM, List.of());
+        var rag = new RagResult(List.of(chunk("solo cubre una parte", 0.7)), 1, Confidence.MEDIUM, List.of());
 
         composer.compose("pregunta compuesta", rag);
 
@@ -84,7 +85,7 @@ class AnswerComposerTest {
     void low_confidence_warns_at_start_and_end() {
         var chat = new CapturingChatModel();
         var composer = new AnswerComposer(provider(chat), prompts);
-        var rag = new RagResult(List.of(chunk("tangencial", 0.4)), 2, RagResult.LOW, List.of());
+        var rag = new RagResult(List.of(chunk("tangencial", 0.4)), 2, Confidence.LOW, List.of());
 
         composer.compose("pregunta dudosa", rag);
 
@@ -96,7 +97,7 @@ class AnswerComposerTest {
         var chat = new CapturingChatModel();
         var composer = new AnswerComposer(provider(chat), prompts);
         var discardedChunk = chunk("evaluado como no relevante pero es lo unico que hay", 0.3);
-        var rag = new RagResult(List.of(), 2, RagResult.NONE, List.of(discardedChunk));
+        var rag = new RagResult(List.of(), 2, Confidence.NONE, List.of(discardedChunk));
 
         String answer = composer.compose("consulta rara", rag);
 
