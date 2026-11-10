@@ -134,12 +134,7 @@ public class RouterNode implements NodeAction<SupportState> {
 
         Optional<Long> confirmId = UiAction.orderIdOf(message, UiAction.CONFIRM_CANCEL);
         if (confirmId.isPresent()) {
-            log.debug("---ROUTER--- command: confirm cancellation #{}", confirmId.get());
-            return Optional.of(Map.of(
-                    "intent", Intent.CANCEL.name(),
-                    "orderId", confirmId.get(),
-                    "confirmation", "YES",
-                    "clarifyAttempts", 0));
+            return Optional.of(confirmCommand(state, Intent.CANCEL, Awaiting.CANCEL_CONFIRM, confirmId.get()));
         }
         Optional<Long> abortId = UiAction.orderIdOf(message, UiAction.ABORT_CANCEL);
         if (abortId.isPresent()) {
@@ -153,12 +148,7 @@ public class RouterNode implements NodeAction<SupportState> {
 
         Optional<Long> confirmReturnId = UiAction.orderIdOf(message, UiAction.CONFIRM_RETURN);
         if (confirmReturnId.isPresent()) {
-            log.debug("---ROUTER--- command: confirm return #{}", confirmReturnId.get());
-            return Optional.of(Map.of(
-                    "intent", Intent.RETURN.name(),
-                    "orderId", confirmReturnId.get(),
-                    "confirmation", "YES",
-                    "clarifyAttempts", 0));
+            return Optional.of(confirmCommand(state, Intent.RETURN, Awaiting.RETURN_CONFIRM, confirmReturnId.get()));
         }
         Optional<Long> abortReturnId = UiAction.orderIdOf(message, UiAction.ABORT_RETURN);
         if (abortReturnId.isPresent()) {
@@ -181,6 +171,18 @@ public class RouterNode implements NodeAction<SupportState> {
             }
         }
         return Optional.empty();
+    }
+
+    // A confirm command only counts while the agent is awaiting that confirmation for that very order;
+    // a forged or stale one restarts the request, so the confirmation card is shown again.
+    private Map<String, Object> confirmCommand(SupportState state, Intent intent, Awaiting pending, long orderId) {
+        boolean expected = state.awaiting() == pending && state.orderId().filter(id -> id == orderId).isPresent();
+        log.debug("---ROUTER--- command: confirm {} #{} (expected={})", intent, orderId, expected);
+        return Map.of(
+                "intent", intent.name(),
+                "orderId", orderId,
+                "confirmation", expected ? "YES" : "NONE",
+                "clarifyAttempts", 0);
     }
 
     private boolean isCandidate(SupportState state, long orderId) {

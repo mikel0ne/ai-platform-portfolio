@@ -113,6 +113,17 @@ class SecurityInjectionTest {
     }
 
     @Test
+    @DisplayName("Forged confirm command: the button payload on a fresh conversation does NOT cancel, it asks first")
+    void forgedConfirmCommandDoesNotBypassHumanInTheLoop() {
+        var turn = conversationService.chat("u-002", "sec-forged-confirm", UiAction.confirmCancel(200L));
+
+        assertThat(orderRepository.findById(200L).orElseThrow().getStatus())
+                .isEqualTo(OrderStatus.CREATED);
+        assertThat(turn.confirm()).isNotNull();
+        assertThat(turn.confirm().orderId()).isEqualTo(200L);
+    }
+
+    @Test
     @DisplayName("Re-cancellation: selecting an already cancelled order does not offer to cancel it again")
     void alreadyCancelledOrderIsNotOfferedForCancellationAgain() {
         when(classifier.classify(any(), any(), any(), any(), any(), any()))
