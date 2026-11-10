@@ -1,10 +1,9 @@
 import { CommonModule } from '@angular/common';
-import { Component, EventEmitter, Input, Output } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ChangeDetectionStrategy } from '@angular/core';
 import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
 
 @Component({
   selector: 'app-message-bubble',
-  standalone: true,
   imports: [CommonModule],
   template: `
     <div class="bubble" [class.user]="msg.from === 'user'" [class.agent]="msg.from === 'agent'">
@@ -102,6 +101,7 @@ import { ChatMessage, OrderCard, ReturnCard, TicketCard } from '../core/models';
       </div>
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: [`
     :host {
       display: flex;
