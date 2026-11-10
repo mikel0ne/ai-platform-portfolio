@@ -147,7 +147,7 @@ langchain4j:
 ```
 
 > El `pom.xml` real añade además `jacoco-maven-plugin` (cobertura, sin umbral bloqueante) y
-> un perfil Maven `security` que excluye los tests `@Tag("security")` por defecto.
+> los tests `@Tag("security")` forman parte de `./mvnw verify`; `-Dgroups=security` ejecuta solo esa suite.
 
 `application-dev.yml` — se añade:
 

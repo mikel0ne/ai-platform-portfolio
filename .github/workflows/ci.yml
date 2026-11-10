@@ -22,8 +22,6 @@ jobs:
           java-version: '17'
           cache: maven
       - run: ./mvnw -B verify
-      - if: matrix.project == 'l1-copilot'
-        run: ./mvnw -B test -Psecurity
 
   frontend:
     runs-on: ubuntu-latest

@@ -20,7 +20,7 @@ ficha N. Cada ficha es autocontenida.
   `tools/TicketTools.java`. Seguridad: los repos filtran SIEMPRE por `userId`.
 - **Tests**: `@SpringBootTest` SÍ arranca aquí, pero con los `ChatModel`/AiServices
   **mockeados** (`@MockitoBean`); no se crean modelos reales (el loopback está bloqueado).
-  Tests de routing puro sin Spring. Seguridad bajo `-Psecurity` (excluidos por defecto).
+  Tests de routing puro sin Spring. Seguridad con `@Tag("security")`, incluida en `verify` (solo esa suite: `-Dgroups=security`).
 - **Modelo LLM**: Gemini vía Google AI Studio, configurado en
   `backend/src/main/resources/application*.yml`.
 
@@ -262,7 +262,7 @@ contexto.
 ## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) 🟦 PARCIAL
 
 **Estado:** COMPLETADO. JaCoCo está configurado en `backend/pom.xml` y
-`.github/workflows/ci.yml` ejecuta `./mvnw verify` y la suite `-Psecurity` en cada push.
+`.github/workflows/ci.yml` ejecuta `./mvnw verify`, que incluye la suite de seguridad, en cada push.
 
 - **Hecho**:
   - `jacoco-maven-plugin` en `backend/pom.xml` con `prepare-agent` + `report` (genera
