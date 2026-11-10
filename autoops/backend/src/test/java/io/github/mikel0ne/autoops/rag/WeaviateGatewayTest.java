@@ -31,6 +31,17 @@ class WeaviateGatewayTest {
     }
 
     @Test
+    void object_id_is_stable_per_document_position_so_reingestion_overwrites() {
+        var first = new Chunk("v1", "doc", "T", "s.md", "S", "", "local", 3, "h1", 10);
+        var edited = new Chunk("v2", "doc", "T", "s.md", "S", "", "local", 3, "h2", 10);
+        var next = new Chunk("v1", "doc", "T", "s.md", "S", "", "local", 4, "h1", 10);
+
+        assertThat(WeaviateGateway.objectId("C", first)).isEqualTo(WeaviateGateway.objectId("C", edited));
+        assertThat(WeaviateGateway.objectId("C", first)).isNotEqualTo(WeaviateGateway.objectId("C", next));
+        assertThat(WeaviateGateway.objectId("C", first)).isNotEqualTo(WeaviateGateway.objectId("Other", first));
+    }
+
+    @Test
     void search_fields_request_the_text_and_the_scores() {
         Field[] fields = WeaviateGateway.searchFields("q");
 
