@@ -45,14 +45,13 @@ echo -e "${CYAN}============================================================${NC
 echo -e "${CYAN}  L1 Support Copilot - local start${NC}"
 echo -e "${CYAN}============================================================${NC}\n"
 
-command -v mvn  >/dev/null 2>&1 || { echo -e "${RED}[ERROR]${NC} 'mvn' not found on PATH."; exit 1; }
 command -v node >/dev/null 2>&1 || { echo -e "${RED}[ERROR]${NC} 'node' not found on PATH."; exit 1; }
 command -v npm  >/dev/null 2>&1 || { echo -e "${RED}[ERROR]${NC} 'npm' not found on PATH."; exit 1; }
 
 # ── Install frontend dependencies when missing ───────────────────────────────
 if [[ ! -d "$FRONTEND_DIR/node_modules" ]]; then
-  echo -e "${YELLOW}[INFO]${NC} node_modules not found, running npm install..."
-  npm install --prefix "$FRONTEND_DIR"
+  echo -e "${YELLOW}[INFO]${NC} node_modules not found, running npm ci..."
+  npm ci --prefix "$FRONTEND_DIR"
 fi
 
 # ── Drop the previous PID file ───────────────────────────────────────────────
@@ -62,7 +61,7 @@ rm -f "$PID_FILE"
 echo -e "${GREEN}[BACK]${NC} Starting Spring Boot on http://localhost:8079 ..."
 (
   cd "$BACKEND_DIR"
-  mvn spring-boot:run > "$ROOT_DIR/backend.log" 2>&1
+  ./mvnw spring-boot:run > "$ROOT_DIR/backend.log" 2>&1
 ) &
 BACK_PID=$!
 echo "$BACK_PID" >> "$PID_FILE"

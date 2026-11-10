@@ -19,15 +19,6 @@ echo   L1 Support Copilot - local start (Windows)
 echo  ============================================================
 echo.
 
-:: ── Check mvn ────────────────────────────────────────────────────────────────
-where mvn >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] 'mvn' not found on PATH.
-    echo         Install Maven and make sure it is on PATH.
-    pause
-    exit /b 1
-)
-
 :: ── Check npm ────────────────────────────────────────────────────────────────
 where npm >nul 2>&1
 if errorlevel 1 (
@@ -39,9 +30,9 @@ if errorlevel 1 (
 
 :: ── Install frontend dependencies when missing ───────────────────────────────
 if not exist "%FRONTEND%\node_modules" (
-    echo [INFO]  node_modules not found. Running npm install...
+    echo [INFO]  node_modules not found. Running npm ci...
     pushd "%FRONTEND%"
-    call npm install
+    call npm ci
     popd
 )
 
@@ -63,7 +54,7 @@ echo [INFO]  Git Bash not found. Opening separate CMD windows...
 echo.
 
 echo [BACK]  Starting Spring Boot on http://localhost:8079
-start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Starting backend... && mvn spring-boot:run"
+start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Starting backend... && mvnw.cmd spring-boot:run"
 
 :: Short pause so the backend starts before the frontend
 timeout /t 5 /nobreak > nul
