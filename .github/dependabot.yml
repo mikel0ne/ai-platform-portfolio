@@ -1,33 +1,19 @@
+# Learning project frozen in mid-2026: Dependabot tracks the dependencies but opens no version-update
+# PRs (limit 0). Upgrades are done by hand when the project is picked up again.
 version: 2
 updates:
   - package-ecosystem: maven
     directories: ["/autoops/backend", "/l1-copilot/backend"]
     schedule:
-      interval: weekly
-    # Major upgrades (Spring Boot, fabric8...) are migrations, done by hand.
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-      # 1.9 changes how graph state is read across turns; migrate by hand.
-      - dependency-name: "org.bsc.langgraph4j:*"
-        versions: [">=1.9.0"]
-    groups:
-      maven:
-        patterns: ["*"]
+      interval: monthly
+    open-pull-requests-limit: 0
   - package-ecosystem: npm
     directories: ["/autoops/frontend", "/l1-copilot/frontend"]
     schedule:
-      interval: weekly
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-major"]
-    groups:
-      npm:
-        patterns: ["*"]
+      interval: monthly
+    open-pull-requests-limit: 0
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
-    groups:
-      github-actions:
-        patterns: ["*"]
+      interval: monthly
+    open-pull-requests-limit: 0
