@@ -3,9 +3,9 @@ package io.github.mikel0ne.l1copilot.agent.node;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
-import io.github.mikel0ne.l1copilot.dto.tools.CancellationCheck;
-import io.github.mikel0ne.l1copilot.tools.OrderNotFoundException;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.CancellationCheck;
+import io.github.mikel0ne.l1copilot.service.OrderNotFoundException;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -20,7 +20,7 @@ import java.util.Map;
 @Slf4j
 public class CancelCheckNode implements NodeAction<SupportState> {
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
@@ -31,7 +31,7 @@ public class CancelCheckNode implements NodeAction<SupportState> {
         Map<String, Object> updates = new HashMap<>();
         CancellationCheck check;
         try {
-            check = orderTools.checkCancellable(orderId, state.userId());
+            check = orderService.checkCancellable(orderId, state.userId());
         } catch (OrderNotFoundException e) {
             updates.put("toolResult", String.format(
                     "No existe el pedido #%d entre los pedidos del usuario.", orderId));

@@ -237,7 +237,7 @@ de CI**: a día de hoy no existe ningún `.github/workflows/` en el repo.
 ### 15. Validación declarativa en entidades JPA 🟡 ⭐ ✅
 
 **Estado:** COMPLETO. `@NotBlank`/`@NotNull`/`@Email`/`@Positive` en `Order`, `Ticket`,
-`User`, coherentes con el seed real (`OrderToolsTest` sigue verde).
+`User`, coherentes con el seed real (`OrderServiceTest` sigue verde).
 
 - **Qué es:** las entidades confían solo en `NOT NULL` de SQL, sin anotaciones
   (`@NotNull`/`@NotBlank`).

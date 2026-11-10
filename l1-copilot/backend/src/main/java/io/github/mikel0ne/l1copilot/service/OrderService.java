@@ -1,34 +1,32 @@
-package io.github.mikel0ne.l1copilot.tools;
+package io.github.mikel0ne.l1copilot.service;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import io.github.mikel0ne.l1copilot.domain.Order;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
 import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
 import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
-import io.github.mikel0ne.l1copilot.dto.tools.CancellationCheck;
-import io.github.mikel0ne.l1copilot.dto.tools.CancellationResult;
-import io.github.mikel0ne.l1copilot.dto.tools.OrderSummary;
-import io.github.mikel0ne.l1copilot.dto.tools.ReturnCheck;
-import io.github.mikel0ne.l1copilot.dto.tools.ReturnResult;
-import io.github.mikel0ne.l1copilot.dto.tools.ShipmentStatus;
+import io.github.mikel0ne.l1copilot.dto.result.CancellationCheck;
+import io.github.mikel0ne.l1copilot.dto.result.CancellationResult;
+import io.github.mikel0ne.l1copilot.dto.result.OrderSummary;
+import io.github.mikel0ne.l1copilot.dto.result.ReturnCheck;
+import io.github.mikel0ne.l1copilot.dto.result.ReturnResult;
+import io.github.mikel0ne.l1copilot.dto.result.ShipmentStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class OrderTools {
+public class OrderService {
 
     private final OrderRepository orderRepository;
 
-    @Tool("Obtiene una lista de los últimos 3 pedidos del usuario para ayudarle a elegir")
     @Transactional(readOnly = true)
-    public List<OrderSummary> getRecentOrders(@P("ID del usuario logueado") String userId) {
+    public List<OrderSummary> getRecentOrders(String userId) {
         return orderRepository.findTop3ByUserIdOrderByOrderDateDesc(userId).stream()
                 .map(o -> new OrderSummary(o.getId(), o.getDescription(),
                         o.getStatus().name(), o.getOrderDate(), o.getImageUrl()))
@@ -36,21 +34,19 @@ public class OrderTools {
     }
 
     @Transactional(readOnly = true)
-    public java.util.Optional<OrderSummary> findOrder(Long orderId, String userId) {
+    public Optional<OrderSummary> findOrder(Long orderId, String userId) {
         return orderRepository.findByIdAndUserId(orderId, userId)
                 .map(o -> new OrderSummary(o.getId(), o.getDescription(),
                         o.getStatus().name(), o.getOrderDate(), o.getImageUrl()));
     }
 
-    @Tool("Obtiene el estado de envío de un pedido específico del usuario")
     @Transactional(readOnly = true)
-    public ShipmentStatus trackShipment(@P("El ID exacto del pedido") Long orderId, String userId) {
+    public ShipmentStatus trackShipment(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
         return new ShipmentStatus(o.getId(), o.getDescription(), o.getStatus().name(),
                 o.getEstimatedDelivery(), o.getTrackingCarrier(), o.getImageUrl());
     }
 
-    @Tool("Comprueba si un pedido puede cancelarse según las reglas de negocio, sin cancelarlo")
     @Transactional(readOnly = true)
     public CancellationCheck checkCancellable(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
@@ -63,7 +59,6 @@ public class OrderTools {
                 o.getStatus().name(), description);
     }
 
-    @Tool("Cancela un pedido del usuario si las reglas de negocio lo permiten")
     @Transactional
     public CancellationResult cancelOrder(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
@@ -79,7 +74,6 @@ public class OrderTools {
                 "El pedido '%s' se ha cancelado correctamente", o.getDescription()));
     }
 
-    @Tool("Comprueba si un pedido admite devolución según las reglas de negocio, sin iniciarla")
     @Transactional(readOnly = true)
     public ReturnCheck checkReturnable(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);
@@ -92,7 +86,6 @@ public class OrderTools {
                 o.getStatus().name(), description);
     }
 
-    @Tool("Inicia la devolución de un pedido del usuario si las reglas de negocio lo permiten")
     @Transactional
     public ReturnResult requestReturn(Long orderId, String userId) {
         Order o = ownedOrder(orderId, userId);

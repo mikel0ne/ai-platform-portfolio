@@ -53,7 +53,7 @@ l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 │       ├── IntentClassifier.java / Responder.java / Verifier.java
 │       ├── TicketWriter.java / FaqKnowledgeBase.java
 ├── tools/
-│   ├── OrderTools.java / TicketTools.java
+│   ├── OrderService.java / TicketService.java
 │   └── OrderNotFoundException.java
 ├── domain/
 │   ├── Order.java / OrderStatus.java
@@ -73,7 +73,7 @@ l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 Criterios:
 
 - **`agent/` no conoce HTTP** (no importa nada de `controller/`); `controller/` no conoce LangGraph4j. El puente es `ConversationService`.
-- **`tools/` no conoce el grafo**: reciben primitivas y devuelven records de `dto/tools`. Reutilizables desde un futuro `AiServices` con function-calling.
+- **`tools/` no conoce el grafo**: reciben primitivas y devuelven records de `dto/result`. Reutilizables desde un futuro `AiServices` con function-calling.
 - Los **AiServices** (interfaces con `@SystemMessage`) viven junto al agente (`agent/llm/`) porque sus prompts son parte de la lógica del grafo.
 
 ## Dependencias Maven a añadir

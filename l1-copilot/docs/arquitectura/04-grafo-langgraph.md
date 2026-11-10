@@ -355,7 +355,7 @@ Antes, todo lo que el modelo no clasificaba con confianza caía en `OTHER → fa
 
 Dos piezas lo sostienen:
 - **El foco no se suelta al no poder cancelar.** `cancel_check`, cuando un pedido no es cancelable, ya no borra `orderId`: el usuario sigue "sobre" ese pedido y puede preguntar otras cosas sin re-elegirlo.
-- **El pedido en foco viaja como contexto.** `RespondNode` carga el pedido en foco (`OrderTools.findOrder`) y lo pasa al `Responder` como `PEDIDO_EN_FOCO` (dato fiable, no inventado), junto al `TOOL_RESULT` y la pregunta. Así "este pedido", las dudas y las aclaraciones tienen el pedido como contexto.
+- **El pedido en foco viaja como contexto.** `RespondNode` carga el pedido en foco (`OrderService.findOrder`) y lo pasa al `Responder` como `PEDIDO_EN_FOCO` (dato fiable, no inventado), junto al `TOOL_RESULT` y la pregunta. Así "este pedido", las dudas y las aclaraciones tienen el pedido como contexto.
 
 Cubierto por `SupportAgentFlowTest` (`ambiguousWithFocusClarifiesThenEscalates`, `nonCancellableKeepsFocus`) y `RouterNodeTest` (`clarifyAttemptsTrackOnlyWithContext`).
 
@@ -379,7 +379,7 @@ La skill `faq` (intención `FAQ`: preguntas generales sobre envíos, devolucione
 @Override
 public Map<String, Object> apply(SupportState state) {
     log.debug("---RESOLVE ORDER---");
-    List<OrderSummary> recent = orderTools.getRecentOrders(state.userId());
+    List<OrderSummary> recent = orderService.getRecentOrders(state.userId());
 
     if (recent.isEmpty())
         return Map.of("toolResult", "El usuario no tiene pedidos.",

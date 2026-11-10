@@ -1,13 +1,11 @@
-package io.github.mikel0ne.l1copilot.tools;
+package io.github.mikel0ne.l1copilot.service;
 
-import dev.langchain4j.agent.tool.P;
-import dev.langchain4j.agent.tool.Tool;
 import io.github.mikel0ne.l1copilot.domain.Ticket;
 import io.github.mikel0ne.l1copilot.domain.TicketStatus;
 import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
 import io.github.mikel0ne.l1copilot.domain.repository.TicketRepository;
-import io.github.mikel0ne.l1copilot.dto.tools.TicketCreated;
-import io.github.mikel0ne.l1copilot.dto.tools.TicketSummary;
+import io.github.mikel0ne.l1copilot.dto.result.TicketCreated;
+import io.github.mikel0ne.l1copilot.dto.result.TicketSummary;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,12 +17,11 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class TicketTools {
+public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final OrderRepository orderRepository;
 
-    @Tool("Lista las incidencias (tickets de soporte) abiertas por el usuario, de la más reciente a la más antigua")
     @Transactional(readOnly = true)
     public List<TicketSummary> listTickets(String userId) {
         List<TicketSummary> tickets = ticketRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
@@ -35,12 +32,11 @@ public class TicketTools {
         return tickets;
     }
 
-    @Tool("Crea un ticket de soporte para que un agente humano atienda la incidencia")
     @Transactional
     public TicketCreated createTicket(String userId,
-                                      @P("ID del pedido afectado, o null si no aplica") Long orderId,
-                                      @P("Resumen corto de la incidencia") String subject,
-                                      @P("Descripción detallada dada por el usuario") String description) {
+                                      Long orderId,
+                                      String subject,
+                                      String description) {
         if (orderId != null) {
             orderRepository.findByIdAndUserId(orderId, userId)
                     .orElseThrow(() -> new OrderNotFoundException(orderId));

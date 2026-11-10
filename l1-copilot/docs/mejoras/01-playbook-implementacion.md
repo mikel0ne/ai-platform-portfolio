@@ -16,8 +16,8 @@ ficha N. Cada ficha es autocontenida.
   servicios LLM (AiServices) en `agent/llm/`.
 - **Puente REST→grafo**: `service/ConversationService.java` (un turno HTTP = una
   invocación del grafo; el checkpointer `MemorySaver` restaura el estado entre turnos).
-- **Reglas de negocio en Java** (no en prompt): `tools/OrderTools.java`,
-  `tools/TicketTools.java`. Seguridad: los repos filtran SIEMPRE por `userId`.
+- **Reglas de negocio en Java** (no en prompt): `tools/OrderService.java`,
+  `tools/TicketService.java`. Seguridad: los repos filtran SIEMPRE por `userId`.
 - **Tests**: `@SpringBootTest` SÍ arranca aquí, pero con los `ChatModel`/AiServices
   **mockeados** (`@MockitoBean`); no se crean modelos reales (el loopback está bloqueado).
   Tests de routing puro sin Spring. Seguridad con `@Tag("security")`, incluida en `verify` (solo esa suite: `-Dgroups=security`).
@@ -140,7 +140,7 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
     `returnRequiresConfirmationViaButton`, `alreadyReturningReoffersLabel`, `trackingOrderInReturnShowsLabel`.
   - Actualizado el javadoc de la clase explicando cómo funciona el aislamiento.
 - **Por qué funciona**: el grafo corre síncronamente en el hilo del test; todas las tools
-  (`OrderTools`, `TicketTools`) usan `@Transactional(REQUIRED)` → se unen a la transacción
+  (`OrderService`, `TicketService`) usan `@Transactional(REQUIRED)` → se unen a la transacción
   del test. Al terminar cada test, Spring hace rollback y la BD H2 vuelve al seed. Además,
   cada test usa `conversationId` único → el checkpointer `MemorySaver` no filtra estado
   entre tests (ejecución en cualquier orden sin problema).
@@ -208,7 +208,7 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
 - **Ficheros**:
   - `agent/node/CancelCheckNode.java`, `agent/node/ReturnCheckNode.java`
   - `agent/node/CancelExecNode.java`, `agent/node/ReturnExecNode.java`
-  - Tools que invocan: `tools/OrderTools.java` (`checkCancellable`/`cancelOrder` y
+  - Tools que invocan: `tools/OrderService.java` (`checkCancellable`/`cancelOrder` y
     `checkReturnable`/`requestReturn`).
 - **Enfoque**: extraer una plantilla/base parametrizada por (tool de check, tool de exec,
   textos, claves de estado `pendingCancelId`/`pendingReturnId`). Mantener los nodos como
@@ -296,13 +296,13 @@ contexto.
 status/orderDate), `Ticket` (`@NotBlank` userId/subject/description, `@NotNull`
 status/createdAt; `orderId` queda opcional), `User` (`@NotBlank` id/name/email,
 `@Email` en email, `@Positive` en age). El seed de demo cumple todas las
-restricciones; `OrderToolsTest` (9 tests) sigue verde con el seed real en H2.
+restricciones; `OrderServiceTest` (9 tests) sigue verde con el seed real en H2.
 
 - **Problema**: entidades sin `@NotNull`/`@NotBlank` (solo `NOT NULL` en SQL).
 - **Ficheros**: `domain/Order.java`, `domain/Ticket.java`, `domain/User.java`.
 - **Enfoque**: añadir anotaciones de Bean Validation coherentes con `schema-h2.sql`/
   `schema-postgresql.sql`. Verificar que el seed (`data-h2.sql`) sigue siendo válido.
-- **Verificación**: `cd backend && mvn test` (arranque + `OrderToolsTest` con H2).
+- **Verificación**: `cd backend && mvn test` (arranque + `OrderServiceTest` con H2).
 
 ## #16 — Menores de la capa web 🟡 ⭐ ✅ DONE
 
@@ -331,7 +331,7 @@ así que Actuator ya no queda forzado al final (tradeoff aceptado por simplicida
 SOLO los scripts del dialecto activo: dev → `*-h2.sql`; `local`/`prod` → `*-postgresql.sql`.
 Antes, en perfiles Postgres, el mecanismo de fallback de Spring cargaba TAMBIÉN el
 `data.sql` genérico (su `DATEADD` reventaba en Postgres con `SQL_INIT_MODE=always`).
-`OrderToolsTest` valida la carga del seed H2; docs de arquitectura actualizadas.
+`OrderServiceTest` valida la carga del seed H2; docs de arquitectura actualizadas.
 
 - **Problema**: el seed usa funciones de H2 (`DATEADD`) que pueden no migrar a Postgres.
 - **Ficheros**:

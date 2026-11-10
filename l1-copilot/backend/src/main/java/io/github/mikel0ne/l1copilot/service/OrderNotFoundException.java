@@ -1,4 +1,4 @@
-package io.github.mikel0ne.l1copilot.tools;
+package io.github.mikel0ne.l1copilot.service;
 
 public class OrderNotFoundException extends RuntimeException {
 

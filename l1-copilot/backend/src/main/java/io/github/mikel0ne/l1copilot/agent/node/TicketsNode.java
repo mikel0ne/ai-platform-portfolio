@@ -3,8 +3,8 @@ package io.github.mikel0ne.l1copilot.agent.node;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.dto.TicketCardDto;
-import io.github.mikel0ne.l1copilot.dto.tools.TicketSummary;
-import io.github.mikel0ne.l1copilot.tools.TicketTools;
+import io.github.mikel0ne.l1copilot.dto.result.TicketSummary;
+import io.github.mikel0ne.l1copilot.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -20,11 +20,11 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TicketsNode implements NodeAction<SupportState> {
 
-    private final TicketTools ticketTools;
+    private final TicketService ticketService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
-        List<TicketSummary> tickets = ticketTools.listTickets(state.userId());
+        List<TicketSummary> tickets = ticketService.listTickets(state.userId());
         log.debug("---TICKETS--- {} incidencia(s)", tickets.size());
 
         if (tickets.isEmpty()) {

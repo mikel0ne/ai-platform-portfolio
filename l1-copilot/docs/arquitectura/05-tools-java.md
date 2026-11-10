@@ -16,13 +16,13 @@ Las herramientas son **código Java determinista** invocado desde los nodos del 
 | `requestReturn` | RETURN | `orderId`, `userId` | `ReturnResult` | revalida, pone el pedido en `RETURN_REQUESTED` y emite la referencia de la etiqueta |
 | `createTicket` | SUPPORT | `userId`, `orderId?`, `subject`, `description` | `TicketCreated` | si hay `orderId`, debe ser del usuario |
 
-## `OrderTools`
+## `OrderService`
 
 ```java
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class OrderTools {
+public class OrderService {
 
     private final OrderRepository orderRepository;
 
@@ -97,12 +97,12 @@ public class OrderTools {
 
 > **Ciclo de vida del pedido y reglas de dominio.** `OrderStatus` añade `RETURN_REQUESTED` al final del ciclo (`… DELIVERED → RETURN_REQUESTED`) y dos reglas en código Java, no en el prompt: `isCancellable()` (⇔ `CREATED|PAID`) e `isReturnable()` (⇔ `DELIVERED`). Son excluyentes: un pedido se cancela **antes** de enviarse y se devuelve **después** de entregarse; "cancelar" un pedido entregado se reconduce a una devolución. La **etiqueta de devolución** se sirve por `GET /api/copilot/returns/{id}` (`ReturnLabelDto`: código `RET-####`, almacén de destino, transportista y código de barras determinista), análoga al detalle de ticket.
 
-## `TicketTools`
+## `TicketService`
 
 ```java
 @Service
 @RequiredArgsConstructor
-public class TicketTools {
+public class TicketService {
 
     private final TicketRepository ticketRepository;
     private final OrderRepository orderRepository;

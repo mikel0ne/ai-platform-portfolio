@@ -3,8 +3,8 @@ package io.github.mikel0ne.l1copilot.agent.node;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
-import io.github.mikel0ne.l1copilot.dto.tools.ReturnResult;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.ReturnResult;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -21,7 +21,7 @@ import java.util.Map;
 @Slf4j
 public class ReturnExecNode implements NodeAction<SupportState> {
 
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
@@ -29,7 +29,7 @@ public class ReturnExecNode implements NodeAction<SupportState> {
                 .orElseThrow(() -> new IllegalStateException("return_exec without a resolved orderId"));
         log.debug("---RETURN EXEC--- orderId={}", orderId);
 
-        ReturnResult result = orderTools.requestReturn(orderId, state.userId());
+        ReturnResult result = orderService.requestReturn(orderId, state.userId());
 
         Map<String, Object> updates = new HashMap<>();
         updates.put("confirmation", "NONE");
@@ -45,7 +45,7 @@ public class ReturnExecNode implements NodeAction<SupportState> {
         Map<String, Object> card = new HashMap<>();
         card.put("id", orderId);
         card.put("code", code);
-        card.put("description", orderTools.findOrder(orderId, state.userId())
+        card.put("description", orderService.findOrder(orderId, state.userId())
                 .map(o -> o.description()).orElse("Devolución"));
         card.put("status", "RETURN_REQUESTED");
         card.put("createdAt", Instant.now().toString());

@@ -6,8 +6,8 @@ import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.Verdict;
 import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
 import io.github.mikel0ne.l1copilot.domain.OrderStatus;
-import io.github.mikel0ne.l1copilot.dto.tools.OrderSummary;
-import io.github.mikel0ne.l1copilot.tools.OrderTools;
+import io.github.mikel0ne.l1copilot.dto.result.OrderSummary;
+import io.github.mikel0ne.l1copilot.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
@@ -24,13 +24,13 @@ import java.util.Optional;
 public class VerifyNode implements NodeAction<SupportState> {
 
     private final Verifier verifier;
-    private final OrderTools orderTools;
+    private final OrderService orderService;
 
     @Override
     public Map<String, Object> apply(SupportState state) {
         long focusId = state.proposedOrderId().or(state::orderId).orElse(0L);
         Optional<OrderSummary> focus = focusId > 0
-                ? orderTools.findOrder(focusId, state.userId())
+                ? orderService.findOrder(focusId, state.userId())
                 : Optional.empty();
 
         Verifier.Decision decision = verifier.verify(

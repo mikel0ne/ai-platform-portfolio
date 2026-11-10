@@ -26,7 +26,7 @@ graph TB
         G --> ND[15 nodos: router, verify, clarify,<br/>resolve_order, tracking, cancel_check/exec,<br/>return_check/exec, support, tickets, faq,<br/>chatty, fallback, respond]
         ND --> AI[AiServices LangChain4j<br/>IntentClassifier, Verifier,<br/>Responder, TicketWriter]
         AI --> LC[ChatModel Gemini<br/>+ CachingChatModel / FileCacheManager]
-        ND --> T[Tools Java<br/>OrderTools / TicketTools]
+        ND --> T[Tools Java<br/>OrderService / TicketService]
         T --> R[Spring Data JPA<br/>Order / Ticket / UserRepository]
         G --> CP[(Checkpointer<br/>MemorySaver por threadId)]
         CS --> TL[TurnLogger → turn_log]
@@ -43,7 +43,7 @@ Responsabilidades por capa:
 | Orquestación | `ConversationService`, `TurnLogger` | Invocar el grafo con `RunnableConfig.threadId(conversationId)`, mapear estado→respuesta, registrar el turno (`turn_log`) |
 | Agente | `SupportAgentGraph` (builder), `SupportRouting` (aristas), `SupportState`, 15 nodos | Toda la lógica de decisión del agente |
 | AiServices | `IntentClassifier`, `Verifier`, `Responder`, `TicketWriter`, `FaqKnowledgeBase` | Interfaces `@SystemMessage`; prompts del grafo |
-| Herramientas | `OrderTools`, `TicketTools` | Operaciones deterministas sobre BD, reglas de negocio, `@Tool` |
+| Herramientas | `OrderService`, `TicketService` | Operaciones deterministas sobre BD, reglas de negocio, `@Tool` |
 | Datos | Entidades + repositorios JPA | Persistencia |
 | Configuración | `Config` (beans `ChatModel` por temperatura/rol), `AgentConfig` (`CompiledGraph` + `MemorySaver` + AiServices), `config/qualifier/` (`@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`) | Wiring |
 | Caché | `CachingChatModel`, `FileCacheManager` | Cachea respuestas del modelo en fichero |
@@ -59,7 +59,7 @@ sequenceDiagram
     participant S as ConversationService
     participant G as CompiledGraph
     participant L as Gemini
-    participant T as OrderTools
+    participant T as OrderService
     participant D as BD
 
     A->>C: POST /api/chat {conversationId, userId, message}
