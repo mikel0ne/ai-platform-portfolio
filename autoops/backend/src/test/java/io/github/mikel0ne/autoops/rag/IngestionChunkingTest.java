@@ -97,4 +97,31 @@ class IngestionChunkingTest {
 
         assertThat(sectionB.get(0).sectionChars()).isEqualTo(sectionB.get(0).text().length());
     }
+
+    @Test
+    void headings_inside_code_fences_do_not_split_the_section() {
+        String md = """
+                ## Despliegue
+                Ejecuta:
+
+                ```bash
+                # instala dependencias
+                npm ci
+                ```
+                """;
+
+        List<Chunk> chunks = Chunker.splitDocument(doc("d.md", md), 2000, 200);
+
+        assertThat(chunks).singleElement().satisfies(c -> {
+            assertThat(c.section()).isEqualTo("Despliegue");
+            assertThat(c.text()).contains("# instala dependencias");
+        });
+    }
+
+    @Test
+    void anchors_keep_accented_letters_like_github() {
+        assertThat(Chunker.urlWithAnchor("https://github.com/o/r/blob/main/g.md", "Guía > Configuración de probes"))
+                .isEqualTo("https://github.com/o/r/blob/main/g.md#configuración-de-probes");
+        assertThat(Chunker.slug("Requests y limits (CPU)")).isEqualTo("requests-y-limits-cpu");
+    }
 }
