@@ -215,18 +215,20 @@ ensure_namespace() {
 
 # ── Secrets ──────────────────────────────────────────────────────────────────
 # Creates or updates an Opaque Secret from the given keys; kubectl apply keeps it idempotent.
+# Values go through a private temp file: a --from-literal value would show up in the process list.
 sync_one_secret() {
   local secret_name="$1"
   shift
-  local -a literals=()
-  local key value missing=0
+  local key value missing=0 env_file
+  env_file="$(mktemp)"
+  chmod 600 "${env_file}"
   for key in "$@"; do
     value="${!key-}"
     if [[ -z "${value}" ]]; then
       warn "  · ${key} is empty (Secret '${secret_name}')"
       missing=1
     fi
-    literals+=("--from-literal=${key}=${value}")
+    printf '%s=%s\n' "${key}" "${value}" >> "${env_file}"
   done
   if [[ ${missing} -eq 1 ]]; then
     warn "  → Applying the Secret with empty values; fill them in infra/.env.local"
@@ -235,9 +237,10 @@ sync_one_secret() {
   kubectl create secret generic "${secret_name}" \
     --namespace "${NAMESPACE}" \
     --dry-run=client -o yaml \
-    "${literals[@]}" \
+    --from-env-file="${env_file}" \
   | kubectl apply -f - >/dev/null
-  ok "  Secret '${secret_name}' (${#literals[@]} keys)"
+  rm -f "${env_file}"
+  ok "  Secret '${secret_name}' ($# keys)"
 }
 
 sync_secrets() {

@@ -56,14 +56,17 @@ ok "Namespace '$NS' ready"
 # 2. postgres-credentials Secret (copied from the infra namespace, same appuser)
 # =============================================================================
 step "Syncing Secret 'postgres-credentials' into '$NS' (from '$INFRA_NS')..."
-PG_USER=$(kubectl get secret postgres-credentials -n "$INFRA_NS" -o jsonpath='{.data.POSTGRES_USER}' | base64 -d)
-PG_PASSWORD=$(kubectl get secret postgres-credentials -n "$INFRA_NS" -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d)
-kubectl create secret generic postgres-credentials \
-  --namespace "$NS" \
-  --dry-run=client -o yaml \
-  --from-literal=POSTGRES_USER="$PG_USER" \
-  --from-literal=POSTGRES_PASSWORD="$PG_PASSWORD" \
-| kubectl apply -f - >/dev/null
+# Copied as a manifest with the encoded data, so the values are never decoded onto a command line.
+kubectl get secret postgres-credentials -n "$INFRA_NS" -o go-template="apiVersion: v1
+kind: Secret
+type: Opaque
+metadata:
+  name: postgres-credentials
+  namespace: ${NS}
+data:
+  POSTGRES_USER: {{ .data.POSTGRES_USER }}
+  POSTGRES_PASSWORD: {{ .data.POSTGRES_PASSWORD }}
+" | kubectl apply -f - >/dev/null
 ok "Secret synced"
 
 # =============================================================================
