@@ -67,7 +67,7 @@ l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 │   ├── ReturnCardDto.java / ReturnLabelDto.java
 │   └── tools/ (OrderSummary, ShipmentStatus, CancellationCheck, CancellationResult,
 │              ReturnCheck, ReturnResult, TicketSummary, TicketCreated)
-└── cache/ (CacheEntry, CachingChatModel, FileCacheManager)
+└── cache/ (CacheEntry, CachingChatModel, FileCacheManager: ficheros de texto, sin deserialización Java)
 ```
 
 Criterios:

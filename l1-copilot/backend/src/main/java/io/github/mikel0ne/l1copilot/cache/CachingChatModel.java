@@ -38,8 +38,8 @@ public class CachingChatModel implements ChatModel {
         }
 
         String key = buildKey(request);
-        Object cached = cache.get(key);
-        if (cached instanceof String text) {
+        String text = cache.get(key);
+        if (text != null) {
             log.debug("Cache HIT (key={})", key);
             return ChatResponse.builder()
                     .aiMessage(AiMessage.from(text))
@@ -98,7 +98,7 @@ public class CachingChatModel implements ChatModel {
             byte[] digest = md.digest(input.getBytes(StandardCharsets.UTF_8));
             return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
         } catch (NoSuchAlgorithmException e) {
-            return "key_" + input.hashCode();
+            throw new IllegalStateException("SHA-256 not available", e);
         }
     }
 }
