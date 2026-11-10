@@ -4,11 +4,27 @@ updates:
     directories: ["/autoops/backend", "/l1-copilot/backend"]
     schedule:
       interval: weekly
+    # Major upgrades (Spring Boot, fabric8...) are migrations, done by hand.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      maven:
+        patterns: ["*"]
   - package-ecosystem: npm
     directories: ["/autoops/frontend", "/l1-copilot/frontend"]
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      npm:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
