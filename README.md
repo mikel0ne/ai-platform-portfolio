@@ -59,7 +59,7 @@ infra/          Shared platform: generic Helm chart, values per app, Weaviate, L
 docker/         Shared Dockerfiles (backend, frontend) and nginx config
 wiki/           Wiki.js content (an extra RAG source) and its seeding scripts
 scripts/        Local start/stop of the L1 Copilot without Kubernetes
-.github/        CI: Maven verify of both backends, build and tests of both frontends
+.github/        CI (backends, frontends, Helm chart and shell scripts) and Dependabot
 ```
 
 ## Quick start
