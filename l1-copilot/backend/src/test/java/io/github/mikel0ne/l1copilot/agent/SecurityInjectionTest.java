@@ -22,7 +22,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.when;
 
+// Own in-memory database: these scenarios mutate orders that the flow tests also use.
 @SpringBootTest(properties = {
+        "spring.datasource.url=jdbc:h2:mem:security;DB_CLOSE_DELAY=-1",
         "langchain4j.gemini.api-key=test-key",
         "copilot.turn-log.file.enabled=false",
         "copilot.turn-log.db.enabled=false"})

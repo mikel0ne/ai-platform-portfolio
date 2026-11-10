@@ -96,8 +96,8 @@ also supported) · Spring Data JPA · PostgreSQL / H2 · Angular 17 · Helm on k
 
 ```bash
 cd l1-copilot/backend
-./mvnw verify                     # unit, routing and full-flow tests
-./mvnw test -Psecurity            # prompt injection, IDOR and confirmation-injection suite
+./mvnw verify                     # unit, routing, full-flow and security tests
+./mvnw test -Dgroups=security     # only the prompt injection, IDOR and confirmation-injection suite
 ROUTER_EVAL=true GEMINI_API_KEY=... ./mvnw test -Dtest=RouterEvalTest   # opt-in golden set against the real model
 ```
 
