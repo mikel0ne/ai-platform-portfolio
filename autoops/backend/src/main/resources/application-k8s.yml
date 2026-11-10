@@ -4,7 +4,6 @@ autoops:
   weaviate:
     host: weaviate.infra.svc.cluster.local
     port: 8080
-    grpc-port: 50051
     class-name: AutoopsDocChunk
   loki:
     host: loki.observability.svc.cluster.local
