@@ -49,6 +49,9 @@ autoops:
     k-step: 3
     k-max: 12
     multi-query-n: 3       # query variants on the first pass only, so the extra cost is bounded; <= 1 disables it
+  # /search runs several LLM calls per query and has no authentication.
+  search:
+    max-requests-per-minute: 30
   ingestion:
     max-chars: 2000
     overlap-chars: 200

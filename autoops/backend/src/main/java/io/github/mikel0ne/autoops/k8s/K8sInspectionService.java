@@ -31,6 +31,8 @@ public class K8sInspectionService {
 
     private static final Logger log = LoggerFactory.getLogger(K8sInspectionService.class);
     private static final int DOSSIER_LOG_LINES = 50;
+    static final int MAX_LOG_LINES = 1000;
+    static final int MAX_EVENTS = 50;
 
     private final ObjectProvider<KubernetesClient> clientProvider;
 
@@ -146,12 +148,19 @@ public class K8sInspectionService {
     }
 
     public List<PodDiagnosis.EventInfo> events(String namespace, String object) {
-        List<Event> events = client().v1().events().inNamespace(namespace).list().getItems();
-        return events.stream()
-                .filter(e -> object == null || object.isBlank()
-                        || (e.getInvolvedObject() != null && object.equals(e.getInvolvedObject().getName())))
+        var events = client().v1().events().inNamespace(namespace);
+        List<Event> items = (object == null || object.isBlank())
+                ? events.list().getItems()
+                : events.withField("involvedObject.name", object).list().getItems();
+        return mostRecent(items);
+    }
+
+    static List<PodDiagnosis.EventInfo> mostRecent(List<Event> events) {
+        List<Event> sorted = events.stream()
                 .sorted(Comparator.comparing(K8sInspectionService::eventInstant,
                         Comparator.nullsFirst(Comparator.naturalOrder())))
+                .toList();
+        return sorted.subList(Math.max(0, sorted.size() - MAX_EVENTS), sorted.size()).stream()
                 .map(K8sInspectionService::toEventInfo)
                 .toList();
     }
@@ -161,7 +170,7 @@ public class K8sInspectionService {
     }
 
     public String logs(String namespace, String name, String container, int lines, boolean previous) {
-        return safeLogs(namespace, name, container, lines, previous);
+        return safeLogs(namespace, name, container, Math.max(1, Math.min(lines, MAX_LOG_LINES)), previous);
     }
 
     private String safeLogs(String namespace, String name, String container, int lines, boolean previous) {

@@ -29,8 +29,8 @@ public class ObservabilityTools {
             @ToolParam(required = false, description = "Text the line must contain (optional)") String text,
             @ToolParam(required = false, description = "Start instant, ISO-8601, milliseconds allowed (optional)") String from,
             @ToolParam(required = false, description = "End instant, ISO-8601, milliseconds allowed (optional, default now)") String to,
-            @ToolParam(required = false, description = "Without 'from': minutes back from 'to' (default 15)") Integer windowMinutes,
-            @ToolParam(required = false, description = "Maximum number of lines (default 200)") Integer lines) {
+            @ToolParam(required = false, description = "Without 'from': minutes back from 'to' (default 15, max 1440)") Integer windowMinutes,
+            @ToolParam(required = false, description = "Maximum number of lines (default 200, max 1000)") Integer lines) {
         return loki.queryRange(namespace, pod, container, text, from, to, windowMinutes, lines);
     }
 }

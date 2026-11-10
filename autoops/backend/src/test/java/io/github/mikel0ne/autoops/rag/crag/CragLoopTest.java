@@ -20,7 +20,7 @@ class CragLoopTest {
                                 List<String> gradeResponses, List<String> rewriteResponses) {
         var chat = new TestSupport.ScriptedChatModel(gradeResponses, rewriteResponses);
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
-        return new RagService(graph);
+        return new RagService(graph, props);
     }
 
     @Test
@@ -36,6 +36,16 @@ class CragLoopTest {
         assertThat(result.chunks()).isNotEmpty();
         assertThat(retriever.calls).isEqualTo(1);
         assertThat(retriever.receivedKs).containsExactly(5);
+    }
+
+    @Test
+    void caps_the_requested_k_at_k_max() {
+        var retriever = new TestSupport.FakeRetriever(0.9);
+        var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
+
+        service(retriever, props, List.of("1: SUFICIENTE"), List.of()).search("probes", 500);
+
+        assertThat(retriever.receivedKs).containsExactly(12);
     }
 
     @Test
@@ -84,7 +94,7 @@ class CragLoopTest {
                 List.of(), List.of("variante"));
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
 
-        RagResult result = new RagService(graph).search("pregunta compuesta", 0);
+        RagResult result = new RagService(graph, props).search("pregunta compuesta", 0);
 
         assertThat(result.confidence()).isEqualTo(RagResult.MEDIUM);
         assertThat(result.chunks()).containsExactly(n1);
@@ -126,7 +136,7 @@ class CragLoopTest {
                 List.of("1: SUFICIENTE\n2: SUFICIENTE"), List.of(), List.of("variante uno\nvariante dos"));
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
 
-        RagResult result = new RagService(graph).search("consulta original", 0);
+        RagResult result = new RagService(graph, props).search("consulta original", 0);
 
         assertThat(retriever.calls).isEqualTo(3);
         assertThat(retriever.receivedQueries)
@@ -145,7 +155,7 @@ class CragLoopTest {
         var chat = new TestSupport.ScriptedChatModel(List.of("1: SUFICIENTE"), List.of());
         var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
 
-        RagResult result = new RagService(graph).search("probes", 0);
+        RagResult result = new RagService(graph, props).search("probes", 0);
 
         assertThat(retriever.calls).isEqualTo(1);
         assertThat(retriever.receivedQueries).containsExactly("probes");

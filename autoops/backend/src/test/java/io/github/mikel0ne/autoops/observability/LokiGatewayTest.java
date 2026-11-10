@@ -53,6 +53,13 @@ class LokiGatewayTest {
     }
 
     @Test
+    void resolveWindow_caps_the_window_at_one_day() {
+        LokiGateway.TimeWindow v = LokiGateway.resolveWindow(null, null, 100_000);
+
+        assertThat(Duration.between(v.from(), v.to())).isEqualTo(Duration.ofDays(1));
+    }
+
+    @Test
     void resolveWindow_with_explicit_from_and_to_accepts_milliseconds() {
         LokiGateway.TimeWindow v = LokiGateway.resolveWindow(
                 "2026-06-26T14:32:07.100Z", "2026-06-26T14:32:07.900Z", null);

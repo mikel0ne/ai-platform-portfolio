@@ -55,10 +55,6 @@ public class CragGraph {
         return local;
     }
 
-    public CragProperties props() {
-        return props;
-    }
-
     private CompiledGraph<CragState> build() {
         ChatModel llm = chatModel.getObject();
         GradeNode grade = new GradeNode(llm, prompts.load("crag_grade.txt"), props.maxIterations());

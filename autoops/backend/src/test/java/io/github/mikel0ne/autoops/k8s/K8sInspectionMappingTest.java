@@ -3,12 +3,15 @@ package io.github.mikel0ne.autoops.k8s;
 import io.github.mikel0ne.autoops.k8s.model.PodDescription;
 import io.github.mikel0ne.autoops.k8s.model.PodDiagnosis;
 import io.github.mikel0ne.autoops.k8s.model.PodStatus;
+import io.fabric8.kubernetes.api.model.Event;
+import io.fabric8.kubernetes.api.model.EventBuilder;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodBuilder;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -88,6 +91,21 @@ class K8sInspectionMappingTest {
             assertThat(c.name()).isEqualTo("app");
             assertThat(c.image()).isEqualTo("img:1.0");
         });
+    }
+
+    @Test
+    void keeps_only_the_most_recent_events() {
+        List<Event> events = IntStream.range(0, K8sInspectionService.MAX_EVENTS + 10)
+                .mapToObj(i -> new EventBuilder()
+                        .withReason("r" + i)
+                        .withLastTimestamp(Instant.parse("2026-06-01T10:00:00Z").plusSeconds(i).toString())
+                        .build())
+                .toList();
+
+        List<PodDiagnosis.EventInfo> recent = K8sInspectionService.mostRecent(events);
+
+        assertThat(recent).hasSize(K8sInspectionService.MAX_EVENTS);
+        assertThat(recent.get(recent.size() - 1).reason()).isEqualTo("r" + (K8sInspectionService.MAX_EVENTS + 9));
     }
 
     @Test

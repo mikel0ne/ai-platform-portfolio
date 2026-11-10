@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.rag;
 
 import io.github.mikel0ne.autoops.rag.crag.CragGraph;
+import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
 import io.github.mikel0ne.autoops.rag.crag.nodes.GradeNode;
 import org.bsc.langgraph4j.RunnableConfig;
@@ -21,13 +22,15 @@ public class RagService {
     private static final int MAX_DISCARDED = 3;
 
     private final CragGraph cragGraph;
+    private final CragProperties props;
 
-    public RagService(CragGraph cragGraph) {
+    public RagService(CragGraph cragGraph, CragProperties props) {
         this.cragGraph = cragGraph;
+        this.props = props;
     }
 
     public RagResult search(String query, int k) {
-        int effectiveK = k > 0 ? k : cragGraph.props().k();
+        int effectiveK = k > 0 ? Math.min(k, props.kMax()) : props.k();
         Map<String, Object> input = new HashMap<>();
         input.put("query", query);
         input.put("currentQuery", query);

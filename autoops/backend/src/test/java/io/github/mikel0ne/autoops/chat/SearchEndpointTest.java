@@ -14,6 +14,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,11 +25,13 @@ class SearchEndpointTest {
 
     private final RagService ragService = mock(RagService.class);
     private final AnswerComposer answerComposer = mock(AnswerComposer.class);
+    private final SearchRateLimiter rateLimiter = mock(SearchRateLimiter.class);
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new SearchController(ragService, answerComposer))
+        when(rateLimiter.tryAcquire()).thenReturn(true);
+        mockMvc = MockMvcBuilders.standaloneSetup(new SearchController(ragService, answerComposer, rateLimiter))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -60,6 +63,15 @@ class SearchEndpointTest {
     void wrong_method_is_405() throws Exception {
         mockMvc.perform(get("/search"))
                 .andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void over_the_rate_limit_is_429_without_calling_the_llm() throws Exception {
+        when(rateLimiter.tryAcquire()).thenReturn(false);
+
+        mockMvc.perform(post("/search").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"probes\"}"))
+                .andExpect(status().isTooManyRequests());
+        verifyNoInteractions(ragService, answerComposer);
     }
 
     @Test
