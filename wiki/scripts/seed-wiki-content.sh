@@ -16,14 +16,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-for env_file in "${REPO_ROOT}/infra/.env.local"; do
-  if [ -f "$env_file" ]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$env_file"
-    set +a
-  fi
-done
+ENV_FILE="${REPO_ROOT}/infra/.env.local"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
 
 command -v node >/dev/null 2>&1 || { echo "[x] node not found on PATH." >&2; exit 1; }
 [ -n "${WIKIJS_API_KEY:-}" ] || { echo "[x] WIKIJS_API_KEY is missing (define it in infra/.env.local)." >&2; exit 1; }
