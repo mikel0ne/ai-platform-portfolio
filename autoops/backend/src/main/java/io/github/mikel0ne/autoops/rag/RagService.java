@@ -1,9 +1,9 @@
 package io.github.mikel0ne.autoops.rag;
 
+import io.github.mikel0ne.autoops.rag.crag.Coverage;
 import io.github.mikel0ne.autoops.rag.crag.CragGraph;
 import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
-import io.github.mikel0ne.autoops.rag.crag.nodes.GradeNode;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +42,7 @@ public class RagService {
 
         List<DocChunk> chunks = state.candidates();
         int iterations = state.iterations();
-        List<String> coverage = state.questionCoverage();
+        List<Coverage> coverage = state.questionCoverage();
 
         Confidence confidence = confidenceOf(coverage);
         List<DocChunk> discarded = confidence != Confidence.NONE ? List.of() : state.rawCandidates().stream()
@@ -55,14 +55,14 @@ public class RagService {
         return new RagResult(chunks, iterations, confidence, discarded);
     }
 
-    static Confidence confidenceOf(List<String> coverage) {
-        if (!coverage.isEmpty() && coverage.stream().allMatch(GradeNode.COVERED::equals)) {
+    static Confidence confidenceOf(List<Coverage> coverage) {
+        if (!coverage.isEmpty() && coverage.stream().allMatch(Coverage.COVERED::equals)) {
             return Confidence.HIGH;
         }
-        if (coverage.stream().anyMatch(GradeNode.COVERED::equals)) {
+        if (coverage.stream().anyMatch(Coverage.COVERED::equals)) {
             return Confidence.MEDIUM;
         }
-        if (coverage.stream().anyMatch(GradeNode.PARTIAL::equals)) {
+        if (coverage.stream().anyMatch(Coverage.PARTIAL::equals)) {
             return Confidence.LOW;
         }
         return Confidence.NONE;

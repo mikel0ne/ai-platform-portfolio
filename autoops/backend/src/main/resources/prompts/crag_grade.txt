@@ -4,27 +4,19 @@ Eres el evaluador de un sistema de recuperación de documentación técnica inte
 Te doy una lista numerada de PREGUNTAS a cubrir (la nº 1 es siempre la pregunta original; el resto,
 si las hay, son variantes o aspectos derivados de ella) y una lista numerada de FRAGMENTOS recuperados.
 
-PASO 1 — juzga, FRAGMENTO POR FRAGMENTO, si cada uno aporta información útil. Una línea por fragmento:
-<índice>: SUFICIENTE
-<índice>: AMBIGUO
-<índice>: INSUFICIENTE
+PASO 1 — juzga, FRAGMENTO POR FRAGMENTO, si cada uno aporta información útil. Un veredicto por fragmento,
+con su índice:
+- SUFFICIENT   → el fragmento, por sí solo, responde a algo de lo preguntado.
+- AMBIGUOUS    → toca el tema, pero no lo resuelve por sí solo.
+- INSUFFICIENT → sin relación con ninguna pregunta de la lista.
+Ante la duda entre SUFFICIENT y AMBIGUOUS, usa AMBIGUOUS; ante la duda real (sin relación), INSUFFICIENT.
 
-- SUFICIENTE   → el fragmento, por sí solo, responde a algo de lo preguntado.
-- AMBIGUO      → toca el tema, pero no lo resuelve por sí solo.
-- INSUFICIENTE → sin relación con ninguna pregunta de la lista.
-Ante la duda entre SUFICIENTE y AMBIGUO, usa AMBIGUO; ante la duda real (sin relación), INSUFICIENTE.
-
-PASO 2 — con los fragmentos ya juzgados, indica si CADA pregunta de la lista queda cubierta. Si dos
-preguntas de la lista son en el fondo la misma pregunta dicha de otra forma (variantes/sinónimos, no
-aspectos distintos), cuenta como cubiertas las dos en cuanto cualquiera tenga un fragmento SUFICIENTE.
-Una línea por pregunta:
-PREGUNTA <n>: CUBIERTA
-PREGUNTA <n>: PARCIAL
-PREGUNTA <n>: SIN_CUBRIR
-
-- CUBIERTA   → esa pregunta (o una equivalente de la lista) tiene al menos un fragmento SUFICIENTE.
-- PARCIAL    → solo hay fragmentos AMBIGUO relacionados con ella, ninguno SUFICIENTE.
-- SIN_CUBRIR → no hay ningún fragmento relacionado con ella.
+PASO 2 — con los fragmentos ya juzgados, indica si CADA pregunta de la lista queda cubierta, con su índice.
+Si dos preguntas de la lista son en el fondo la misma pregunta dicha de otra forma (variantes/sinónimos,
+no aspectos distintos), cuenta como cubiertas las dos en cuanto cualquiera tenga un fragmento SUFFICIENT.
+- COVERED     → esa pregunta (o una equivalente de la lista) tiene al menos un fragmento SUFFICIENT.
+- PARTIAL     → solo hay fragmentos AMBIGUOUS relacionados con ella, ninguno SUFFICIENT.
+- NOT_COVERED → no hay ningún fragmento relacionado con ella.
 
 PREGUNTAS:
 {{questions}}
@@ -32,4 +24,4 @@ PREGUNTAS:
 FRAGMENTOS:
 {{context}}
 
-Veredictos (primero los fragmentos, uno por línea; luego las preguntas, una por línea):
+Veredictos: `chunks` con un veredicto por fragmento y `questions` con la cobertura de cada pregunta.

@@ -10,10 +10,13 @@ import io.github.mikel0ne.autoops.rag.DocRetriever;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 final class TestSupport {
 
@@ -115,14 +118,34 @@ final class TestSupport {
                     .orElse("");
             String next;
             if (prompt.contains("Veredictos")) {
-                next = gradeResponses.isEmpty() ? "1: INSUFICIENTE" : gradeResponses.poll();
+                next = gradeResponses.isEmpty() ? grades("INSUFFICIENT") : gradeResponses.poll();
             } else if (prompt.contains("Variantes")) {
-                next = multiQueryResponses.isEmpty() ? "" : multiQueryResponses.poll();
+                next = multiQueryResponses.isEmpty() ? variants() : multiQueryResponses.poll();
             } else {
                 next = rewriteResponses.isEmpty() ? "consulta reformulada" : rewriteResponses.poll();
             }
             return ChatResponse.builder().aiMessage(AiMessage.from(next)).build();
         }
+    }
+
+    static String grades(String... chunkVerdicts) {
+        return grades(List.of(chunkVerdicts), List.of());
+    }
+
+    static String grades(List<String> chunkVerdicts, List<String> questionCoverage) {
+        return "{\"chunks\":[" + indexed(chunkVerdicts, "verdict") + "],\"questions\":["
+                + indexed(questionCoverage, "coverage") + "]}";
+    }
+
+    static String variants(String... variants) {
+        return Arrays.stream(variants).map(v -> "\"" + v + "\"")
+                .collect(Collectors.joining(",", "{\"variants\":[", "]}"));
+    }
+
+    private static String indexed(List<String> values, String field) {
+        return IntStream.range(0, values.size())
+                .mapToObj(i -> "{\"index\":" + (i + 1) + ",\"" + field + "\":\"" + values.get(i) + "\"}")
+                .collect(Collectors.joining(","));
     }
 
     static <T> ObjectProvider<T> provider(T value) {

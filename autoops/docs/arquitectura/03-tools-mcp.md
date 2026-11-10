@@ -211,8 +211,9 @@ public class CragState extends AgentState {
   vuelta no se pierde si la siguiente reformulación no vuelve a traerlo en el nuevo top-k.
 - **`rerank`** — reordena por el score que ya trae cada candidato y recorta a `k`.
 - **`grade`** — el **LLM interno evalúa, fragmento por fragmento, en una sola llamada** si cada candidato
-  aporta algo a la consulta (prompt `crag_grade.txt`: una línea `<índice>: SUFICIENTE/INSUFICIENTE` por
-  fragmento). **Filtra `candidatos`** a los marcados relevantes — los demás nunca llegan a `AnswerComposer` —
+  aporta algo a la consulta (prompt `crag_grade.txt`, salida estructurada vía `AiServices`: un record
+  `GradeResult` con un veredicto `SUFFICIENT/AMBIGUOUS/INSUFFICIENT` por fragmento y la cobertura de cada
+  pregunta; una respuesta no parseable cuenta como todo insuficiente). **Filtra `candidatos`** a los marcados relevantes — los demás nunca llegan a `AnswerComposer` —
   y deriva `suficiente` de esos veredictos: basta con que haya al menos uno relevante (el resto del bucle ya
   amplía la búsqueda si la cobertura es pobre). Ante un veredicto ambiguo o ausente para un fragmento, se
   trata como NO relevante. Deliberadamente sin atajo por `mejorScore`: ese score no es un proxy fiable de
