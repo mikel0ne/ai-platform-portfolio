@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public final class Chunker {
@@ -32,30 +33,34 @@ public final class Chunker {
     private static List<CoreChunk> extractCores(SourceDocument doc, int maxChars, int overlapChars) {
         List<CoreChunk> cores = new ArrayList<>();
 
-        Deque<int[]> levels = new ArrayDeque<>();
+        Deque<Integer> levels = new ArrayDeque<>();
         List<String> titles = new ArrayList<>();
-        String rootSection = doc.title() == null || doc.title().isBlank() ? "(inicio)" : doc.title();
+        String breadcrumb = doc.title() == null || doc.title().isBlank() ? "(inicio)" : doc.title();
         StringBuilder body = new StringBuilder();
-        String[] breadcrumb = {rootSection};
+        boolean inFence = false;
 
         for (String line : doc.content().split("\n", -1)) {
-            int level = headingLevel(line);
+            // A '#' inside a fenced block is a shell comment, not a heading.
+            if (line.stripLeading().startsWith("```") || line.stripLeading().startsWith("~~~")) {
+                inFence = !inFence;
+            }
+            int level = inFence ? 0 : headingLevel(line);
             if (level > 0) {
-                flushSection(breadcrumb[0], body.toString(), maxChars, overlapChars, cores);
+                flushSection(breadcrumb, body.toString(), maxChars, overlapChars, cores);
                 body.setLength(0);
 
-                while (!levels.isEmpty() && levels.peek()[0] >= level) {
+                while (!levels.isEmpty() && levels.peek() >= level) {
                     levels.pop();
                     titles.remove(titles.size() - 1);
                 }
-                levels.push(new int[]{level});
+                levels.push(level);
                 titles.add(line.replaceFirst("^#+\\s*", "").trim());
-                breadcrumb[0] = String.join(" > ", titles);
+                breadcrumb = String.join(" > ", titles);
             } else {
                 body.append(line).append('\n');
             }
         }
-        flushSection(breadcrumb[0], body.toString(), maxChars, overlapChars, cores);
+        flushSection(breadcrumb, body.toString(), maxChars, overlapChars, cores);
         return cores;
     }
 
@@ -143,11 +148,12 @@ public final class Chunker {
         return anchor.isBlank() ? baseUrl : baseUrl + "#" + anchor;
     }
 
-    private static String slug(String s) {
-        return s.toLowerCase()
-                .replaceAll("[^a-z0-9\\s-]", "")
+    // GitHub-style anchor: keeps accented letters, so Spanish headings still link to their section.
+    static String slug(String s) {
+        return s.toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}\\s_-]", "")
                 .strip()
-                .replaceAll("\\s+", "-");
+                .replaceAll("\\s", "-");
     }
 
     private static String sha256(String s) {
