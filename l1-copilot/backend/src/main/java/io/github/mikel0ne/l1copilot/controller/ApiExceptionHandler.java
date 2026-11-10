@@ -28,9 +28,14 @@ public class ApiExceptionHandler {
                 "Missing session header " + ex.getHeaderName());
     }
 
-    @ExceptionHandler(ChatController.UnknownUserException.class)
-    ProblemDetail unknownUser(ChatController.UnknownUserException ex) {
+    @ExceptionHandler(UnknownUserException.class)
+    ProblemDetail unknownUser(UnknownUserException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Unauthenticated user");
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    ProblemDetail notFound(ResourceNotFoundException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
     @ExceptionHandler(ConversationService.LlmUnavailableException.class)

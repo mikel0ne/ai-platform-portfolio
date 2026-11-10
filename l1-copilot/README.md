@@ -125,8 +125,8 @@ bash l1-copilot/scripts/setup-l1-copilot-db.sh
 |---|---|
 | `POST /api/copilot/chat` | One conversation turn: `{ conversationId, message }`, header `X-User-Id` |
 | `GET /api/copilot/users` | Demo users for the simulated login |
-| `GET /api/copilot/tickets/{id}` | Ticket detail |
-| `GET /api/copilot/returns/{id}` | Return label |
+| `GET /api/copilot/tickets/{id}` | Detail of one of the session user's tickets, header `X-User-Id` (404 otherwise) |
+| `GET /api/copilot/returns/{id}` | Return label of one of the session user's orders with a return in progress, header `X-User-Id` |
 
 `X-User-Id` stands in for a real session token (authentication is out of scope); unknown users get 401.
 
