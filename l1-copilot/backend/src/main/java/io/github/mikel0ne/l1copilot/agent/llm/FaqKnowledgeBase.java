@@ -18,7 +18,7 @@ public class FaqKnowledgeBase {
     public FaqKnowledgeBase(@Value("classpath:faq.md") Resource resource) {
         try (var inputStream = resource.getInputStream()) {
             this.content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-            log.debug("FAQ cargada: {} caracteres", content.length());
+            log.debug("FAQ loaded: {} characters", content.length());
         } catch (IOException e) {
             throw new UncheckedIOException("Could not load faq.md", e);
         }

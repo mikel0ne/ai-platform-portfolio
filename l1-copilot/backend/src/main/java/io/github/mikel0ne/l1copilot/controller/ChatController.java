@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@Tag(name = "Copilot", description = "Agente de soporte L1 autónomo (LangGraph4j)")
+@Tag(name = "Copilot", description = "Autonomous L1 support agent (LangGraph4j)")
 @RestController
 @RequestMapping("/copilot")
 @RequiredArgsConstructor
@@ -30,8 +30,8 @@ public class ChatController {
     private final TreatmentPolicy treatmentPolicy;
     private final SessionUsers sessionUsers;
 
-    @Operation(summary = "Turno de conversación con el agente",
-            description = "Envía un mensaje del usuario; el mismo conversationId mantiene el estado entre turnos")
+    @Operation(summary = "One conversation turn with the agent",
+            description = "Sends a user message; the same conversationId keeps the state across turns")
     @PostMapping("/chat")
     public ChatResponse chat(@RequestHeader(SessionUsers.HEADER) String userId,
                              @Valid @RequestBody ChatRequest request) {
@@ -43,7 +43,7 @@ public class ChatController {
                 result.returns(), result.confirm());
     }
 
-    @Operation(summary = "Usuarios de demo para el login simulado del frontend")
+    @Operation(summary = "Demo users for the frontend's simulated login")
     @GetMapping("/users")
     public List<UserDto> demoUsers() {
         return userRepository.findAll().stream()

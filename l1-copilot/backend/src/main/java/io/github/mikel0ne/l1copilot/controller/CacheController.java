@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
-@Tag(name = "Caché", description = "Endpoints para gestionar la caché de respuestas")
+@Tag(name = "Cache", description = "Development LLM response cache")
 @ConditionalOnProperty(name = "cache.enabled", havingValue = "true")
 @RestController
 @RequestMapping("/cache")
@@ -28,6 +28,6 @@ public class CacheController {
     @DeleteMapping("/clear")
     public ResponseEntity<String> clearCache() {
         fileCacheManager.clear();
-        return ResponseEntity.ok("Caché limpiada exitosamente");
+        return ResponseEntity.ok("Cache cleared");
     }
 }
