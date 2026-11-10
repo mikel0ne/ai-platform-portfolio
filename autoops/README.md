@@ -115,6 +115,23 @@ bash infra/scripts/ingest-autoops.sh --reset      # indexes this repository's do
 Then point an MCP client at `http://autoops.local/mcp`; for Claude Code the repo already ships
 [`.mcp.json`](../.mcp.json).
 
+## Evaluation
+
+[`rag-golden-set.json`](backend/src/test/resources/rag-golden-set.json) holds 21 questions over the sample corpus, each
+with the document and section that answer it. `RagEvalTest` measures, against a real index:
+
+- **hybrid search + rerank**: hit@1, hit@5 and MRR of the expected section;
+- **the full CRAG loop**: whether the evidence it hands to the answer contains that section, plus the confidence
+  distribution and the iterations it took.
+
+It is opt-in because it needs an indexed Weaviate with the reranker and a Gemini key; it fails below
+`RAG_EVAL_MIN_HIT` (default 0.8 hit@5):
+
+```bash
+kubectl port-forward svc/weaviate 8088:8080 -n infra &
+RAG_EVAL=true GEMINI_API_KEY=... AUTOOPS_WEAVIATE_CLASS_NAME=AutoopsDocChunk ./mvnw test -Dtest=RagEvalTest
+```
+
 ## Design decisions
 
 The ADRs are in [`docs/arquitectura/02-arquitectura-sistema.md`](docs/arquitectura/02-arquitectura-sistema.md) (Spanish):
