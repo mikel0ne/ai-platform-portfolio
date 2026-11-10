@@ -86,7 +86,7 @@ Other choices visible in the code:
 
 ## Stack
 
-Java 17 · Spring Boot 3.5 · **LangChain4j 1.16** (AiServices: `IntentClassifier`, `Verifier`, `Responder`,
+Java 17 · Spring Boot 3.5 · **LangChain4j 1.23** (AiServices: `IntentClassifier`, `Verifier`, `Responder`,
 `TicketWriter`) · **LangGraph4j 1.8** · Gemini through Google AI Studio (Gemma via the OpenAI-compatible endpoint
 also supported) · Spring Data JPA · PostgreSQL / H2 · Angular 22 · Helm on k3s.
 
