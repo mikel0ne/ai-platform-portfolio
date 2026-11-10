@@ -1,0 +1,23 @@
+[
+  {"query": "¿Qué endpoint debe usar la readiness probe en un servicio Spring Boot?", "source": "guia-probes.md", "sections": ["Readiness"]},
+  {"query": "¿La liveness probe debe comprobar la base de datos?", "source": "guia-probes.md", "sections": ["Liveness", "Errores frecuentes"]},
+  {"query": "Mi pod entra en CrashLoopBackOff nada más arrancar, ¿qué suele faltar?", "source": "guia-probes.md", "sections": ["Errores frecuentes", "Startup"]},
+  {"query": "¿Cuánto margen de arranque da una startup probe con failureThreshold 30 y periodSeconds 5?", "source": "guia-probes.md", "sections": ["Startup"]},
+  {"query": "Pods en estado Ready que devuelven 503", "source": "guia-probes.md", "sections": ["Errores frecuentes", "Readiness"]},
+  {"query": "¿Hay que poner limits de CPU en un servicio sensible a la latencia?", "source": "politica-recursos.md", "sections": ["CPU"]},
+  {"query": "Un contenedor se reinicia con OOMKilled, ¿qué hago?", "source": "politica-recursos.md", "sections": ["memoria", "Síntomas"]},
+  {"query": "¿Se permite la clase de QoS BestEffort en producción?", "source": "politica-recursos.md", "sections": ["QoS"]},
+  {"query": "¿Qué requests y limits recomendáis para una API Java estándar?", "source": "politica-recursos.md", "sections": ["Valores de referencia"]},
+  {"query": "Pod en Pending con FailedScheduling por Insufficient memory", "source": "politica-recursos.md", "sections": ["Síntomas"]},
+  {"query": "¿Cómo dimensiono el heap de la JVM respecto al límite de memoria del contenedor?", "source": "politica-recursos.md", "sections": ["memoria"]},
+  {"query": "¿Dónde deben ir los secretos de un microservicio?", "source": "estandar-microservicios.md", "sections": ["Estructura y configuración"]},
+  {"query": "¿Cómo se implementa el apagado ordenado de un servicio?", "source": "estandar-microservicios.md", "sections": ["Salud y ciclo de vida"]},
+  {"query": "¿Renombrar un campo de la API es un cambio compatible?", "source": "estandar-microservicios.md", "sections": ["Contrato de API"]},
+  {"query": "¿Qué formato deben tener las respuestas de error de la API?", "source": "estandar-microservicios.md", "sections": ["Contrato de API"]},
+  {"query": "¿Toda llamada saliente necesita timeout? ¿Y reintentos?", "source": "estandar-microservicios.md", "sections": ["Resiliencia"]},
+  {"query": "¿Por qué no usar el tag latest en los despliegues?", "source": "estandar-microservicios.md", "sections": ["Despliegue"]},
+  {"query": "¿En qué formato y hacia dónde escribimos los logs en producción?", "source": "observabilidad-logging.md", "sections": ["Logging"]},
+  {"query": "¿Qué campos mínimos debe llevar cada evento de log?", "source": "observabilidad-logging.md", "sections": ["Logging"]},
+  {"query": "¿Dónde se exponen las métricas de Prometheus y cuáles son las mínimas?", "source": "observabilidad-logging.md", "sections": ["Métricas"]},
+  {"query": "¿Cómo correlaciono logs y trazas durante un incidente?", "source": "observabilidad-logging.md", "sections": ["Correlación", "Trazas"]}
+]
