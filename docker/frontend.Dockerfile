@@ -11,9 +11,10 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:1.27-alpine
+# Unprivileged variant: runs as a non-root user on 8080, so the pod can set runAsNonRoot.
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 COPY --from=build /workspace/dist/frontend/browser /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
