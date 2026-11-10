@@ -223,6 +223,41 @@ class RouterNodeTest {
     }
 
     @Test
+    @DisplayName("Confirm button without a pending confirmation: it does not count as YES")
+    void confirmCommandWithoutPendingConfirmationIsIgnored() {
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", UiAction.confirmCancel(200L))));
+
+        assertThat(updates).containsEntry("intent", "CANCEL");
+        assertThat(updates).containsEntry("confirmation", "NONE");
+        verifyNoInteractions(classifier);
+    }
+
+    @Test
+    @DisplayName("Confirm button for another order than the pending one: it does not count as YES")
+    void confirmCommandForAnotherOrderIsIgnored() {
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", UiAction.confirmCancel(201L),
+                "awaiting", "CANCEL_CONFIRM",
+                "orderId", 200L)));
+
+        assertThat(updates).containsEntry("orderId", 201L);
+        assertThat(updates).containsEntry("confirmation", "NONE");
+    }
+
+    @Test
+    @DisplayName("Return confirm button while a cancellation is pending: it does not count as YES")
+    void returnConfirmDuringCancelConfirmationIsIgnored() {
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", UiAction.confirmReturn(200L),
+                "awaiting", "CANCEL_CONFIRM",
+                "orderId", 200L)));
+
+        assertThat(updates).containsEntry("intent", "RETURN");
+        assertThat(updates).containsEntry("confirmation", "NONE");
+    }
+
+    @Test
     @DisplayName("Dismiss button: the command resolves to NO deterministically, without the LLM")
     void abortCancelCommandIsDeterministic() {
         Map<String, Object> updates = router.apply(state(Map.of(
