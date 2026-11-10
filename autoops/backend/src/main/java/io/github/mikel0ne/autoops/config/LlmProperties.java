@@ -13,10 +13,12 @@ public record LlmProperties(
         @NotBlank String chatModelName,
         @NotBlank String embeddingModelName,
         Duration timeout,
+        Integer maxRetries,
         Double temperature
 ) {
     public LlmProperties {
         if (timeout == null) timeout = Duration.ofSeconds(30);
+        if (maxRetries == null) maxRetries = 2;
         if (temperature == null) temperature = 0.2;
     }
 }

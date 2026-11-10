@@ -2,6 +2,7 @@ package io.github.mikel0ne.autoops.observability;
 
 import io.github.mikel0ne.autoops.observability.model.LogEntry;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
@@ -21,7 +22,7 @@ public class LokiGateway {
 
     private final RestClient client;
 
-    public LokiGateway(RestClient lokiClient) {
+    public LokiGateway(@Qualifier("lokiClient") RestClient lokiClient) {
         this.client = lokiClient;
     }
 

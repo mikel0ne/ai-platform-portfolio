@@ -2,6 +2,7 @@ package io.github.mikel0ne.autoops.rag;
 
 import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
+import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.weaviate.client.WeaviateClient;
@@ -165,9 +166,13 @@ public class WeaviateGateway implements DocRetriever {
         failOnError("inserting chunk " + c.docId(), result);
     }
 
-    private static boolean isRateLimited(RuntimeException e) {
-        String msg = e.getMessage();
-        return msg != null && (msg.contains("429") || msg.contains("RESOURCE_EXHAUSTED") || msg.contains("rate limit"));
+    static boolean isRateLimited(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof RateLimitException) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
