@@ -1,16 +1,17 @@
 package io.github.mikel0ne.autoops.cache;
 
 import io.github.mikel0ne.autoops.config.CacheProperties;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Optional;
@@ -35,8 +36,9 @@ public class FileCacheManager {
         }
     }
 
+    @PostConstruct
     public void init() {
-        if (!props.isCacheEnabled() || !Boolean.TRUE.equals(props.file().enabled())) {
+        if (!props.isCacheEnabled() || !props.file().enabled()) {
             return;
         }
         Path dir = Path.of(props.file().path());
@@ -53,7 +55,8 @@ public class FileCacheManager {
                     if (Instant.now().isBefore(expires)) {
                         memory.put(key, new Entry(value, expires));
                     }
-                } catch (IOException ignored) {
+                } catch (IOException e) {
+                    log.warn("Skipping unreadable cache file {}: {}", p.getFileName(), e.getMessage());
                 }
             });
             log.info("LLM cache loaded: {} entries from {}", memory.size(), dir.toAbsolutePath());
@@ -78,7 +81,7 @@ public class FileCacheManager {
             return;
         }
         memory.put(key, new Entry(value, Instant.now().plusSeconds(props.ttlSeconds())));
-        if (Boolean.TRUE.equals(props.file().enabled())) {
+        if (props.file().enabled()) {
             persist(key, value);
         }
     }
@@ -88,8 +91,8 @@ public class FileCacheManager {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] hash = md.digest(content.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
-        } catch (Exception e) {
-            return Integer.toHexString(content.hashCode());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
         }
     }
 
@@ -99,7 +102,7 @@ public class FileCacheManager {
             Files.createDirectories(dir);
             Files.writeString(dir.resolve(key + ".txt"), value, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not persist the LLM cache", e);
+            log.warn("Could not persist the LLM cache entry {}: {}", key, e.getMessage());
         }
     }
 }

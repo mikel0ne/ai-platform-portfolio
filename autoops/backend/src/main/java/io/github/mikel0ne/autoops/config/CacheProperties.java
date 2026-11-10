@@ -1,33 +1,18 @@
 package io.github.mikel0ne.autoops.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
+// Development-only LLM response cache, off unless cache.enabled=true.
 @ConfigurationProperties(prefix = "cache")
-public record CacheProperties(Boolean enabled, File file, Long ttlSeconds) {
-    public record File(Boolean enabled, String path) {
-        public File {
-            if (enabled == null) {
-                enabled = true;
-            }
-            if (path == null || path.isBlank()) {
-                path = "./cache";
-            }
-        }
-    }
+public record CacheProperties(@DefaultValue("false") boolean enabled,
+                              @DefaultValue File file,
+                              @DefaultValue("3600") long ttlSeconds) {
 
-    public CacheProperties {
-        if (enabled == null) {
-            enabled = true;
-        }
-        if (file == null) {
-            file = new File(true, "./cache");
-        }
-        if (ttlSeconds == null) {
-            ttlSeconds = 3600L;
-        }
+    public record File(@DefaultValue("true") boolean enabled, @DefaultValue("./cache") String path) {
     }
 
     public boolean isCacheEnabled() {
-        return Boolean.TRUE.equals(enabled);
+        return enabled;
     }
 }
