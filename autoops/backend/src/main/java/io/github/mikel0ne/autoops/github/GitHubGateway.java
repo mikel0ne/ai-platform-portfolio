@@ -2,6 +2,7 @@ package io.github.mikel0ne.autoops.github;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -15,7 +16,7 @@ public class GitHubGateway {
 
     private final RestClient client;
 
-    public GitHubGateway(RestClient gitHubClient) {
+    public GitHubGateway(@Qualifier("gitHubClient") RestClient gitHubClient) {
         this.client = gitHubClient;
     }
 

@@ -25,6 +25,8 @@ public class GeminiModelConfig {
                 .apiKey(apiKey)
                 .modelName(props.embeddingModelName())
                 .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_DOCUMENT)
+                .timeout(props.timeout())
+                .maxRetries(props.maxRetries())
                 .build();
     }
 
@@ -36,6 +38,8 @@ public class GeminiModelConfig {
                 .apiKey(apiKey)
                 .modelName(props.embeddingModelName())
                 .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_QUERY)
+                .timeout(props.timeout())
+                .maxRetries(props.maxRetries())
                 .build();
     }
 
@@ -48,6 +52,7 @@ public class GeminiModelConfig {
                 .modelName(props.chatModelName())
                 .temperature(props.temperature())
                 .timeout(props.timeout())
+                .maxRetries(props.maxRetries())
                 .build();
     }
 }

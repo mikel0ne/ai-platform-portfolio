@@ -30,7 +30,12 @@ autoops:
     chat-model-name: gemini-3.1-flash-lite
     embedding-model-name: gemini-embedding-2
     timeout: 30s
+    max-retries: 2
     temperature: 0.2
+  # Every outbound REST client (GitHub, Loki, Wiki.js).
+  http:
+    connect-timeout: 5s
+    read-timeout: 30s
   # Local runs reach the cluster services through port-forwards (see autoops/docs/infraestructura).
   weaviate:
     scheme: http

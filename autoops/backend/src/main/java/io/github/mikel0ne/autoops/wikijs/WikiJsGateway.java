@@ -3,6 +3,7 @@ package io.github.mikel0ne.autoops.wikijs;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -47,7 +48,7 @@ public class WikiJsGateway {
 
     private final RestClient client;
 
-    public WikiJsGateway(RestClient wikiJsClient) {
+    public WikiJsGateway(@Qualifier("wikiJsClient") RestClient wikiJsClient) {
         this.client = wikiJsClient;
     }
 
