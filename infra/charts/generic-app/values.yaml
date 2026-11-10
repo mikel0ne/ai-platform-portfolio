@@ -10,11 +10,12 @@ nameOverride: ""
 # -- Overrides the full name (release name + chart) when an exact name is needed
 fullnameOverride: ""
 
-namespace: default
+# The namespace is the release's: helm upgrade --install --namespace <ns>.
 
 image:
   repository: my-app
-  tag: latest
+  # Empty means the chart appVersion; deploy.sh always passes an explicit, unique tag.
+  tag: ""
   pullPolicy: IfNotPresent
 
 replicaCount: 1
@@ -66,6 +67,14 @@ secretEnv: []
 #   secretKey: MY_API_KEY     # key inside the Secret
 
 probes:
+  # Optional: holds liveness/readiness back until a slow (JVM) start has finished.
+  startup:
+    enabled: false
+    httpGet:
+      path: /
+      port: http
+    periodSeconds: 5
+    failureThreshold: 30
   readiness:
     enabled: true
     httpGet:
@@ -94,6 +103,10 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 podSecurityContext: {}
 # podSecurityContext:
@@ -102,7 +115,7 @@ podSecurityContext: {}
 
 ingress:
   enabled: false
-  className: nginx
+  className: traefik
   host: ""
   tls:
     enabled: false

@@ -13,8 +13,6 @@
 # uses its own class (AutoopsDocChunk).
 # =============================================================================
 
-namespace: autoops
-
 image:
   repository: registry.local/autoops-backend
   tag: "0.1.0"
@@ -84,12 +82,20 @@ serviceAccount:
 
 # Actuator at the root (AutoOps has no context path).
 probes:
+  # Up to 150s for the JVM to start before liveness may restart it.
+  startup:
+    enabled: true
+    httpGet:
+      path: /actuator/health/liveness
+      port: http
+    periodSeconds: 5
+    failureThreshold: 30
   readiness:
     enabled: true
     httpGet:
       path: /actuator/health/readiness
       port: http
-    initialDelaySeconds: 20
+    initialDelaySeconds: 0
     periodSeconds: 10
     failureThreshold: 6
   liveness:
@@ -97,7 +103,7 @@ probes:
     httpGet:
       path: /actuator/health/liveness
       port: http
-    initialDelaySeconds: 40
+    initialDelaySeconds: 0
     periodSeconds: 20
     failureThreshold: 3
 
@@ -114,6 +120,10 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 # The Ingress is created by infra/scripts/setup-app-ingress.sh --project autoops
 # (host autoops.local; /search /mcp /actuator -> backend, / -> frontend).

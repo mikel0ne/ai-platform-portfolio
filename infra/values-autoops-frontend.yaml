@@ -8,8 +8,6 @@
 #   ./infra/scripts/deploy.sh --project autoops --component frontend --tag 0.1.0
 # =============================================================================
 
-namespace: autoops
-
 image:
   repository: registry.local/autoops-frontend
   tag: "0.1.0"
@@ -62,6 +60,10 @@ resources:
 securityContext:
   allowPrivilegeEscalation: false
   runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
 
 # The Ingress is created by setup-app-ingress.sh --project autoops ("/" -> this Service).
 ingress:
