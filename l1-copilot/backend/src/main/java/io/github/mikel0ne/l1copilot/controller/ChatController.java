@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.controller;
 
+import io.github.mikel0ne.l1copilot.config.TreatmentPolicy;
 import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
 import io.github.mikel0ne.l1copilot.dto.ChatRequest;
 import io.github.mikel0ne.l1copilot.dto.ChatResponse;
@@ -9,7 +10,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,19 +23,19 @@ import java.util.List;
 @RestController
 @RequestMapping("/copilot")
 @RequiredArgsConstructor
-@Slf4j
 public class ChatController {
 
     private final ConversationService conversationService;
     private final UserRepository userRepository;
-    private final io.github.mikel0ne.l1copilot.config.TreatmentPolicy treatmentPolicy;
+    private final TreatmentPolicy treatmentPolicy;
+    private final SessionUsers sessionUsers;
 
     @Operation(summary = "Turno de conversación con el agente",
             description = "Envía un mensaje del usuario; el mismo conversationId mantiene el estado entre turnos")
     @PostMapping("/chat")
-    public ChatResponse chat(@RequestHeader("X-User-Id") String userId,
+    public ChatResponse chat(@RequestHeader(SessionUsers.HEADER) String userId,
                              @Valid @RequestBody ChatRequest request) {
-        ensureKnownUser(userId);
+        sessionUsers.requireKnown(userId);
         ConversationService.ChatResult result =
                 conversationService.chat(userId, request.conversationId(), request.message());
         return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
@@ -50,17 +50,5 @@ public class ChatController {
                 .map(u -> new UserDto(u.getId(), u.getName(), u.getAge(),
                         u.getAvatarUrl(), treatmentPolicy.isFormal(u)))
                 .toList();
-    }
-
-    private void ensureKnownUser(String userId) {
-        if (!userRepository.existsById(userId)) {
-            throw new UnknownUserException(userId);
-        }
-    }
-
-    public static class UnknownUserException extends RuntimeException {
-        public UnknownUserException(String userId) {
-            super("Usuario no autenticado: " + userId);
-        }
     }
 }

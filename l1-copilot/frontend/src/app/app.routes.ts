@@ -13,10 +13,12 @@ export const routes: Routes = [
   },
   {
     path: 'tickets/:id',
+    canActivate: [authGuard],
     loadComponent: () => import('./ticket/ticket-detail.component').then(m => m.TicketDetailComponent),
   },
   {
     path: 'returns/:id',
+    canActivate: [authGuard],
     loadComponent: () => import('./returns/return-label.component').then(m => m.ReturnLabelComponent),
   },
   { path: '**', redirectTo: '' },

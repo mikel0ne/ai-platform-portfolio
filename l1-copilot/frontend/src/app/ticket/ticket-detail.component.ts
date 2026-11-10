@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap, startWith } from 'rxjs';
 import { ChatApiService } from '../core/chat-api.service';
@@ -14,7 +14,7 @@ type State =
 @Component({
   selector: 'app-ticket-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [CommonModule],
   template: `
     <main class="ticket-page">
       @if (ticket(); as t) {
@@ -47,23 +47,6 @@ type State =
         </div>
       }
 
-      <aside class="examples">
-        <h2>Tickets de ejemplo</h2>
-        <table>
-          <thead>
-            <tr><th>ID</th><th>Código</th><th>Ir al ticket</th></tr>
-          </thead>
-          <tbody>
-            @for (id of exampleIds; track id) {
-              <tr>
-                <td>{{ id }}</td>
-                <td>[SUP-{{ pad(id) }}]</td>
-                <td><a [routerLink]="['/tickets', id]">/tickets/{{ id }}</a></td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </aside>
     </main>
   `,
   styles: [`
@@ -124,23 +107,11 @@ type State =
     }
     .message p { line-height: 1.5; white-space: pre-wrap; margin: 0; }
 
-    .examples {
-      margin-top: 1.5rem;
-      border-top: 1px dashed #d8d8d8;
-      padding-top: 1rem;
-    }
-    .examples h2 { font-size: 0.95rem; margin: 0 0 0.6rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid #eee; }
-    th { color: #656d76; font-weight: 600; }
-    a { color: #7c3aed; }
   `],
 })
 export class TicketDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly api = inject(ChatApiService);
-
-  readonly exampleIds = [1, 2, 3];
 
   readonly state = toSignal(
     this.route.paramMap.pipe(
@@ -170,9 +141,5 @@ export class TicketDetailComponent {
       CLOSED:      'Cerrado',
     };
     return labels[status] ?? status;
-  }
-
-  pad(id: number): string {
-    return String(id).padStart(4, '0');
   }
 }
