@@ -22,9 +22,9 @@ decisión.
 - **✅ #15**: Validación declarativa (`@NotNull`/`@NotBlank`/`@Email`/`@Positive`) en las entidades JPA
 - **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
 - **✅ #17**: Seed separado por dialecto (`*-h2.sql` con `platform=h2` / `*-postgresql.sql`); fin del `DATEADD` en Postgres
-- **🟦 #13 (parcial)**: JaCoCo configurado en `backend/pom.xml` (medición de cobertura, sin umbral bloqueante); falta el workflow de CI (`.github/workflows/ci.yml` aún no existe)
+- **✅ #13**: CI en `.github/workflows/ci.yml` (`./mvnw -B verify` de los backends, build y tests de los frontends Angular, lint de Helm y shellcheck) + JaCoCo en `backend/pom.xml` (medición de cobertura, sin umbral bloqueante)
 
-Pendientes: #4, #5, #7–#11, #14 (8 de 17). Parcial: #13.
+Pendientes: #4, #5, #7–#11, #14 (8 de 17).
 
 ---
 
@@ -37,7 +37,7 @@ regresiones funcionales**. Son los más seguros para empezar:
 |---|-------|-------------|:---:|
 | 5 | Sincronizar documentación (modelos, diagramas) | Solo ficheros `.md` (`README.md`, `docs/`) | Nulo |
 | 6 | Aislamiento de tests | Solo ficheros de test (`SupportAgentFlowTest.java`); cero código de producción | ~Nulo (tests) |
-| 13 | Añadir CI + cobertura (JaCoCo) | Añade `.github/workflows/` y plugin en `pom.xml`; no toca runtime | ~Nulo (build/infra) — *JaCoCo hecho; falta el workflow CI* |
+| 13 | Añadir CI + cobertura (JaCoCo) | Añade `.github/workflows/` y plugin en `pom.xml`; no toca runtime | ~Nulo (build/infra) |
 | 1 | Password local a variable de entorno | Solo `application-local.yml` (perfil local); con default explícito el arranque es idéntico | ~Nulo (config) |
 
 > **#5** es 100 % documentación (cero código). **#6** solo toca los propios tests, nunca
@@ -73,7 +73,7 @@ Cada punto lleva dos etiquetas:
 | 10 | Unificar nodos Cancel/Return duplicados | 🟡 | ⭐⭐ | Medio | ⏳ |
 | 11 | Revisar prompts (indicaciones, no frases literales) | 🟠 | ⭐⭐ | Medio | ⏳ |
 | 12 | Beans desambiguados por `@Qualifier("string")` | 🟡 | ⭐⭐ | Medio | ✅ |
-| 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | 🟦 Parcial |
+| 13 | Añadir CI + cobertura (JaCoCo) | 🟠 | ⭐⭐ | Medio-Alto | ✅ |
 | 14 | Adelgazar `RouterNode` (hace demasiado) | 🟡 | ⭐ | Alto | ⏳ |
 | 15 | Validación declarativa en entidades JPA | 🟡 | ⭐ | Bajo | ✅ |
 | 16 | Menores: auth en `CacheController`, orden de tags OpenAPI | 🟡 | ⭐ | Bajo | ✅ |
@@ -212,19 +212,18 @@ Ya no queda ningún `@Qualifier("string")` en el proyecto.
 - **Cómo se soluciona:** anotaciones `@Qualifier` propias y tipadas (p. ej.
   `@Deterministic`, `@ResponseModel`, `@ChatModel`).
 
-### 13. Añadir CI + cobertura 🟠 ⭐⭐ 🟦 Parcial
+### 13. Añadir CI + cobertura 🟠 ⭐⭐ ✅
 
-**Estado:** PARCIAL. JaCoCo está configurado en `backend/pom.xml` (`jacoco-maven-plugin`
-con `prepare-agent` + `report`), pero **sin umbral que bloquee el build** y **sin workflow
-de CI**: a día de hoy no existe ningún `.github/workflows/` en el repo.
+**Estado:** COMPLETO. `.github/workflows/ci.yml` se ejecuta en cada push a `main` y en cada PR:
+`./mvnw -B verify` de ambos backends (JDK 17), build y tests de los frontends Angular, lint
+de Helm y shellcheck. JaCoCo está configurado en `backend/pom.xml` (`jacoco-maven-plugin` con
+`prepare-agent` + `report`), pero **sin umbral que bloquee el build**.
 
-- **Qué es:** no hay pipeline (`.github/workflows/`); la cobertura sí se mide (JaCoCo) pero
-  no se ejecuta automáticamente en cada cambio.
-- **Por qué no está bien:** los tests no se ejecutan solos en cada cambio; nada impide
+- **Qué era:** no había pipeline; la cobertura se medía (JaCoCo) pero no se ejecutaba
+  automáticamente en cada cambio.
+- **Por qué no estaba bien:** los tests no se ejecutaban solos en cada cambio; nada impedía
   introducir una regresión sin enterarse.
-- **Qué falta:** crear el workflow de build+test (`mvn -B test` desde `l1-copilot/backend/`
-  con JDK 17) en cada push/PR. El reporte de cobertura ya existe; el umbral sigue siendo
-  no bloqueante (opcional volverlo bloqueante más adelante).
+- **Opcional:** volver bloqueante el umbral de cobertura más adelante.
 
 ### 14. Adelgazar `RouterNode` 🟡 ⭐
 - **Qué es:** concentra clasificación + extracción de foco + navegación + digresión en una
@@ -278,7 +277,7 @@ genérico que mezclaba `DATEADD` de H2 en Postgres.
 5. 🟠 **#8** Tarjetas no tipadas (fragilidad en el borde REST↔agente).
 6. 🟠 **#9** Canal nodo→Responder por strings (acoplamiento frágil).
 7. 🟠 **#11** Prompts con reglas de negocio (incumple norma del proyecto).
-8. 🟠 **#13** Sin CI (regresiones no detectadas).
+8. ✅ **#13** Sin CI (regresiones no detectadas) — resuelto.
 9. 🟡 **#2, #3, #5, #10, #12, #14, #15, #16, #17** Deuda y pulido (sin riesgo inmediato).
 
 ---

@@ -259,22 +259,22 @@ contexto.
 - **Tests**: el arranque del contexto en `@SpringBootTest` ya valida el cableado.
 - **Verificación**: `cd backend && mvn test`.
 
-## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) 🟦 PARCIAL
+## #13 — CI + cobertura 🟠 ⭐⭐ · riesgo ~0 (build/infra) ✅ COMPLETO
 
 **Estado:** COMPLETADO. JaCoCo está configurado en `backend/pom.xml` y
-`.github/workflows/ci.yml` ejecuta `./mvnw verify`, que incluye la suite de seguridad, en cada push.
+`.github/workflows/ci.yml` ejecuta `./mvnw -B verify`, que incluye la suite de seguridad, en cada push a `main` y en cada PR.
 
 - **Hecho**:
   - `jacoco-maven-plugin` en `backend/pom.xml` con `prepare-agent` + `report` (genera
     reporte en `target/site/jacoco/`). **Sin umbral que bloquee el build** (medición, no
     gate).
-- **Pendiente**:
-  - Crear `.github/workflows/ci.yml`: build + `mvn -B test` desde `l1-copilot/backend/` con
-    JDK 17, en push/PR a cualquier rama.
-  - (Opcional) Convertir el umbral de cobertura en bloqueante cuando interese.
+  - `.github/workflows/ci.yml`: `./mvnw -B verify` de ambos backends con JDK 17, build y tests
+    de los frontends Angular, lint de Helm y shellcheck.
+- **Opcional**:
+  - Convertir el umbral de cobertura en bloqueante cuando interese.
 - **Verificación**:
   - Localmente: `cd l1-copilot/backend && mvn test` (ya genera el reporte JaCoCo).
-  - En remoto: una vez creado el workflow, se ejecutará en cada push/PR (pestaña "Actions").
+  - En remoto: el workflow se ejecuta en cada push a `main` y en cada PR (pestaña "Actions").
 
 ## #14 — Adelgazar `RouterNode` 🟡 ⭐ (esfuerzo alto, dejar para el final)
 
