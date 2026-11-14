@@ -14,17 +14,20 @@ decisión.
 
 ## Progreso
 
-- **✅ #1**: Password local → variable de entorno con default
+- **✅ #1**: Password local → variable de entorno `SPRING_DATASOURCE_PASSWORD`, sin default
 - **✅ #2**: Eliminado el andamiaje `LlmController` + `LlmService` (no lo usaba nadie)
 - **✅ #3**: Eliminada la reflexión `candidateLabel()`; los candidatos ya son `String`
+- **✅ #5**: Docs alineados con el código: modelo `gemini-3.1-flash-lite` y los 15 nodos y el estado real en `04-grafo-langgraph.md`
 - **✅ #6**: Aislamiento de tests con `@Transactional`, sin `finally` enmascarador
+- **✅ #7**: Claves del estado como constantes en `SupportState`, usadas por nodos y `ConversationService`
+- **✅ #8**: Tarjetas tipadas de extremo a extremo: el estado transporta `OrderCardDto`/`TicketCardDto`/`ReturnCardDto`
 - **✅ #12**: Qualifiers tipados (`@Deterministic`/`@ResponseModel`/`@TicketModel`/`@ChattyModel`)
 - **✅ #15**: Validación declarativa (`@NotNull`/`@NotBlank`/`@Email`/`@Positive`) en las entidades JPA
 - **✅ #16**: `CacheController.clear()` oculto (`@Hidden`); orden de tags por springdoc (`tags-sorter=alpha`)
 - **✅ #17**: Seed separado por dialecto (`*-h2.sql` con `platform=h2` / `*-postgresql.sql`); fin del `DATEADD` en Postgres
 - **✅ #13**: CI en `.github/workflows/ci.yml` (`./mvnw -B verify` de los backends, build y tests de los frontends Angular, lint de Helm y shellcheck) + JaCoCo en `backend/pom.xml` (medición de cobertura, sin umbral bloqueante)
 
-Pendientes: #4, #5, #7–#11, #14 (8 de 17).
+Pendientes: #4, #9–#11, #14 (5 de 17).
 
 ---
 
@@ -38,7 +41,7 @@ regresiones funcionales**. Son los más seguros para empezar:
 | 5 | Sincronizar documentación (modelos, diagramas) | Solo ficheros `.md` (`README.md`, `docs/`) | Nulo |
 | 6 | Aislamiento de tests | Solo ficheros de test (`SupportAgentFlowTest.java`); cero código de producción | ~Nulo (tests) |
 | 13 | Añadir CI + cobertura (JaCoCo) | Añade `.github/workflows/` y plugin en `pom.xml`; no toca runtime | ~Nulo (build/infra) |
-| 1 | Password local a variable de entorno | Solo `application-local.yml` (perfil local); con default explícito el arranque es idéntico | ~Nulo (config) |
+| 1 | Password local a variable de entorno | Solo `application-local.yml` (perfil local); la variable de entorno pasa a ser obligatoria | ~Nulo (config) |
 
 > **#5** es 100 % documentación (cero código). **#6** solo toca los propios tests, nunca
 > código de producción — a lo sumo un test que antes pasaba "ocultando" su fallo dejará
@@ -65,10 +68,10 @@ Cada punto lleva dos etiquetas:
 | 2 | Eliminar/sanear `LlmController`+`LlmService` (andamiaje) | 🟡 | ⭐⭐⭐ | Bajo | ✅ |
 | 3 | Quitar `candidateLabel()` por reflexión (código legacy) | 🟡 | ⭐⭐⭐ | Bajo | ✅ |
 | 4 | Centralizar reglas de intents (`isAction`/`needsVerify`) | 🟠 | ⭐⭐⭐ | Bajo | ⏳ |
-| 5 | Sincronizar documentación (modelos, diagramas del grafo) | 🟡 | ⭐⭐⭐ | Bajo | ⏳ |
+| 5 | Sincronizar documentación (modelos, diagramas del grafo) | 🟡 | ⭐⭐⭐ | Bajo | ✅ |
 | 6 | Aislamiento de tests (BD compartida + `finally` que oculta fallos) | 🔴 | ⭐⭐ | Medio | ✅ |
-| 7 | Estado del agente "stringly-typed" (clave única de verdad) | 🟠 | ⭐⭐ | Medio | ⏳ |
-| 8 | Tarjetas de UI tipadas de extremo a extremo (no `Map`) | 🟠 | ⭐⭐ | Medio | ⏳ |
+| 7 | Estado del agente "stringly-typed" (clave única de verdad) | 🟠 | ⭐⭐ | Medio | ✅ |
+| 8 | Tarjetas de UI tipadas de extremo a extremo (no `Map`) | 🟠 | ⭐⭐ | Medio | ✅ |
 | 9 | Canal nodo→Responder por prefijos string mágicos | 🟠 | ⭐⭐ | Medio | ⏳ |
 | 10 | Unificar nodos Cancel/Return duplicados | 🟡 | ⭐⭐ | Medio | ⏳ |
 | 11 | Revisar prompts (indicaciones, no frases literales) | 🟠 | ⭐⭐ | Medio | ⏳ |
@@ -85,16 +88,16 @@ Cada punto lleva dos etiquetas:
 
 ### 1. Password hardcodeada en `application-local.yml` 🟠 ⭐⭐⭐ ✅
 
-**Estado:** COMPLETO. La contraseña se lee de variable de entorno con default explícito
-en `application-local.yml`.
+**Estado:** COMPLETO. La contraseña se lee de la variable de entorno
+`SPRING_DATASOURCE_PASSWORD`, sin default, en `application-local.yml` y en `application.yml`.
 
 - **Qué era:** la contraseña de Postgres local (`<POSTGRES_PASSWORD>`) estaba escrita en un fichero
   versionado.
 - **Por qué no estaba bien:** quedaba para siempre en el historial de git; rotarla obligaba a un
   commit; cualquiera que clone la veía. Era mala práctica aunque fuera solo "local".
-- **Cómo se solucionó:** se lee de variable de entorno con un default explícito
-  (`${SPRING_DATASOURCE_PASSWORD}` en `application-local.yml`; el perfil base
-  `application.yml` usa `${SPRING_DATASOURCE_PASSWORD}` sin default).
+- **Cómo se solucionó:** se lee de `${SPRING_DATASOURCE_PASSWORD}`, sin default, tanto en
+  `application-local.yml` como en el perfil base `application.yml`: sin la variable, el
+  arranque contra Postgres falla en vez de usar un valor versionado.
 
 ### 2. Eliminar o sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅
 
@@ -128,8 +131,13 @@ borrado.
 - **Cómo se soluciona:** que el propio enum `Intent` exponga `isAction()` y `needsVerify()`,
   y que el routing pregunte ahí. Una sola fuente de verdad.
 
-### 5. Sincronizar la documentación 🟡 ⭐⭐⭐
-- **Qué es:** varios docs citan el modelo `gemini-2.5-*` cuando el código usa
+### 5. Sincronizar la documentación 🟡 ⭐⭐⭐ ✅
+
+**Estado:** COMPLETO. Los docs citan `gemini-3.1-flash-lite`; `04-grafo-langgraph.md` recoge los
+15 nodos y las claves reales del estado. La única mención a `gemini-2.5-flash` que queda, en
+`09-plan-implementacion.md`, es una alternativa de mitigación, no un desfase.
+
+- **Qué era:** varios docs citaban el modelo `gemini-2.5-*` cuando el código usa
   `gemini-3.1-flash-lite` (en `docs/arquitectura/01`, `02`, `07`, `09` y en
   `docs/infraestructura/04-backend.md`; el `README.md` raíz no menciona l1-copilot). Los
   diagramas y el `SCHEMA` del grafo en `docs/arquitectura/04-grafo-langgraph.md` quedaron
@@ -155,8 +163,12 @@ todos los `finally` de restauración eliminados (commit `1956513`).
   Además, cada test usa `conversationId` propio → el checkpointer en memoria no filtra
   estado entre tests (orden de ejecución independiente garantizado).
 
-### 7. Estado del agente "stringly-typed" 🟠 ⭐⭐
-- **Qué es:** el estado solo declara formalmente una clave (`history`); el resto se leen y
+### 7. Estado del agente "stringly-typed" 🟠 ⭐⭐ ✅
+
+**Estado:** COMPLETO. Todas las claves son constantes de `SupportState` (`INTENT`, `ORDER_ID`,
+`AWAITING`…); los nodos y `ConversationService` las usan en vez de literales.
+
+- **Qué era:** el estado solo declara formalmente una clave (`history`); el resto se leen y
   escriben por su nombre en texto, y además el servicio repite esos mismos literales al
   inicializar el turno.
 - **Por qué no está bien:** no hay una única definición del "shape" del estado; un typo en
@@ -164,8 +176,12 @@ todos los `finally` de restauración eliminados (commit `1956513`).
 - **Cómo se soluciona:** centralizar las claves (constantes) y/o un pequeño builder/factory
   del estado inicial reutilizado por el servicio y los tests.
 
-### 8. Tarjetas de UI tipadas de extremo a extremo 🟠 ⭐⭐
-- **Qué es:** los nodos construyen las tarjetas (pedidos, tickets, devoluciones) como
+### 8. Tarjetas de UI tipadas de extremo a extremo 🟠 ⭐⭐ ✅
+
+**Estado:** COMPLETO. Los nodos crean `OrderCardDto`, `TicketCardDto` y `ReturnCardDto`, y
+`SupportState` los devuelve tipados; `ConversationService` ya no remapea mapas.
+
+- **Qué era:** los nodos construyen las tarjetas (pedidos, tickets, devoluciones) como
   mapas genéricos con claves de texto, y el servicio las vuelve a parsear con conversiones
   defensivas repetidas.
 - **Por qué no está bien:** es frágil (claves a mano), repetitivo y poco profesional;
@@ -270,19 +286,18 @@ genérico que mezclaba `DATEADD` de H2 en Postgres.
 
 ## Vista alternativa: ordenado por gravedad
 
-1. 🔴 **#6** Aislamiento de tests (puede ocultar fallos reales).
-2. 🟠 **#1** Password hardcodeada (seguridad).
-3. 🟠 **#4** Reglas de intents dispersas (riesgo de bug al evolucionar).
-4. 🟠 **#7** Estado stringly-typed (bugs silenciosos por typo).
-5. 🟠 **#8** Tarjetas no tipadas (fragilidad en el borde REST↔agente).
-6. 🟠 **#9** Canal nodo→Responder por strings (acoplamiento frágil).
-7. 🟠 **#11** Prompts con reglas de negocio (incumple norma del proyecto).
-8. ✅ **#13** Sin CI (regresiones no detectadas) — resuelto.
-9. 🟡 **#2, #3, #5, #10, #12, #14, #15, #16, #17** Deuda y pulido (sin riesgo inmediato).
+Pendientes:
+
+1. 🟠 **#4** Reglas de intents dispersas (riesgo de bug al evolucionar).
+2. 🟠 **#9** Canal nodo→Responder por strings (acoplamiento frágil).
+3. 🟠 **#11** Prompts con reglas de negocio (incumple norma del proyecto).
+4. 🟡 **#10, #14** Deuda y pulido (sin riesgo inmediato).
+
+Resueltos: 🔴 #6 · 🟠 #1, #7, #8, #13 · 🟡 #2, #3, #5, #12, #15, #16, #17.
 
 ---
 
 ## Recomendación de arranque
 
-Si se quiere empezar por lo más rentable: **#1 → #2 → #3 → #4 → #5** (quick wins de un
-tirón) y luego abordar **#6, #7, #8** como bloque de calidad de mayor valor.
+Lo más rentable que queda: **#4** (quick win), luego **#9 → #10** y **#11** con el
+golden set del router como red de seguridad; **#14** al final.

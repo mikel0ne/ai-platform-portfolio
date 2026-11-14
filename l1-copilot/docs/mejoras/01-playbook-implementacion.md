@@ -43,11 +43,11 @@ en `application-local.yml`.
 
 - **Qué se hizo**: se sustituyó el literal `password: <POSTGRES_PASSWORD>` por
   `${SPRING_DATASOURCE_PASSWORD}` en
-  `backend/src/main/resources/application-local.yml` (el perfil base `application.yml` usa
-  `${SPRING_DATASOURCE_PASSWORD}` sin default).
+  `backend/src/main/resources/application-local.yml`, sin default, igual que el perfil base
+  `application.yml`.
 - **Verificación**: `cd backend && mvn test` (no afecta a los tests: perfil `local` se usa solo
-  en desarrollo manual). Si se arranca con perfil `local` contra Postgres, se lee de
-  `SPRING_DATASOURCE_PASSWORD` si existe, o usa el default si no.
+  en desarrollo manual). Si se arranca con perfil `local` contra Postgres sin
+  `SPRING_DATASOURCE_PASSWORD`, el arranque falla en vez de usar un valor versionado.
 
 ## #2 — Eliminar/sanear `LlmController` + `LlmService` 🟡 ⭐⭐⭐ ✅ DONE
 
@@ -106,7 +106,11 @@ default a lista vacía (los 2 tests verdes).
 - **Verificación**: `cd backend && mvn -Dtest=SupportRoutingTest,RouterNodeTest test`,
   luego `mvn test`. Recomendado correr el golden-set si está cableado.
 
-## #5 — Sincronizar documentación 🟡 ⭐⭐⭐ · riesgo 0 (solo docs)
+## #5 — Sincronizar documentación 🟡 ⭐⭐⭐ · riesgo 0 (solo docs) ✅ DONE
+
+**Estado:** COMPLETADO. Modelo `gemini-3.1-flash-lite` en los docs; `04-grafo-langgraph.md` con
+los 15 nodos y las claves reales del estado. La mención a `gemini-2.5-flash` de
+`09-plan-implementacion.md` es una alternativa de mitigación y se deja.
 
 - **Problema**: varios docs citan `gemini-2.5-*` pero el código usa `gemini-3.1-flash-lite`;
   el diagrama y el `SCHEMA`/estado del grafo en `docs/arquitectura/04-grafo-langgraph.md`
@@ -147,7 +151,10 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
 - **Verificación**: `cd backend && mvn -Dtest=SupportAgentFlowTest test` (requiere loopback
   disponible; en este entorno hay bloqueo de MemoryIO).
 
-## #7 — Estado del agente con clave única de verdad 🟠 ⭐⭐
+## #7 — Estado del agente con clave única de verdad 🟠 ⭐⭐ ✅ DONE
+
+**Estado:** COMPLETADO. Las claves son constantes de `SupportState` y `ConversationService`
+inicializa el turno con ellas. La ficha de abajo describe el problema original.
 
 - **Problema**: el estado se accede por claves string sueltas; `ConversationService` repite
   esos literales al inicializar el turno → sin fuente única, typos silenciosos.
@@ -164,7 +171,11 @@ rollback automático por test. Eliminados todos los bloques `finally` enmascarad
 - **Tests**: `RouterNodeTest`, `SupportAgentFlowTest`, `SupportStateTest`.
 - **Verificación**: `cd backend && mvn test`.
 
-## #8 — Tarjetas de UI tipadas extremo a extremo 🟠 ⭐⭐
+## #8 — Tarjetas de UI tipadas extremo a extremo 🟠 ⭐⭐ ✅ DONE
+
+**Estado:** COMPLETADO. El estado transporta `OrderCardDto`, `TicketCardDto` y `ReturnCardDto`;
+`SupportState` los devuelve tipados y `ConversationService` no remapea. La ficha de abajo
+describe el problema original.
 
 - **Problema**: los nodos crean tarjetas como `List<Map<String,Object>>` y
   `ConversationService` las re-parsea con coerción defensiva repetida 3 veces.
@@ -349,9 +360,9 @@ Antes, en perfiles Postgres, el mecanismo de fallback de Spring cargaba TAMBIÉN
 
 ## Orden sugerido de ejecución
 
-1. **Riesgo casi nulo primero**: #5 (docs), #13 (CI), #1 (config).
-2. **Quick wins de código**: #2, #3, #4.
-3. **Calidad de mayor valor**: #6, #7, #8.
-4. **Estructurales**: #9, #10, #12.
-5. **Sensible a comportamiento**: #11 (con golden-set).
-6. **Al final / mayor esfuerzo**: #14. Menores sueltos: #15, #16, #17.
+Hechos: #1, #2, #3, #5, #6, #7, #8, #12, #13, #15, #16, #17. Lo que queda:
+
+1. **Quick win de código**: #4.
+2. **Estructurales**: #9, #10.
+3. **Sensible a comportamiento**: #11 (con golden-set).
+4. **Al final / mayor esfuerzo**: #14.
