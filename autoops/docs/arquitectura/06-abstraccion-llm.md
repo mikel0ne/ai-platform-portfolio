@@ -27,10 +27,10 @@ concreto.**
 
 | Interfaz (la que ven RAG y chat) | Implementación Gemini (solo en `llm/provider`) |
 |---|---|
-| `dev.langchain4j.model.embedding.EmbeddingModel` | `GoogleAiEmbeddingModel` (`gemini-embedding-001`) |
-| `dev.langchain4j.model.chat.ChatModel` | `GoogleAiGeminiChatModel` (`gemini-2.5-flash-lite`) |
+| `dev.langchain4j.model.embedding.EmbeddingModel` | `GoogleAiEmbeddingModel` (`gemini-embedding-2`) |
+| `dev.langchain4j.model.chat.ChatModel` | `GoogleAiGeminiChatModel` (`gemini-3.1-flash-lite`) |
 
-> El modelo de embeddings real es **`gemini-embedding-001`**, no `text-embedding-004`: este último **no está
+> El modelo de embeddings real es **`gemini-embedding-2`**, no `text-embedding-004`: este último **no está
 > disponible en el free tier** de Google AI Studio (lección de despliegue real, ver guía de infraestructura
 > `03-weaviate.md`). La dimensión del vector la fija el modelo configurado, no un valor fijo en el código.
 
@@ -46,6 +46,7 @@ public record LlmProperties(
         @NotBlank String chatModelName,
         @NotBlank String embeddingModelName,
         @DurationUnit(ChronoUnit.SECONDS) Duration timeout,
+        Integer maxRetries,
         Double temperature
 ) {}
 ```
@@ -56,9 +57,10 @@ public record LlmProperties(
 autoops:
   llm:
     provider: gemini
-    chat-model-name: gemini-2.5-flash-lite     # mayor cuota gratuita; uso interno
-    embedding-model-name: gemini-embedding-001 # free tier real (text-embedding-004 no está disponible)
+    chat-model-name: gemini-3.1-flash-lite     # mayor cuota gratuita; uso interno
+    embedding-model-name: gemini-embedding-2 # free tier real (text-embedding-004 no está disponible)
     timeout: 30s
+    max-retries: 2
     temperature: 0.2                            # bajo: reformular/redactar, no creatividad
 ```
 
@@ -118,7 +120,7 @@ Ejemplo: Azure OpenAI. Total: 1 dependencia + 1 clase + configuración. Cero cam
    idénticos — la abstracción no obliga a la asimetría, solo la deja disponible cuando el proveedor la soporta.
 3. **Configuración** (despliegue): `AUTOOPS_LLM_PROVIDER=azure-openai`, claves en el Secret y model names en el
    YAML.
-4. **Atención a los embeddings**: si el modelo de embeddings cambia de dimensión (la de `gemini-embedding-001`
+4. **Atención a los embeddings**: si el modelo de embeddings cambia de dimensión (la de `gemini-embedding-2`
    no es la misma que la de `text-embedding-3-small`, p. ej.), hay que **recrear la clase `AutoopsDocChunk` de
    Weaviate** con la nueva dimensión y **re-ingestar** el corpus. El LLM interno, en cambio, es intercambiable
    sin migración.
