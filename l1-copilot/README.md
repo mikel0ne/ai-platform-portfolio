@@ -119,6 +119,16 @@ bash l1-copilot/scripts/setup-l1-copilot-db.sh
 ./infra/scripts/setup-app-ingress.sh --project l1-copilot     # http://l1-copilot.local
 ```
 
+## Evaluation
+
+[`golden-router-cases.json`](backend/src/test/resources/golden-router-cases.json) holds 15 cases, each mapping a user
+message to the intent the router should pick. `RouterEvalTest` measures the classifier's accuracy against the real
+model.
+
+It is opt-in because it needs a Gemini key (`ROUTER_EVAL=true`); it fails below `ROUTER_EVAL_MIN` (default 0.7
+accuracy). The full-flow and security tests (`SupportAgentFlowTest`, `SecurityInjectionTest`) run with the LLM roles
+mocked, so they test the code's decisions, not the model's quality.
+
 ## API
 
 | Endpoint | Purpose |
