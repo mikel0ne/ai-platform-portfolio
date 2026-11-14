@@ -38,7 +38,7 @@ Con `k9s` instalado, `k9s -n autoops` da todo lo anterior de forma interactiva.
 | El cliente MCP deja de poder llamar tools tras ~5 min idle (`-32001 Request timed out`) | Body-timeout del cliente (Node/undici) sobre una conexión sin keep-alive | Asegurar `spring.ai.mcp.server.streamable-http.keep-alive-interval` configurado (p. ej. `20s`) en `application.yml`; si reaparece, reiniciar la conexión del cliente |
 | `search_docs`/`/search` no devuelven nada o dan error de schema (`Cannot query field "titulo"...`) | Clase `AutoopsDocChunk` con esquema viejo (`ensureSchema()` es idempotente: si la clase ya existe, no la migra) | Re-ingestar con reset (§3): `bash infra/scripts/ingest-autoops.sh --reset` |
 | `diagnose_pod` responde `403 Forbidden` | RBAC no aplicado o SA no asignado | `kubectl auth can-i list pods --as=system:serviceaccount:autoops:autoops-mcp -A` debe ser `yes`; ¿`serviceAccountName` en el Deployment? |
-| Respuestas del LLM interno con `429` | Límite de la capa gratuita de Gemini | Esperar la ventana de cuota; `gemini-2.5-flash-lite` tiene la cuota más alta; reducir tamaño de lote en la ingesta |
+| Respuestas del LLM interno con `429` | Límite de la capa gratuita de Gemini | Esperar la ventana de cuota; `gemini-3.1-flash-lite` tiene la cuota más alta; reducir tamaño de lote en la ingesta |
 | Despliego imagen nueva y no cambia nada | Etiqueta reutilizada con `IfNotPresent` | `--tag` único en `deploy.sh` (guía 04 §3); nunca reutilizar tag |
 
 ## 3. Ingesta del corpus (poblar el RAG)

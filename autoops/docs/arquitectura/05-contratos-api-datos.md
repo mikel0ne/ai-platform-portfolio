@@ -128,7 +128,7 @@ relacional (sin gateway, no hay historial que persistir).
 erDiagram
     DOC_CHUNK {
         uuid   id PK
-        vector embedding "embebe el NUCLEO del chunk; dim = la del modelo configurado (gemini-embedding-001)"
+        vector embedding "embebe el NUCLEO del chunk; dim = la del modelo configurado (gemini-embedding-2)"
         text   texto "ALMACENADO: el núcleo del chunk (sin ventana; el contexto extra lo da el CRAG en consulta)"
         string titulo "título del documento de origen"
         string fuente "fichero/page/path de origen"
@@ -165,7 +165,7 @@ infraestructura `03-weaviate.md`):
 }
 ```
 
-- La **dimensión del vector** la fija el modelo de embeddings configurado (`gemini-embedding-001`, el free
+- La **dimensión del vector** la fija el modelo de embeddings configurado (`gemini-embedding-2`, el free
   tier real — `text-embedding-004` no está disponible). Si se cambia de modelo de embeddings, hay que recrear
   la clase con la nueva dimensión y **re-ingestar** el corpus (ver doc 06).
 - La **búsqueda híbrida** (vector + BM25 sobre `texto`) y el **reranking** se piden en la query, no cambian el

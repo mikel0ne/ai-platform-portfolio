@@ -52,7 +52,7 @@ mano. Forma lógica:
 > código real.
 
 La **dimensión del vector** la fija el primer embedding insertado (no está prefijada porque `vectorizer: none`).
-El modelo es **Gemini `gemini-embedding-001`** (el free tier real; `text-embedding-004` **no** está disponible
+El modelo es **Gemini `gemini-embedding-2`** (el free tier real; `text-embedding-004` **no** está disponible
 en esta API/key). Si se cambia de modelo, recrear la clase y **re-ingestar** (`ingest-autoops.sh --reset`).
 
 ## 3. Reranking (activo)

@@ -19,7 +19,7 @@ además, el sujeto que AutoOps diagnostica.
 
 Backend y frontend son **dos imágenes/servicios** (no una UI dentro del jar). Weaviate es
 **compartido** en el namespace `infra` (criterio Postgres): una instancia, AutoOps usa su clase
-`AutoopsDocChunk`. La RAG calcula embeddings con **Gemini `gemini-embedding-001`** (free tier).
+`AutoopsDocChunk`. La RAG calcula embeddings con **Gemini `gemini-embedding-2`** (free tier).
 
 ## Topología
 

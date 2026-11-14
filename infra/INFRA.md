@@ -204,7 +204,7 @@ wsl -d rancher-desktop crictl pull registry.local/hello-world:test
 - **Imagen**: `cr.weaviate.io/semitechnologies/weaviate:1.27.0`
 - **Namespace**: `infra` (mismo criterio que Postgres: una instancia para todo el portfolio)
 - **Persistencia**: PVC `weaviate-data` de 5 Gi
-- **Sin vectorizador** (`DEFAULT_VECTORIZER_MODULE=none`): cada app trae sus vectores. AutoOps los calcula con Gemini `text-embedding-004` (768 dims).
+- **Sin vectorizador** (`DEFAULT_VECTORIZER_MODULE=none`): cada app trae sus vectores. AutoOps los calcula con Gemini `gemini-embedding-2` (la dimensión la fija el modelo).
 - **Sin auth** (`AUTHENTICATION_ANONYMOUS_ENABLED=true`) — solo local.
 - **Manifiesto**: `components/weaviate/weaviate.yaml` · **Script**: `scripts/06-setup-weaviate.sh`
 - **DNS interno**: `weaviate.infra.svc.cluster.local` (HTTP `8080`, gRPC `50051`)
