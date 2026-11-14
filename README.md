@@ -99,7 +99,7 @@ bash infra/scripts/02-setup-registry.sh         # then 03..08, see infra/INFRA.m
   e-commerce seed (orders, users, tickets) and the FAQ are invented for the demo. No real company data.
 - **AI-generated avatars.** The two demo user pictures in `l1-copilot/frontend/src/assets/avatars` were
   generated with an AI image tool; they do not depict real people.
-- Developed between May and June 2026. Commit dates are the real ones.
+- Built in June 2026 and reworked in November 2026 (English translation, security hardening, refactors, dependency upgrades, CI). Commit dates are the real ones.
 
 ## License
 
