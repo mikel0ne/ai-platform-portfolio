@@ -1,0 +1,141 @@
+# =============================================================================
+# langfuse-values.yaml: values for the langfuse/langfuse chart (langfuse-k8s)
+# =============================================================================
+# Self-hosted Langfuse v4 in the `langfuse` namespace, with ALL of its datastores
+# deployed by the chart itself (Postgres, ClickHouse+Keeper, Valkey, SeaweedFS as
+# S3). It does NOT use the shared Postgres of the `infra` namespace: a
+# `helm uninstall` resets it without touching the application databases.
+#
+# Installed by infra/scripts/09-setup-langfuse.sh:
+#   helm upgrade --install langfuse langfuse/langfuse -n langfuse -f <this file>
+#
+# Secrets do NOT live here: the script creates the `langfuse` Secret from
+# infra/.env.local and this file only references it by key name.
+#
+# RESOURCES ARE DELIBERATELY LOW: this is a local development cluster. The chart
+# defaults (ClickHouse 1 CPU / 2-4 Gi, 3 Keepers, 100 Gi PVCs...) are meant for
+# production and do not fit in Rancher Desktop next to the rest of the stack.
+# =============================================================================
+
+langfuse:
+  # Pinned app version (appVersion of chart 2.2.6); the script pins it too.
+  image:
+    tag: "4.83.0"
+    pullPolicy: IfNotPresent
+
+  salt:
+    secretKeyRef: { name: langfuse, key: salt }
+  encryptionKey:
+    secretKeyRef: { name: langfuse, key: encryption-key }
+  nextauth:
+    # Canonical URL seen by the browser (Traefik, `web` entrypoint).
+    url: http://langfuse.local
+    secret:
+      secretKeyRef: { name: langfuse, key: nextauth-secret }
+
+  features:
+    telemetryEnabled: false
+
+  # The Ingress is mounted by infra/components/langfuse/langfuse-ingress.yaml (Traefik).
+  ingress:
+    enabled: false
+
+  # Headless initialization: creates org + project + user + API key pair on the first
+  # start (it does not overwrite what already exists). Langfuse only supports ONE
+  # project this way; the second one is created by hand (see infra/INFRA.md).
+  additionalEnv:
+    - { name: LANGFUSE_INIT_ORG_ID,       value: portfolio }
+    - { name: LANGFUSE_INIT_ORG_NAME,     value: Portfolio }
+    - { name: LANGFUSE_INIT_PROJECT_ID,   value: autoops }
+    - { name: LANGFUSE_INIT_PROJECT_NAME, value: autoops }
+    - { name: LANGFUSE_INIT_USER_EMAIL,   value: admin@langfuse.local }
+    - { name: LANGFUSE_INIT_USER_NAME,    value: admin }
+    - name: LANGFUSE_INIT_USER_PASSWORD
+      valueFrom: { secretKeyRef: { name: langfuse, key: init-user-password } }
+    - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+      valueFrom: { secretKeyRef: { name: langfuse, key: init-project-public-key } }
+    - name: LANGFUSE_INIT_PROJECT_SECRET_KEY
+      valueFrom: { secretKeyRef: { name: langfuse, key: init-project-secret-key } }
+
+  web:
+    # With 1 Gi the Node heap runs out on startup (exit 134, "heap out of memory").
+    resources:
+      requests: { cpu: 100m, memory: 512Mi }
+      limits:   { memory: 2Gi }
+    # Single replica: a PDB would only get in the way when draining the node.
+    pdb: { create: false }
+  worker:
+    resources:
+      requests: { cpu: 100m, memory: 384Mi }
+      limits:   { memory: 1Gi }
+    pdb: { create: false }
+
+postgresql:
+  deploy: true
+  auth:
+    existingSecret: langfuse
+    secretKeys:
+      adminPasswordKey: postgresql-password
+      userPasswordKey: postgresql-password
+  # groundhog2k reads these keys from the same Secret (POSTGRES_* / USERDB_*).
+  settings:
+    existingSecret: langfuse
+  userDatabase:
+    existingSecret: langfuse
+  storage:
+    requestedSize: 2Gi
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits:   { memory: 512Mi }
+
+redis:
+  deploy: true
+  auth:
+    existingSecret: langfuse
+    existingSecretPasswordKey: redis-password
+    usersExistingSecret: langfuse
+  dataStorage:
+    requestedSize: 1Gi
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits:   { memory: 256Mi }
+
+clickhouse:
+  deploy: true
+  auth:
+    existingSecret: langfuse
+    existingSecretKey: clickhouse-password
+  cluster:
+    replicas: 1
+    storage:
+      size: 5Gi
+    # ClickHouse is the hungriest: without a generous memory limit it gets OOMKilled
+    # during migrations; 2 Gi is enough for development traces.
+    resources:
+      requests: { cpu: 250m, memory: 1Gi }
+      limits:   { memory: 2Gi }
+    logger: { level: warning }
+  keeper:
+    # 1 replica (the chart requires Keeper even with a single ClickHouse; 3 is for HA).
+    replicas: 1
+    storage:
+      size: 1Gi
+    resources:
+      requests: { cpu: 50m, memory: 128Mi }
+      limits:   { memory: 512Mi }
+    logger: { level: warning }
+
+s3:
+  deploy: true
+  auth:
+    existingSecret: langfuse
+    rootUserSecretKey: s3-user
+    rootPasswordSecretKey: s3-password
+  allInOne:
+    s3:
+      existingConfigSecret: langfuse
+    data:
+      size: 5Gi
+    resources:
+      requests: { cpu: 50m, memory: 256Mi }
+      limits:   { memory: 1Gi }
