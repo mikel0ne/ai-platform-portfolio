@@ -64,6 +64,7 @@ public class TurnLogger {
             row.put("ticketsCreated", turn.ticketsCreated());
             row.put("resolved", turn.resolved());
             row.put("reply", turn.reply());
+            row.put("traceId", turn.traceId());
 
             String line = mapper.writeValueAsString(row) + System.lineSeparator();
             synchronized (fileLock) {
@@ -94,9 +95,10 @@ public class TurnLogger {
         }
     }
 
+    // traceId only goes to the JSONL: adding it to the insert would need an ALTER of turn_log, and prod validates the schema without migrating it.
     public record TurnLog(String conversationId, String userId, String message,
                           String intent, String awaiting, Long orderId,
                           int ordersShown, int ticketsCreated, boolean resolved,
-                          String reply) {
+                          String reply, String traceId) {
     }
 }
