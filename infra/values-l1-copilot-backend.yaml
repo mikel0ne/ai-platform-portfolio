@@ -35,6 +35,11 @@ configmap:
     SPRING_PROFILES_ACTIVE: "prod"
     SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+    # LLM observability: Langfuse is only enabled in the cluster (off locally).
+    # Service of the langfuse/langfuse chart with release "langfuse" -> langfuse-web:3000.
+    COPILOT_LANGFUSE_ENABLED: "true"
+    COPILOT_LANGFUSE_ENDPOINT: "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel"
+    COPILOT_LANGFUSE_ENVIRONMENT: "k8s"
 
 # Sensitive variables: the chart never creates these Secrets; deploy.sh syncs them
 # from infra/.env.local.
@@ -48,6 +53,12 @@ secretEnv:
   - name: SPRING_DATASOURCE_PASSWORD
     secretName: postgres-credentials
     secretKey: POSTGRES_PASSWORD
+  - name: LANGFUSE_PUBLIC_KEY
+    secretName: langfuse-api-keys
+    secretKey: LANGFUSE_L1COPILOT_PUBLIC_KEY
+  - name: LANGFUSE_SECRET_KEY
+    secretName: langfuse-api-keys
+    secretKey: LANGFUSE_L1COPILOT_SECRET_KEY
 
 probes:
   # Up to 150s for the JVM to start before liveness may restart it.
