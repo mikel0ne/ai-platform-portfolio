@@ -4,7 +4,10 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.model.embedding.EmbeddingModel;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.crag.CragProperties;
+import io.opentelemetry.api.trace.Span;
 import io.weaviate.client.WeaviateClient;
 import io.weaviate.client.base.Result;
 import io.weaviate.client.v1.batch.model.ObjectGetResponse;
@@ -33,6 +36,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Component
 public class WeaviateGateway implements DocRetriever {
@@ -59,17 +64,20 @@ public class WeaviateGateway implements DocRetriever {
     private final ObjectProvider<EmbeddingModel> queryEmbeddingModel;
     private final WeaviateProperties props;
     private final CragProperties crag;
+    private final LangfuseTracing tracing;
 
     public WeaviateGateway(WeaviateClient client,
                            ObjectProvider<EmbeddingModel> docEmbeddingModel,
                            @Qualifier("queryEmbeddingModel") ObjectProvider<EmbeddingModel> queryEmbeddingModel,
                            WeaviateProperties props,
-                           CragProperties crag) {
+                           CragProperties crag,
+                           LangfuseTracing tracing) {
         this.client = client;
         this.docEmbeddingModel = docEmbeddingModel;
         this.queryEmbeddingModel = queryEmbeddingModel;
         this.props = props;
         this.crag = crag;
+        this.tracing = tracing;
     }
 
     public void ensureSchema() {
@@ -214,6 +222,12 @@ public class WeaviateGateway implements DocRetriever {
 
     @Override
     public List<DocChunk> retrieve(String query, int k) {
+        return traced("weaviate.retrieve",
+                "{\"query\":\"" + jsonEscape(query) + "\",\"k\":" + k + ",\"alpha\":" + crag.alpha() + "}",
+                () -> doRetrieve(query, k));
+    }
+
+    private List<DocChunk> doRetrieve(String query, int k) {
         Embedding queryVector = queryEmbeddingModel.getObject().embed(query).content();
 
         HybridArgument hybrid = HybridArgument.builder()
@@ -235,6 +249,12 @@ public class WeaviateGateway implements DocRetriever {
 
     @Override
     public List<DocChunk> fullSection(String docId, String section) {
+        return traced("weaviate.fullSection",
+                "{\"docId\":\"" + jsonEscape(docId) + "\",\"section\":\"" + jsonEscape(section) + "\"}",
+                () -> doFullSection(docId, section));
+    }
+
+    private List<DocChunk> doFullSection(String docId, String section) {
         WhereFilter filter = WhereFilter.builder()
                 .path(DOC_ID)
                 .operator(Operator.Equal)
@@ -260,6 +280,13 @@ public class WeaviateGateway implements DocRetriever {
 
     @Override
     public List<DocChunk> neighboursInSection(String docId, String section, int order, int radius) {
+        return traced("weaviate.neighboursInSection",
+                "{\"docId\":\"" + jsonEscape(docId) + "\",\"section\":\"" + jsonEscape(section)
+                        + "\",\"order\":" + order + ",\"radius\":" + radius + "}",
+                () -> doNeighboursInSection(docId, section, order, radius));
+    }
+
+    private List<DocChunk> doNeighboursInSection(String docId, String section, int order, int radius) {
         WhereFilter filter = WhereFilter.builder()
                 .operator(Operator.And)
                 .operands(new WhereFilter[]{
@@ -286,6 +313,35 @@ public class WeaviateGateway implements DocRetriever {
         return parse(result.getResult()).stream()
                 .filter(c -> c.section().equals(section))
                 .toList();
+    }
+
+    // Retriever span whose output is references and scores, never the text. The query embedding stays
+    // inside it: the Gemini embedding model builder accepts no listeners.
+    private List<DocChunk> traced(String name, String input, Supplier<List<DocChunk>> retrieval) {
+        Span span = tracing.child(name, LangfuseAttributes.TYPE_RETRIEVER);
+        tracing.input(span, input);
+        try {
+            List<DocChunk> chunks = retrieval.get();
+            span.setAttribute(LangfuseAttributes.OBSERVATION_METADATA_PREFIX + "chunks", String.valueOf(chunks.size()));
+            tracing.output(span, compact(chunks));
+            return chunks;
+        } catch (RuntimeException e) {
+            tracing.fail(span, e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    static String compact(List<DocChunk> chunks) {
+        return chunks.stream()
+                .map(c -> c.source() + " · " + c.section() + " (" + c.score() + ")")
+                .collect(Collectors.joining("\n"));
+    }
+
+    static String jsonEscape(String value) {
+        return value == null ? "" : value.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     private static Field[] resultFields() {

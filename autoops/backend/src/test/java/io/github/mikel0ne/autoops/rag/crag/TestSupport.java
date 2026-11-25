@@ -2,7 +2,9 @@ package io.github.mikel0ne.autoops.rag.crag;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import io.github.mikel0ne.autoops.rag.DocChunk;
@@ -125,6 +127,26 @@ final class TestSupport {
                 next = rewriteResponses.isEmpty() ? "consulta reformulada" : rewriteResponses.poll();
             }
             return ChatResponse.builder().aiMessage(AiMessage.from(next)).build();
+        }
+    }
+
+    // ScriptedChatModel overrides chat(ChatRequest) entirely so it never fires listeners; this one delegates
+    // through doChat and lets the default chat(ChatRequest) of LangChain4j call them.
+    record ListeningChatModel(ChatModel delegate, ChatModelListener listener) implements ChatModel {
+
+        @Override
+        public List<ChatModelListener> listeners() {
+            return List.of(listener);
+        }
+
+        @Override
+        public ModelProvider provider() {
+            return ModelProvider.GOOGLE_AI_GEMINI;
+        }
+
+        @Override
+        public ChatResponse doChat(ChatRequest request) {
+            return delegate.chat(request);
         }
     }
 

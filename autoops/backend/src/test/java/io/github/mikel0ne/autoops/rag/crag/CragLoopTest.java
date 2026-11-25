@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.rag.crag;
 
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTestTracing;
 import io.github.mikel0ne.autoops.rag.Confidence;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
@@ -22,8 +23,8 @@ class CragLoopTest {
     private RagService service(DocRetriever retriever, CragProperties props,
                                 List<String> gradeResponses, List<String> rewriteResponses) {
         var chat = new TestSupport.ScriptedChatModel(gradeResponses, rewriteResponses);
-        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
-        return new RagService(graph, props);
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts, LangfuseTestTracing.noop());
+        return new RagService(graph, props, LangfuseTestTracing.noop(), LangfuseTestTracing.noopScores());
     }
 
     @Test
@@ -95,9 +96,9 @@ class CragLoopTest {
         var chat = new TestSupport.ScriptedChatModel(
                 List.of(grades(List.of("SUFFICIENT", "INSUFFICIENT"), List.of("COVERED", "NOT_COVERED"))),
                 List.of(), List.of(variants("variante")));
-        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts, LangfuseTestTracing.noop());
 
-        RagResult result = new RagService(graph, props).search("pregunta compuesta", 0);
+        RagResult result = new RagService(graph, props, LangfuseTestTracing.noop(), LangfuseTestTracing.noopScores()).search("pregunta compuesta", 0);
 
         assertThat(result.confidence()).isEqualTo(Confidence.MEDIUM);
         assertThat(result.chunks()).containsExactly(n1);
@@ -139,9 +140,9 @@ class CragLoopTest {
         var chat = new TestSupport.ScriptedChatModel(
                 List.of(grades("SUFFICIENT", "SUFFICIENT")), List.of(),
                 List.of(variants("variante uno", "variante dos")));
-        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts, LangfuseTestTracing.noop());
 
-        RagResult result = new RagService(graph, props).search("consulta original", 0);
+        RagResult result = new RagService(graph, props, LangfuseTestTracing.noop(), LangfuseTestTracing.noopScores()).search("consulta original", 0);
 
         assertThat(retriever.calls).isEqualTo(3);
         assertThat(retriever.receivedQueries)
@@ -158,9 +159,9 @@ class CragLoopTest {
         var props = new CragProperties(5, 2, 0.5, 3, 12, 1);
 
         var chat = new TestSupport.ScriptedChatModel(List.of(grades("SUFFICIENT")), List.of());
-        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts);
+        var graph = new CragGraph(retriever, TestSupport.provider(chat), props, prompts, LangfuseTestTracing.noop());
 
-        RagResult result = new RagService(graph, props).search("probes", 0);
+        RagResult result = new RagService(graph, props, LangfuseTestTracing.noop(), LangfuseTestTracing.noopScores()).search("probes", 0);
 
         assertThat(retriever.calls).isEqualTo(1);
         assertThat(retriever.receivedQueries).containsExactly("probes");

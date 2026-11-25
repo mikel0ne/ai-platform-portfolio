@@ -3,6 +3,8 @@ package io.github.mikel0ne.autoops.rag.crag;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.llm.Grader;
 import io.github.mikel0ne.autoops.rag.crag.llm.QueryVariantGenerator;
@@ -12,9 +14,12 @@ import io.github.mikel0ne.autoops.rag.crag.nodes.MultiQueryNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RetrieveNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.RewriteNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.TopKNode;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
+import org.bsc.langgraph4j.hook.NodeHook;
 import org.bsc.langgraph4j.utils.EdgeMappings;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
@@ -31,6 +36,7 @@ public class CragGraph {
     private final ObjectProvider<ChatModel> chatModel;
     private final CragProperties props;
     private final PromptLoader prompts;
+    private final LangfuseTracing tracing;
 
     // Compiled lazily so the ChatModel (and its API key) is not needed at startup.
     private volatile CompiledGraph<CragState> compiled;
@@ -38,11 +44,13 @@ public class CragGraph {
     public CragGraph(DocRetriever retriever,
                      ObjectProvider<ChatModel> chatModel,
                      CragProperties props,
-                     PromptLoader prompts) {
+                     PromptLoader prompts,
+                     LangfuseTracing tracing) {
         this.retriever = retriever;
         this.chatModel = chatModel;
         this.props = props;
         this.prompts = prompts;
+        this.tracing = tracing;
     }
 
     public CompiledGraph<CragState> get() {
@@ -67,6 +75,7 @@ public class CragGraph {
                 retriever, AiServices.create(QueryVariantGenerator.class, llm), props.multiQueryN());
         try {
             return new StateGraph<>(CragState::new)
+                    .addWrapCallNodeHook(nodeSpanHook(tracing))
                     .addNode("multiQuery", node_async(multiQuery))
                     .addNode("retrieve", node_async(new RetrieveNode(retriever)))
                     .addNode("topK", node_async(new TopKNode()))
@@ -97,5 +106,31 @@ public class CragGraph {
         } catch (GraphStateException e) {
             throw new IllegalStateException("Could not compile the CRAG graph", e);
         }
+    }
+
+    // A ThreadLocal scope is enough because node_async runs the node on the calling thread: that is what
+    // hangs the ChatModelListener generation under the right node. Truly async nodes would break it.
+    static NodeHook.WrapCall<CragState> nodeSpanHook(LangfuseTracing tracing) {
+        return (nodeId, state, config, action) -> {
+            Span span = tracing.child(nodeId, observationType(nodeId));
+            try (Scope ignored = span.makeCurrent()) {
+                return action.apply(state, config).whenComplete((delta, error) -> {
+                    if (error != null) {
+                        tracing.fail(span, error);
+                    } else {
+                        tracing.output(span, String.valueOf(delta));
+                    }
+                    span.end();
+                });
+            }
+        };
+    }
+
+    private static String observationType(String nodeId) {
+        return switch (nodeId) {
+            case "multiQuery", "grade", "rewrite" -> LangfuseAttributes.TYPE_CHAIN;
+            case "retrieve" -> LangfuseAttributes.TYPE_RETRIEVER;
+            default -> LangfuseAttributes.TYPE_SPAN;
+        };
     }
 }
