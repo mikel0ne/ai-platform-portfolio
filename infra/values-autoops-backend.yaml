@@ -54,6 +54,13 @@ configmap:
     # Service (namespace `wiki`, see infra/values-wikijs.yaml) and public URL for citations.
     AUTOOPS_WIKIJS_URL: "http://wikijs-generic-app.wiki.svc.cluster.local:3000"
     AUTOOPS_WIKIJS_PUBLIC_URL: "http://wiki.local"
+    # Langfuse (LLM observability, infra/LANGFUSE-INTEGRATION.md). Enabled here only: application.yml
+    # has it off so a local run without Langfuse works the same. OTLP endpoint of the Service of the
+    # "langfuse" release (namespace "langfuse", see infra/components/langfuse/langfuse-values.yaml),
+    # WITHOUT /v1/traces: the code appends it.
+    AUTOOPS_LANGFUSE_ENABLED: "true"
+    AUTOOPS_LANGFUSE_ENDPOINT: "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel"
+    AUTOOPS_LANGFUSE_ENVIRONMENT: "k8s"
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
 # Secrets synced by deploy.sh from infra/.env.local: Gemini key (chat + embeddings), GitHub
@@ -72,6 +79,14 @@ secretEnv:
   - name: AUTOOPS_ADMIN_TOKEN
     secretName: autoops-admin-secret
     secretKey: AUTOOPS_ADMIN_TOKEN
+  # Keys of the "autoops" Langfuse project. The Secret key name is set by deploy.sh (one per
+  # infra/.env.local variable); the pod variable name is the chart's choice.
+  - name: LANGFUSE_PUBLIC_KEY
+    secretName: langfuse-api-keys
+    secretKey: LANGFUSE_AUTOOPS_PUBLIC_KEY
+  - name: LANGFUSE_SECRET_KEY
+    secretName: langfuse-api-keys
+    secretKey: LANGFUSE_AUTOOPS_SECRET_KEY
 
 # READ-ONLY ServiceAccount for the Kubernetes tools, created by infra/rbac-autoops.yaml
 # (applied by deploy.sh with its ClusterRole/ClusterRoleBinding). create:false because

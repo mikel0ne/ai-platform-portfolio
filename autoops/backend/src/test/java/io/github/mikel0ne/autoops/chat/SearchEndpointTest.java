@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.chat;
 
 import io.github.mikel0ne.autoops.error.ApiExceptionHandler;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTestTracing;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import io.github.mikel0ne.autoops.rag.RagService;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,7 +32,7 @@ class SearchEndpointTest {
     @BeforeEach
     void setUp() {
         when(rateLimiter.tryAcquire()).thenReturn(true);
-        mockMvc = MockMvcBuilders.standaloneSetup(new SearchController(ragService, answerComposer, rateLimiter))
+        mockMvc = MockMvcBuilders.standaloneSetup(new SearchController(ragService, answerComposer, rateLimiter, LangfuseTestTracing.noop()))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }

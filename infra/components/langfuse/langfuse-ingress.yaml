@@ -1,0 +1,30 @@
+# =============================================================================
+# langfuse-ingress.yaml: Langfuse access through Traefik at langfuse.local
+# =============================================================================
+# The chart creates the web Service as <release>-web. With release "langfuse"
+# the Service is "langfuse-web" (port 3000).
+#
+# Resolve langfuse.local with: infra/scripts/add-host.ps1 -Hostname langfuse.local
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: langfuse
+  namespace: langfuse
+  labels:
+    app.kubernetes.io/part-of: langfuse
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: "langfuse.local"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: langfuse-web
+                port:
+                  number: 3000

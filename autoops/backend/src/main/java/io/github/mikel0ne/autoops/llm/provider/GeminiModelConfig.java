@@ -8,12 +8,16 @@ import io.github.mikel0ne.autoops.cache.CachingChatModel;
 import io.github.mikel0ne.autoops.cache.FileCacheManager;
 import io.github.mikel0ne.autoops.config.CacheProperties;
 import io.github.mikel0ne.autoops.config.LlmProperties;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseChatModelListener;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.context.annotation.Primary;
+
+import java.util.List;
 
 @Configuration
 @ConditionalOnProperty(name = "autoops.llm.provider", havingValue = "gemini", matchIfMissing = true)
@@ -49,13 +53,14 @@ public class GeminiModelConfig {
     @Bean
     @Lazy
     public ChatModel chatModel(LlmProperties props, CacheProperties cacheProps, FileCacheManager cache,
-                               @Value("${GEMINI_API_KEY:}") String apiKey) {
+                               LangfuseTracing tracing, @Value("${GEMINI_API_KEY:}") String apiKey) {
         ChatModel model = GoogleAiGeminiChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.chatModelName())
                 .temperature(props.temperature())
                 .timeout(props.timeout())
                 .maxRetries(props.maxRetries())
+                .listeners(List.of(new LangfuseChatModelListener(tracing, "internal")))
                 .build();
         return cacheProps.isCacheEnabled() ? new CachingChatModel(model, cache) : model;
     }

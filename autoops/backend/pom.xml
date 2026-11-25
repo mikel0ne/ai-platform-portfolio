@@ -27,6 +27,7 @@
         <spring-ai.version>2.0.2</spring-ai.version>
         <fabric8.version>6.14.0</fabric8.version>
         <springdoc.version>3.2.0</springdoc.version>
+        <opentelemetry.version>1.68.0</opentelemetry.version>
     </properties>
 
     <dependencyManagement>
@@ -43,6 +44,13 @@
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
                 <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -84,6 +92,16 @@
             <version>${langgraph4j.version}</version>
         </dependency>
 
+        <!-- LLM observability: plain OpenTelemetry SDK + OTLP/HTTP exporter towards Langfuse (no Spring starter, see infra/LANGFUSE-INTEGRATION.md) -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>io.fabric8</groupId>
             <artifactId>kubernetes-client</artifactId>
@@ -117,6 +135,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

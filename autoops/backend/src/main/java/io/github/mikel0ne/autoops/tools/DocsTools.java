@@ -1,18 +1,29 @@
 package io.github.mikel0ne.autoops.tools;
 
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import io.github.mikel0ne.autoops.rag.RagService;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Component
 public class DocsTools {
 
-    private final RagService ragService;
+    private static final List<String> TAGS = List.of("autoops", "rag", "mcp-tool");
 
-    public DocsTools(RagService ragService) {
+    private final RagService ragService;
+    private final LangfuseTracing tracing;
+
+    public DocsTools(RagService ragService, LangfuseTracing tracing) {
         this.ragService = ragService;
+        this.tracing = tracing;
     }
 
     // Returns raw chunks on purpose: the MCP client does the reasoning, unlike the /search chat.
@@ -23,6 +34,24 @@ public class DocsTools {
     public RagResult searchDocs(
             @ToolParam(description = "Natural-language query") String query,
             @ToolParam(required = false, description = "Number of chunks to return (default 5, capped at autoops.crag.k-max)") Integer k) {
-        return ragService.search(query, k == null ? 0 : k);
+        Span root = tracing.root("search_docs", LangfuseAttributes.TYPE_TOOL, query, TAGS);
+        try (Scope ignored = root.makeCurrent()) {
+            tracing.traceMetadata(root, "front", "mcp-tool");
+            RagResult result = ragService.search(query, k == null ? 0 : k);
+            tracing.output(root, summary(result));
+            return result;
+        } catch (RuntimeException e) {
+            tracing.fail(root, e);
+            throw e;
+        } finally {
+            root.end();
+        }
+    }
+
+    // References and scores only, never the full text.
+    private static String summary(RagResult result) {
+        return result.evidence().stream()
+                .map(c -> c.source() + " · " + c.section() + " (" + c.score() + ")")
+                .collect(Collectors.joining("\n"));
     }
 }

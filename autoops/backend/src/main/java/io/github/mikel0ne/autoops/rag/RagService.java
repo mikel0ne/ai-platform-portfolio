@@ -1,9 +1,14 @@
 package io.github.mikel0ne.autoops.rag;
 
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseScoreGateway;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.crag.Coverage;
 import io.github.mikel0ne.autoops.rag.crag.CragGraph;
 import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 import org.bsc.langgraph4j.RunnableConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,10 +28,15 @@ public class RagService {
 
     private final CragGraph cragGraph;
     private final CragProperties props;
+    private final LangfuseTracing tracing;
+    private final LangfuseScoreGateway scores;
 
-    public RagService(CragGraph cragGraph, CragProperties props) {
+    public RagService(CragGraph cragGraph, CragProperties props, LangfuseTracing tracing,
+                      LangfuseScoreGateway scores) {
         this.cragGraph = cragGraph;
         this.props = props;
+        this.tracing = tracing;
+        this.scores = scores;
     }
 
     public RagResult search(String query, int k) {
@@ -36,9 +46,7 @@ public class RagService {
         input.put("currentQuery", query);
         input.put("k", effectiveK);
 
-        CragState state = cragGraph.get()
-                .invoke(input, RunnableConfig.empty())
-                .orElseThrow(() -> new IllegalStateException("The CRAG graph returned no final state"));
+        CragState state = invokeGraph(input, query);
 
         List<DocChunk> chunks = state.candidates();
         int iterations = state.iterations();
@@ -52,7 +60,41 @@ public class RagService {
 
         log.debug("search_docs: query='{}' k={} iterations={} bestScore={} coverage={} confidence={}",
                 query, effectiveK, iterations, state.bestScore(), coverage, confidence);
+
+        publishTelemetry(effectiveK, chunks.size(), iterations, confidence, coverage);
         return new RagResult(chunks, iterations, confidence, discarded);
+    }
+
+    // The node spans come from the global hook of CragGraph; this one groups them under "crag".
+    private CragState invokeGraph(Map<String, Object> input, String query) {
+        Span span = tracing.child("crag", LangfuseAttributes.TYPE_CHAIN);
+        tracing.input(span, query);
+        try (Scope ignored = span.makeCurrent()) {
+            return cragGraph.get()
+                    .invoke(input, RunnableConfig.empty())
+                    .orElseThrow(() -> new IllegalStateException("The CRAG graph returned no final state"));
+        } catch (RuntimeException e) {
+            tracing.fail(span, e);
+            throw e;
+        } finally {
+            span.end();
+        }
+    }
+
+    // The "crag" span is already closed, so the current span is the trace root: trace metadata is
+    // trace-level and scores reference the trace id, not an observation.
+    private void publishTelemetry(int effectiveK, int chunks, int iterations, Confidence confidence,
+                                  List<Coverage> coverage) {
+        Span trace = Span.current();
+        tracing.traceMetadata(trace, "confidence", confidence.code());
+        tracing.traceMetadata(trace, "iterations", iterations);
+        tracing.traceMetadata(trace, "k", effectiveK);
+        tracing.traceMetadata(trace, "chunks", chunks);
+        tracing.traceMetadata(trace, "coverage", coverage);
+
+        scores.send(tracing.currentTraceId(), List.of(
+                LangfuseScoreGateway.categorical("rag_confidence", confidence.code()),
+                LangfuseScoreGateway.numeric("crag_iterations", iterations)));
     }
 
     static Confidence confidenceOf(List<Coverage> coverage) {

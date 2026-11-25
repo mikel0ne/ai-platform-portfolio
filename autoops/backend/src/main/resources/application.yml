@@ -62,6 +62,19 @@ autoops:
   # Without a url (local runs) the Wiki.js source disables itself; Kubernetes sets AUTOOPS_WIKIJS_URL.
   wikijs:
     locale: es
+  # LLM observability (infra/LANGFUSE-INTEGRATION.md). OFF here: a local run without Langfuse works the same,
+  # with a no-op Tracer. Only the chart's ConfigMap turns it on (AUTOOPS_LANGFUSE_ENABLED).
+  # Locally, port-forward svc/langfuse-web 3000:3000 -n langfuse and use http://localhost:3000/api/public/otel.
+  langfuse:
+    enabled: false
+    endpoint: http://langfuse.local/api/public/otel   # WITHOUT /v1/traces: the code appends it
+    public-key: ${LANGFUSE_PUBLIC_KEY:}
+    secret-key: ${LANGFUSE_SECRET_KEY:}
+    environment: local
+    release: "@project.version@"
+    sample-ratio: 1.0
+    capture-content: true      # false: neither prompts nor answers leave the pod
+    timeout: 10s
   # /admin/* requires the X-Admin-Token header; without a token the endpoints stay closed.
   admin:
     token: ${AUTOOPS_ADMIN_TOKEN:}

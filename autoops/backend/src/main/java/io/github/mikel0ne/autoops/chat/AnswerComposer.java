@@ -2,9 +2,13 @@ package io.github.mikel0ne.autoops.chat;
 
 import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.Confidence;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.RagResult;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +20,12 @@ public class AnswerComposer {
 
     private final ObjectProvider<ChatModel> chatModel;
     private final PromptLoader prompts;
+    private final LangfuseTracing tracing;
 
-    public AnswerComposer(ObjectProvider<ChatModel> chatModel, PromptLoader prompts) {
+    public AnswerComposer(ObjectProvider<ChatModel> chatModel, PromptLoader prompts, LangfuseTracing tracing) {
         this.chatModel = chatModel;
         this.prompts = prompts;
+        this.tracing = tracing;
     }
 
     public String compose(String query, RagResult rag) {
@@ -27,12 +33,23 @@ public class AnswerComposer {
         if (base.isEmpty()) {
             return "No he encontrado documentación interna que responda a esa consulta.";
         }
-        String context = base.stream().map(AnswerComposer::formatChunk).collect(Collectors.joining("\n\n"));
-        String prompt = prompts.load("chat_answer.txt")
-                .replace("{{warning}}", warning(rag.confidence()))
-                .replace("{{query}}", query)
-                .replace("{{context}}", context);
-        return chatModel.getObject().chat(prompt).trim();
+        Span span = tracing.child("compose", LangfuseAttributes.TYPE_CHAIN);
+        tracing.input(span, query);
+        try (Scope ignored = span.makeCurrent()) {
+            String context = base.stream().map(AnswerComposer::formatChunk).collect(Collectors.joining("\n\n"));
+            String prompt = prompts.load("chat_answer.txt")
+                    .replace("{{warning}}", warning(rag.confidence()))
+                    .replace("{{query}}", query)
+                    .replace("{{context}}", context);
+            String answer = chatModel.getObject().chat(prompt).trim();
+            tracing.output(span, answer);
+            return answer;
+        } catch (RuntimeException e) {
+            tracing.fail(span, e);
+            throw e;
+        } finally {
+            span.end();
+        }
     }
 
     private static String warning(Confidence confidence) {

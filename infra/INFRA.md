@@ -16,6 +16,7 @@
 | Base de datos vectorial | Weaviate 1.27 (namespace `infra`, compartida) | 🆕 `06-setup-weaviate.sh` |
 | Observabilidad (logs) | Loki + Promtail + Grafana (namespace `observability`) | 🆕 `07-setup-observability.sh` |
 | Wiki self-hosted | Wiki.js (namespace `wiki`, fuente RAG adicional de AutoOps) | 🆕 `08-setup-wikijs.sh` |
+| Observabilidad (trazas LLM) | Langfuse v4 + datastores propios (namespace `langfuse`) | 🆕 `09-setup-langfuse.sh` |
 | Apps back/front | Chart `generic-app` + `deploy.sh --project <p>` | ✅ l1-copilot · 🆕 autoops |
 
 > **Criterio de recursos compartidos:** una sola instancia por motor (Postgres y
@@ -252,6 +253,63 @@ bash infra/scripts/07-setup-observability.sh
 - **Values**: `values-wikijs.yaml` · **DNS interno**: `wikijs-generic-app.wiki.svc.cluster.local:3000` · **Acceso**: `http://wiki.local`
 - **Por qué existe**: sustituye al stub `ConfluenceSource` del backend de AutoOps (`autoops/backend/.../rag/source/`) — el RAG ingesta páginas de Wiki.js vía su API GraphQL (`WikiJsSource`), además del repo Git. El contenido de las páginas se versiona como backup en `wiki/content/*.txt` (no `.md`, para que `GitHubMarkdownSource` no lo re-ingeste) y se publica con `wiki/scripts/seed-wiki-content.sh`.
 
+### 8. Langfuse (LLM traces, self-hosted)
+
+- **Chart**: `langfuse/langfuse` **2.2.6** (repo `https://langfuse.github.io/langfuse-k8s`) · **App**: Langfuse **4.83.0** (versions pinned in `09-setup-langfuse.sh` and in the values).
+- **Namespace**: `langfuse` (its own). The chart deploys every datastore: Postgres 18, ClickHouse + Keeper (through an operator), Valkey (Redis) and SeaweedFS (S3). It does **not** use the shared Postgres of `infra`.
+- **Cluster prerequisites** (installed once, idempotently, by the script): `cert-manager` v1.20.2 (ns `cert-manager`) and `clickhouse-operator` 0.0.8 (ns `clickhouse-operator`). They need Kubernetes >= 1.28 and Helm >= 3.17.
+- **Values**: `components/langfuse/langfuse-values.yaml` (trimmed resources and PVCs for local) · **Ingress**: `components/langfuse/langfuse-ingress.yaml` · **Script**: `scripts/09-setup-langfuse.sh`
+- **Access**: `http://langfuse.local` (Traefik, `web` entrypoint).
+- **Integration with the backends**: `infra/LANGFUSE-INTEGRATION.md`.
+
+```bash
+bash infra/scripts/09-setup-langfuse.sh
+# Resolve the host (Admin, once):
+#   infra/scripts/add-host.ps1 -Hostname langfuse.local
+# Debug from the host:
+kubectl port-forward svc/langfuse-web 3000:3000 -n langfuse   # http://localhost:3000
+```
+
+#### Endpoints for the applications
+
+| What | Value |
+|------|-------|
+| UI | `http://langfuse.local` |
+| Internal host (in-cluster) | `langfuse-web.langfuse.svc.cluster.local:3000` |
+| OTLP ingestion (HTTP/protobuf) | `http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel` (e.g. `/v1/traces`) |
+| OTLP auth | `Authorization: Basic base64(<public key>:<secret key>)` of the project; without credentials it answers 401 |
+| Scores (write) | `POST /api/public/ingestion` with `score-create` events (the body needs an `id`); `POST /api/public/scores` answers 404 in this `events_only` mode |
+| Reads | `GET /api/public/v3/scores`, `GET /api/public/v2/observations` (the v1 reads answer 404) |
+
+Clients must force HTTP/1.1: the JDK `HttpClient` sends `Upgrade: h2c` and Langfuse closes the connection.
+
+#### Secrets and keys (`infra/.env.local`, not versioned)
+
+The script generates them with `openssl rand` the first time and **reuses** them on re-runs (regenerating `LANGFUSE_SALT` invalidates the API keys; `LANGFUSE_ENCRYPTION_KEY`, the encrypted data). They are never printed. They are loaded into the `langfuse` Secret of the namespace through stdin.
+
+| Variable | Use |
+|----------|-----|
+| `LANGFUSE_NEXTAUTH_SECRET`, `LANGFUSE_SALT`, `LANGFUSE_ENCRYPTION_KEY` | Langfuse's own secrets |
+| `LANGFUSE_POSTGRES_PASSWORD`, `LANGFUSE_CLICKHOUSE_PASSWORD`, `LANGFUSE_REDIS_PASSWORD`, `LANGFUSE_S3_PASSWORD` | bundled datastores |
+| `LANGFUSE_ADMIN_PASSWORD` | UI login: `admin@langfuse.local` |
+| `LANGFUSE_AUTOOPS_PUBLIC_KEY` / `LANGFUSE_AUTOOPS_SECRET_KEY` | keys of the **autoops** project (seeded automatically) |
+| `LANGFUSE_L1COPILOT_PUBLIC_KEY` / `LANGFUSE_L1COPILOT_SECRET_KEY` | keys of the **l1-copilot** project (**manual**, see below) |
+
+These are the names consumed by `infra/projects/<p>.env` and `deploy.sh`.
+
+#### Projects: one seeded, one manual
+
+Langfuse supports headless initialization (`LANGFUSE_INIT_*`), but it only creates **one** organization, **one** project and **one** user on startup (and leaves existing ones alone). The script seeds the `portfolio` org with the `autoops` project and the deterministic keys of `.env.local`. The `l1-copilot` project is created by hand, once:
+
+1. Log in at `http://langfuse.local` with `admin@langfuse.local` and `LANGFUSE_ADMIN_PASSWORD`.
+2. Organization `Portfolio` → **New project** → name `l1-copilot`.
+3. Project settings → **API Keys** → **Create new API key**.
+4. Add `LANGFUSE_L1COPILOT_PUBLIC_KEY=pk-lf-…` and `LANGFUSE_L1COPILOT_SECRET_KEY=sk-lf-…` to `infra/.env.local` (the secret key is only shown on creation).
+
+> **Reset**: `helm uninstall langfuse -n langfuse` keeps the PVCs and the generated Secrets (`resource-policy: keep`); for a full wipe also run `kubectl delete pvc --all -n langfuse`. After a full reset the manual project is lost: recreate it and update its keys.
+>
+> **RAM budget**: ClickHouse (2 Gi limit) and `langfuse-web` (2 Gi limit; with 1 Gi the Node heap runs out and the pod goes into CrashLoop) weigh the most; Langfuse totals roughly 5-6 Gi of limits. The first install takes ~15 min because of the image pulls. Check the Rancher Desktop memory setting before installing it next to the rest of the stack.
+
 ---
 
 ## Estructura del repositorio (monorepo)
@@ -278,6 +336,7 @@ bash infra/scripts/07-setup-observability.sh
 ```
 infra/
 ├── INFRA.md                                # Este documento
+├── LANGFUSE-INTEGRATION.md                 # How the backends report traces and scores to Langfuse
 ├── projects/                               # Descriptores por proyecto (lo que varía)
 │   ├── l1-copilot.env                      #   namespace, imágenes, secrets, rutas ingress
 │   └── autoops.env
@@ -296,7 +355,10 @@ infra/
 ├── charts/
 │   └── generic-app/                        # Chart Helm reusable Deployment+Service+Ingress
 ├── components/
-│   └── weaviate/weaviate.yaml              # Weaviate compartido (ns infra)
+│   ├── weaviate/weaviate.yaml              # Weaviate compartido (ns infra)
+│   └── langfuse/
+│       ├── langfuse-values.yaml            # Values of the langfuse/langfuse chart (trimmed resources)
+│       └── langfuse-ingress.yaml           # Traefik Ingress for langfuse.local
 ├── observability/
 │   ├── loki-stack-values.yaml              # Values del chart grafana/loki-stack
 │   └── grafana-ingress.yaml                # Ingress Traefik grafana.local
@@ -310,6 +372,7 @@ infra/
     ├── 06-setup-weaviate.sh                # Weaviate compartido (ns infra)
     ├── 07-setup-observability.sh           # Loki + Promtail + Grafana (ns observability)
     ├── 08-setup-wikijs.sh                  # Wiki.js vía Helm directo (ns wiki, sin deploy.sh)
+    ├── 09-setup-langfuse.sh                # Langfuse v4 + own datastores through Helm (ns langfuse)
     ├── deploy.sh                           # GENÉRICO: deploy.sh --project <p> --component <c>
     ├── setup-app-ingress.sh                # GENÉRICO: ingress por proyecto (--project <p>)
     ├── ingest-autoops.sh                   # Dispara la ingesta del corpus de AutoOps
