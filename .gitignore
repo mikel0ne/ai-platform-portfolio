@@ -34,3 +34,6 @@ service-account-key.json
 
 # Maven wrapper binary is downloaded on first run
 .mvn/wrapper/maven-wrapper.jar
+
+# deploy.sh guard test scratch dir (left behind only if the run is interrupted)
+infra/scripts/test/.work.*
