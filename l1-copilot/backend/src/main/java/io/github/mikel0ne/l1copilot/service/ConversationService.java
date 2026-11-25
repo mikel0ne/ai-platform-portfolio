@@ -12,6 +12,7 @@ import io.github.mikel0ne.l1copilot.dto.ConfirmActionDto;
 import io.github.mikel0ne.l1copilot.dto.OrderCardDto;
 import io.github.mikel0ne.l1copilot.dto.ReturnCardDto;
 import io.github.mikel0ne.l1copilot.dto.TicketCardDto;
+import io.github.mikel0ne.l1copilot.observability.LangfuseTurnTracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.CompiledGraph;
@@ -31,8 +32,16 @@ public class ConversationService {
     private final UserRepository userRepository;
     private final TreatmentPolicy treatmentPolicy;
     private final TurnLogger turnLogger;
+    private final LangfuseTurnTracer turnTracer;
 
     public ChatResult chat(String userId, String conversationId, String message) {
+        try (LangfuseTurnTracer.TurnTrace trace = turnTracer.start(userId, conversationId, message)) {
+            return runTurn(trace, userId, conversationId, message);
+        }
+    }
+
+    private ChatResult runTurn(LangfuseTurnTracer.TurnTrace trace,
+                               String userId, String conversationId, String message) {
         log.debug("Conversation turn {} (user {})", conversationId, userId);
 
         Treatment treatment = userRepository.findById(userId)
@@ -70,8 +79,10 @@ public class ConversationService {
             state = supportAgent.invoke(input, config)
                     .orElseThrow(() -> new ConversationException("The graph returned no final state"));
         } catch (ConversationException e) {
+            trace.fail(e);
             throw e;
         } catch (RuntimeException e) {
+            trace.fail(e);
             if (causedByLlm(e)) {
                 log.error("Model failure in conversation {}", conversationId, e);
                 throw new LlmUnavailableException(e);
@@ -95,10 +106,12 @@ public class ConversationService {
 
         boolean ordersSelectable = state.awaiting() == Awaiting.ORDER_CHOICE;
 
+        trace.complete(state, reply, orders.size(), tickets.size());
+
         turnLogger.record(new TurnLogger.TurnLog(
                 conversationId, userId, message,
                 state.intent().name(), state.awaiting().name(), state.orderId().orElse(null),
-                orders.size(), tickets.size(), state.resolved(), reply));
+                orders.size(), tickets.size(), state.resolved(), reply, trace.traceId()));
 
         return new ChatResult(reply, state.intent().name(),
                 state.resolved(), orders, ordersSelectable, tickets, returns, confirm);

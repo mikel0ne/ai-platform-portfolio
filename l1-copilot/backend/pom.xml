@@ -25,6 +25,7 @@
         <langchain4j.version>1.23.0</langchain4j.version>
         <langgraph4j.version>1.8.27</langgraph4j.version>
         <springdoc.version>2.10.0</springdoc.version>
+        <opentelemetry.version>1.68.0</opentelemetry.version>
     </properties>
 
     <dependencyManagement>
@@ -33,6 +34,13 @@
                 <groupId>dev.langchain4j</groupId>
                 <artifactId>langchain4j-bom</artifactId>
                 <version>${langchain4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.opentelemetry</groupId>
+                <artifactId>opentelemetry-bom</artifactId>
+                <version>${opentelemetry.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -117,9 +125,24 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Plain OTel SDK built by hand in LangfuseTracingConfig, deliberately without the Spring starter or Micrometer -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-exporter-otlp</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-sdk-testing</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

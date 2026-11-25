@@ -11,12 +11,17 @@ import io.github.mikel0ne.l1copilot.config.qualifier.ChattyModel;
 import io.github.mikel0ne.l1copilot.config.qualifier.Deterministic;
 import io.github.mikel0ne.l1copilot.config.qualifier.ResponseModel;
 import io.github.mikel0ne.l1copilot.config.qualifier.TicketModel;
+import io.github.mikel0ne.l1copilot.observability.LangfuseChatModelListener;
+import io.github.mikel0ne.l1copilot.observability.LangfuseProperties;
+import io.opentelemetry.api.trace.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 @Configuration
 public class ChatModelConfig {
@@ -25,6 +30,14 @@ public class ChatModelConfig {
 
     private static final String GOOGLE_OPENAI_BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/openai/";
+
+    private final Tracer langfuseTracer;
+    private final LangfuseProperties langfuseProperties;
+
+    public ChatModelConfig(Tracer langfuseTracer, LangfuseProperties langfuseProperties) {
+        this.langfuseTracer = langfuseTracer;
+        this.langfuseProperties = langfuseProperties;
+    }
 
     @Bean
     @Primary
@@ -77,6 +90,7 @@ public class ChatModelConfig {
                     .temperature(temperature)
                     .timeout(properties.timeout())
                     .maxRetries(properties.maxRetries())
+                    .listeners(List.of(langfuseListener(role)))
                     .build();
         } else {
             GeminiThinkingLevel level = parseThinkingLevel(thinkingLevel);
@@ -90,7 +104,8 @@ public class ChatModelConfig {
                     .modelName(modelName)
                     .temperature(temperature)
                     .timeout(properties.timeout())
-                    .maxRetries(properties.maxRetries());
+                    .maxRetries(properties.maxRetries())
+                    .listeners(List.of(langfuseListener(role)));
             if (level != null) {
                 builder.thinkingConfig(GeminiThinkingConfig.builder().thinkingLevel(level).build());
             }
@@ -100,11 +115,17 @@ public class ChatModelConfig {
         if (cacheProperties.isCacheEnabled()) {
             log.info("LLM cache ENABLED for [{}] (ttl={}s, file={})",
                     role, cacheProperties.ttlSeconds(), cacheProperties.file().enabled());
-            return new CachingChatModel(delegate, cache);
+            return new CachingChatModel(delegate, cache, langfuseTracer, role,
+                    langfuseProperties.isCaptureContent());
         } else {
             log.info("LLM cache DISABLED for [{}] (cache.enabled=false): every request goes to the model", role);
             return delegate;
         }
+    }
+
+    // One listener per role tells the four temperatures apart in Langfuse; with Langfuse off the tracer is a no-op.
+    private LangfuseChatModelListener langfuseListener(String role) {
+        return new LangfuseChatModelListener(langfuseTracer, role, langfuseProperties.isCaptureContent());
     }
 
     private GeminiThinkingLevel parseThinkingLevel(String level) {

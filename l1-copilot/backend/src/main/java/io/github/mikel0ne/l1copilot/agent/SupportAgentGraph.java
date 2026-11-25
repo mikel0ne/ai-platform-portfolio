@@ -15,6 +15,7 @@ import io.github.mikel0ne.l1copilot.agent.node.SupportNode;
 import io.github.mikel0ne.l1copilot.agent.node.TicketsNode;
 import io.github.mikel0ne.l1copilot.agent.node.TrackingNode;
 import io.github.mikel0ne.l1copilot.agent.node.VerifyNode;
+import io.github.mikel0ne.l1copilot.observability.LangfuseNodeHook;
 import lombok.RequiredArgsConstructor;
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
@@ -46,9 +47,12 @@ public class SupportAgentGraph {
     private final ChattyNode chattyNode;
     private final FallbackNode fallbackNode;
     private final RespondNode respondNode;
+    private final LangfuseNodeHook langfuseNodeHook;
 
     public StateGraph<SupportState> build() throws GraphStateException {
+        // Registered here rather than in CompileConfig: LangGraph4j keeps it in the StateGraph and reads it on compile.
         return new StateGraph<>(SupportState.SCHEMA, SupportState::new)
+                .addWrapCallNodeHook(langfuseNodeHook)
                 .addNode("router", node_async(routerNode))
                 .addNode("verify", node_async(verifyNode))
                 .addNode("clarify", node_async(clarifyNode))

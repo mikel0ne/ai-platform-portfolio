@@ -67,6 +67,20 @@ copilot:
     responder:
       enabled: true
       size: 6
+  # LLM observability in Langfuse (OpenTelemetry to /api/public/otel). OFF in every profile so a local
+  # start without Langfuse behaves as before; the Kubernetes ConfigMap turns it on (COPILOT_LANGFUSE_ENABLED).
+  # API keys come from LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY, never from this file.
+  langfuse:
+    enabled: false
+    # OTLP base path WITHOUT /v1/traces; the ingestion endpoint used for scores is derived from it.
+    endpoint: http://langfuse.local/api/public/otel
+    public-key: ${LANGFUSE_PUBLIC_KEY:}
+    secret-key: ${LANGFUSE_SECRET_KEY:}
+    environment: local
+    release: "@project.version@"
+    sample-ratio: 1.0
+    # Privacy switch: false keeps prompts and replies (user messages, order data) out of the traces.
+    capture-content: true
   # Turn log: raw material for the router's golden evaluation set.
   turn-log:
     file:

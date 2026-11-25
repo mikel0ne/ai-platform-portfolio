@@ -9,6 +9,9 @@ import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import io.github.mikel0ne.l1copilot.observability.LangfuseAttributes;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,12 +26,23 @@ public class CachingChatModel implements ChatModel {
 
     private static final Logger log = LoggerFactory.getLogger(CachingChatModel.class);
 
+    private static final String HIT_SPAN_NAME = "gemini.chat (cache)";
+    private static final String NO_USAGE = "{\"input\":0,\"output\":0,\"total\":0}";
+    private static final String NO_COST = "{\"total\":0}";
+
     private final ChatModel delegate;
     private final FileCacheManager cache;
+    private final Tracer tracer;
+    private final String role;
+    private final boolean captureContent;
 
-    public CachingChatModel(ChatModel delegate, FileCacheManager cache) {
+    public CachingChatModel(ChatModel delegate, FileCacheManager cache,
+                            Tracer tracer, String role, boolean captureContent) {
         this.delegate = delegate;
         this.cache = cache;
+        this.tracer = tracer;
+        this.role = role;
+        this.captureContent = captureContent;
     }
 
     @Override
@@ -41,6 +55,7 @@ public class CachingChatModel implements ChatModel {
         String text = cache.get(key);
         if (text != null) {
             log.debug("Cache HIT (key={})", key);
+            traceCacheHit(request, text);
             return ChatResponse.builder()
                     .aiMessage(AiMessage.from(text))
                     .build();
@@ -53,6 +68,23 @@ public class CachingChatModel implements ChatModel {
             cache.put(key, msg.text());
         }
         return response;
+    }
+
+    // Zero tokens and cost: a cache hit consumed no quota and must not inflate the spend.
+    private void traceCacheHit(ChatRequest request, String text) {
+        Span span = tracer.spanBuilder(HIT_SPAN_NAME)
+                .setAttribute(LangfuseAttributes.OBSERVATION_TYPE, LangfuseAttributes.TYPE_GENERATION)
+                .setAttribute(LangfuseAttributes.MODEL_NAME, String.valueOf(request.modelName()))
+                .setAttribute(LangfuseAttributes.OBSERVATION_METADATA_PREFIX + "role", role)
+                .setAttribute(LangfuseAttributes.OBSERVATION_METADATA_PREFIX + "cache", "HIT")
+                .setAttribute(LangfuseAttributes.USAGE_DETAILS, NO_USAGE)
+                .setAttribute(LangfuseAttributes.COST_DETAILS, NO_COST)
+                .startSpan();
+        if (captureContent) {
+            span.setAttribute(LangfuseAttributes.OBSERVATION_INPUT, String.valueOf(request.messages()));
+            span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, text);
+        }
+        span.end();
     }
 
     @Override
