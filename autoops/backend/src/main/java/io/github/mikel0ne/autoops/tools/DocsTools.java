@@ -1,5 +1,7 @@
 package io.github.mikel0ne.autoops.tools;
 
+import io.github.mikel0ne.autoops.chat.SearchRequest;
+import io.github.mikel0ne.autoops.error.InvalidRequestException;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.RagResult;
@@ -34,6 +36,9 @@ public class DocsTools {
     public RagResult searchDocs(
             @ToolParam(description = "Natural-language query") String query,
             @ToolParam(required = false, description = "Number of chunks to return (default 5, capped at autoops.crag.k-max)") Integer k) {
+        if (query != null && query.length() > SearchRequest.MAX_QUERY_LENGTH) {
+            throw new InvalidRequestException("query must be at most " + SearchRequest.MAX_QUERY_LENGTH + " characters");
+        }
         Span root = tracing.root("search_docs", LangfuseAttributes.TYPE_TOOL, query, TAGS);
         try (Scope ignored = root.makeCurrent()) {
             tracing.traceMetadata(root, "front", "mcp-tool");
