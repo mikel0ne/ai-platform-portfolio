@@ -29,6 +29,11 @@
 #   --bump          major | minor | patch   (bumps the manifest version and uses it as tag)
 #   --skip-build    No docker build/push, helm only
 #   --skip-secrets  Leaves the Kubernetes Secrets alone
+#   --allow-empty   An empty or missing Secret variable is a warning, not an error.
+#                   By default deploy.sh aborts, before touching the cluster, when a variable
+#                   mapped in SECRETS_<COMPONENT> is empty in the env files; variables listed in
+#                   OPTIONAL_SECRET_VARS (projects/<p>.env) only warn. An empty value never
+#                   overwrites a non-empty one already stored in the cluster Secret.
 #   --dry-run       Renders the chart with helm template, applies nothing
 #   --uninstall     helm uninstall of the releases and deletes the namespace
 # =============================================================================
@@ -47,7 +52,7 @@ warn() { printf '\033[1;33m!\033[0m %s\n' "$*" >&2; }
 err()  { printf '\033[1;31m✗\033[0m %s\n' "$*" >&2; }
 
 usage() {
-  sed -n '2,33p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,38p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
@@ -58,6 +63,7 @@ TAG=""
 BUMP=""
 SKIP_BUILD="false"
 SKIP_SECRETS="false"
+ALLOW_EMPTY="false"
 DRY_RUN="false"
 UNINSTALL="false"
 
@@ -69,6 +75,7 @@ while [[ $# -gt 0 ]]; do
     --bump)         BUMP="${2:?--bump needs a value}"; shift 2 ;;
     --skip-build)   SKIP_BUILD="true"; shift ;;
     --skip-secrets) SKIP_SECRETS="true"; shift ;;
+    --allow-empty)  ALLOW_EMPTY="true"; shift ;;
     --dry-run)      DRY_RUN="true"; shift ;;
     --uninstall)    UNINSTALL="true"; shift ;;
     -h|--help)      usage ;;
@@ -80,6 +87,7 @@ done
 [[ -n "${PROJECT}" ]] || { err "--project <name> is required"; usage; }
 readonly PROJECT_ENV="${INFRA_DIR}/projects/${PROJECT}.env"
 [[ -f "${PROJECT_ENV}" ]] || { err "Descriptor ${PROJECT_ENV} not found"; exit 1; }
+declare -ga OPTIONAL_SECRET_VARS=()
 # shellcheck disable=SC1090
 source "${PROJECT_ENV}"
 
@@ -214,19 +222,70 @@ ensure_namespace() {
 }
 
 # ── Secrets ──────────────────────────────────────────────────────────────────
+is_optional_secret_var() {
+  local item
+  for item in "${OPTIONAL_SECRET_VARS[@]}"; do
+    [[ "${item}" == "$1" ]] && return 0
+  done
+  return 1
+}
+
+# Aborts before anything is built or applied when a mapped variable is empty; only names are printed.
+validate_secret_vars() {
+  local component="$1"
+  [[ "${SKIP_SECRETS}" == "true" ]] && return 0
+  local ref="SECRETS_${component^^}"
+  declare -p "${ref}" >/dev/null 2>&1 || return 0
+  local -n VALIDATE_REF="${ref}"
+  local secret_name key missing="" optional_missing=""
+  for secret_name in "${!VALIDATE_REF[@]}"; do
+    for key in ${VALIDATE_REF[${secret_name}]}; do
+      [[ -n "${!key-}" ]] && continue
+      if is_optional_secret_var "${key}"; then
+        optional_missing+=" ${key}"
+      else
+        missing+=" ${key}"
+      fi
+    done
+  done
+  [[ -z "${optional_missing}" ]] || warn "Optional variables empty for '${component}':${optional_missing}"
+  [[ -z "${missing}" ]] && return 0
+  if [[ "${ALLOW_EMPTY}" == "true" ]]; then
+    warn "Empty variables for '${component}' (--allow-empty):${missing}"
+    return 0
+  fi
+  err "Empty or missing variables for '${component}':${missing}"
+  err "  Fill them in ${ENV_SHARED_LOCAL} (or ${ENV_LOCAL}); nothing was built or applied."
+  err "  Genuinely optional ones go in OPTIONAL_SECRET_VARS of ${PROJECT_ENV##*/}; --allow-empty overrides once."
+  return 1
+}
+
+existing_secret_value() {
+  local encoded
+  encoded="$(kubectl get secret "$1" --namespace "${NAMESPACE}" -o "jsonpath={.data.$2}" 2>/dev/null)" || return 0
+  [[ -n "${encoded}" ]] && printf '%s' "${encoded}" | base64 -d 2>/dev/null
+  return 0
+}
+
 # Creates or updates an Opaque Secret from the given keys; kubectl apply keeps it idempotent.
 # Values go through a private temp file: a --from-literal value would show up in the process list.
 sync_one_secret() {
   local secret_name="$1"
   shift
-  local key value missing=0 env_file
+  local key value current missing=0 env_file
   env_file="$(mktemp)"
   chmod 600 "${env_file}"
   for key in "$@"; do
     value="${!key-}"
     if [[ -z "${value}" ]]; then
-      warn "  · ${key} is empty (Secret '${secret_name}')"
-      missing=1
+      current="$(existing_secret_value "${secret_name}" "${key}")"
+      if [[ -n "${current}" ]]; then
+        warn "  · ${key} is empty: keeping the value already in Secret '${secret_name}'"
+        value="${current}"
+      else
+        warn "  · ${key} is empty (Secret '${secret_name}')"
+        missing=1
+      fi
     fi
     printf '%s=%s\n' "${key}" "${value}" >> "${env_file}"
   done
@@ -369,6 +428,10 @@ main() {
   fi
 
   load_env
+  case "${COMPONENT}" in
+    all) validate_secret_vars backend && validate_secret_vars frontend || exit 1 ;;
+    *)   validate_secret_vars "${COMPONENT}" || exit 1 ;;
+  esac
   ensure_namespace
 
   if [[ -z "${TAG}" && -z "${BUMP}" ]]; then
