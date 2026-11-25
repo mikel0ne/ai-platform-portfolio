@@ -117,7 +117,50 @@ Root metadata: `confidence`, `iterations`, `k`, `chunks`, `coverage`, `front`. S
 the calling thread (true for `node_async`); truly async nodes would need explicit context propagation.
 The hook is registered in `CragGraph.build()`, not in the constructor, to keep the model lazy.
 
-## 7. Verification without `@SpringBootTest`
+## 7. L1 Copilot
+
+A trace is one chat turn: one call to `ConversationService.chat(userId, conversationId, message)`, i.e. one
+`POST /api/copilot/chat`. The root span is named `chat.turn` and is created by `LangfuseTurnTracer`.
+
+```
+chat.turn                                   root (agent)
+├─ <node> (one per graph node that runs)    span/tool/retriever   LangfuseNodeHook (NodeHook.WrapCall)
+│  └─ gemini.chat                           generation            LangfuseChatModelListener
+│  └─ gemini.chat (cache)                   generation            CachingChatModel, on a cache hit
+```
+
+- **One span per node.** `LangfuseNodeHook` is registered in `SupportAgentGraph.build()` and wraps every
+  node that actually runs (a turn only walks one branch). Node ids map to an observation type: `resolve_order`,
+  `tracking`, `cancel_check`, `cancel_exec`, `return_check`, `return_exec` and `tickets` are `tool`; `faq` is
+  `retriever`; the rest are plain `span`. As in AutoOps, the hook relies on nodes running on the calling thread.
+- **One `generation` per real model call.** The listener is built per role in `Config.buildModel(role, ...)`, so
+  every generation carries a `role` metadata entry and `cache=MISS`. Usage and model name come from the response.
+- **Cache hits are visible.** `CachingChatModel` emits a `gemini.chat (cache)` generation with `cache=HIT`, zero
+  tokens and cost `{"total":0}`: the hit consumed no quota and must not inflate the spend.
+- **Session, user and intent on every span.** The root sets `langfuse.session.id` (the `conversationId`, the same
+  id as the graph's thread) and `langfuse.user.id` (the `X-User-Id` header) and puts them in OpenTelemetry baggage;
+  `LangfuseTraceAttributesProcessor` copies them onto each child span because Langfuse v4 evaluates them per
+  observation. The final `intent` is added as a tag next to `l1-copilot` and `agent`. All turns of a conversation
+  therefore show up as one Langfuse Session, which is the only place the thread can be read (conversations live in
+  a `MemorySaver`).
+- **Root input/output.** Input is the user message; output is the reply after the `<thought>` blocks are stripped.
+- **Root metadata:** `intent`, `awaiting`, `verdict`, `orderId`, `resolved`, `treatment`, `ordersShown`,
+  `ticketsCreated`.
+
+Scores, sent through `LangfuseScoreGateway` (see section 4):
+
+| Name | `dataType` | Value |
+|------|-----------|-------|
+| `verify_verdict` | `CATEGORICAL` | `SURE`, `DOUBT` or `REJECT` (the final `state.verdict()`) |
+| `resolved` | `BOOLEAN` | `1` / `0` from `state.resolved()` |
+
+Tolerant verifier parsing: the verifier is split into a raw call (`RawVerifier`) and `ParsingVerifier`, which
+runs `DecisionParser` on the output. The parser extracts the JSON object between the first `{` and the last `}`
+(ignoring code fences), escapes raw control characters inside strings and requires a known verdict. Anything
+unparseable degrades to `DOUBT` with a warning instead of failing the turn, so the `verify_verdict` score is
+always defined.
+
+## 8. Verification without `@SpringBootTest`
 
 Tests are plain unit tests with an in-memory exporter (`SimpleSpanProcessor` + `InMemorySpanExporter`)
 and no network: attribute names, observation types, `node -> generation` nesting, error paths, and the
@@ -126,7 +169,7 @@ exact JSON of the score batch (including the per-score `id`). For a transport sm
 a 4xx means a wrong key pair or path; a 2xx with nothing in the UI points to the ingestion-version header.
 In short-lived runs call `forceFlush()` before exiting: the batch processor drops pending spans otherwise.
 
-## 8. Risks
+## 9. Risks
 
 1. Prompts carry document fragments (AutoOps) or user messages and order data (L1): with
    `capture-content: true` they leave the pod. The switch exists; leaving it on is a conscious choice.
