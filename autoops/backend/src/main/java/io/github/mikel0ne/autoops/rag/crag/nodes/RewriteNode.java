@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.rag.crag.nodes;
 
 import dev.langchain4j.model.chat.ChatModel;
+import io.github.mikel0ne.autoops.config.PromptTemplates;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
 import org.bsc.langgraph4j.action.NodeAction;
 
@@ -22,9 +23,9 @@ public class RewriteNode implements NodeAction<CragState> {
 
     @Override
     public Map<String, Object> apply(CragState state) {
-        String prompt = promptTemplate
-                .replace("{{original_query}}", state.query())
-                .replace("{{current_query}}", state.currentQuery());
+        String prompt = PromptTemplates.render(promptTemplate, Map.of(
+                "original_query", state.query(),
+                "current_query", state.currentQuery()));
         String rewritten = chatModel.chat(prompt).trim();
         if (rewritten.isBlank()) {
             rewritten = state.currentQuery();

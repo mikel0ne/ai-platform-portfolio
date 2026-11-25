@@ -2,6 +2,7 @@ package io.github.mikel0ne.autoops.chat;
 
 import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.config.PromptLoader;
+import io.github.mikel0ne.autoops.config.PromptTemplates;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.Confidence;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
@@ -37,10 +39,10 @@ public class AnswerComposer {
         tracing.input(span, query);
         try (Scope ignored = span.makeCurrent()) {
             String context = base.stream().map(AnswerComposer::formatChunk).collect(Collectors.joining("\n\n"));
-            String prompt = prompts.load("chat_answer.txt")
-                    .replace("{{warning}}", warning(rag.confidence()))
-                    .replace("{{query}}", query)
-                    .replace("{{context}}", context);
+            String prompt = PromptTemplates.render(prompts.load("chat_answer.txt"), Map.of(
+                    "warning", warning(rag.confidence()),
+                    "query", query,
+                    "context", context));
             String answer = chatModel.getObject().chat(prompt).trim();
             tracing.output(span, answer);
             return answer;
