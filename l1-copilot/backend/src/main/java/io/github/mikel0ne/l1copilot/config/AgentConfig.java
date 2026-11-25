@@ -5,6 +5,8 @@ import dev.langchain4j.service.AiServices;
 import io.github.mikel0ne.l1copilot.agent.SupportAgentGraph;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
+import io.github.mikel0ne.l1copilot.agent.llm.ParsingVerifier;
+import io.github.mikel0ne.l1copilot.agent.llm.RawVerifier;
 import io.github.mikel0ne.l1copilot.agent.llm.Responder;
 import io.github.mikel0ne.l1copilot.agent.llm.TicketWriter;
 import io.github.mikel0ne.l1copilot.agent.llm.Verifier;
@@ -54,7 +56,7 @@ public class AgentConfig {
 
     @Bean
     public Verifier verifier(@Deterministic ChatModel chatModel) {
-        return AiServices.create(Verifier.class, chatModel);
+        return new ParsingVerifier(AiServices.create(RawVerifier.class, chatModel));
     }
 
     @Bean
