@@ -253,62 +253,62 @@ bash infra/scripts/07-setup-observability.sh
 - **Values**: `values-wikijs.yaml` · **DNS interno**: `wikijs-generic-app.wiki.svc.cluster.local:3000` · **Acceso**: `http://wiki.local`
 - **Por qué existe**: sustituye al stub `ConfluenceSource` del backend de AutoOps (`autoops/backend/.../rag/source/`) — el RAG ingesta páginas de Wiki.js vía su API GraphQL (`WikiJsSource`), además del repo Git. El contenido de las páginas se versiona como backup en `wiki/content/*.txt` (no `.md`, para que `GitHubMarkdownSource` no lo re-ingeste) y se publica con `wiki/scripts/seed-wiki-content.sh`.
 
-### 8. Langfuse (LLM traces, self-hosted)
+### 8. Langfuse (trazas de LLM, autoalojado)
 
-- **Chart**: `langfuse/langfuse` **2.2.6** (repo `https://langfuse.github.io/langfuse-k8s`) · **App**: Langfuse **4.83.0** (versions pinned in `09-setup-langfuse.sh` and in the values).
-- **Namespace**: `langfuse` (its own). The chart deploys every datastore: Postgres 18, ClickHouse + Keeper (through an operator), Valkey (Redis) and SeaweedFS (S3). It does **not** use the shared Postgres of `infra`.
-- **Cluster prerequisites** (installed once, idempotently, by the script): `cert-manager` v1.20.2 (ns `cert-manager`) and `clickhouse-operator` 0.0.8 (ns `clickhouse-operator`). They need Kubernetes >= 1.28 and Helm >= 3.17.
-- **Values**: `components/langfuse/langfuse-values.yaml` (trimmed resources and PVCs for local) · **Ingress**: `components/langfuse/langfuse-ingress.yaml` · **Script**: `scripts/09-setup-langfuse.sh`
-- **Access**: `http://langfuse.local` (Traefik, `web` entrypoint).
-- **Integration with the backends**: `infra/LANGFUSE-INTEGRATION.md`.
+- **Chart**: `langfuse/langfuse` **2.2.6** (repo `https://langfuse.github.io/langfuse-k8s`) · **App**: Langfuse **4.83.0** (versiones fijadas en `09-setup-langfuse.sh` y en los values).
+- **Namespace**: `langfuse` (propio). El chart despliega todos sus datastores: Postgres 18, ClickHouse + Keeper (vía operador), Valkey (Redis) y SeaweedFS (S3). **No** usa el Postgres compartido de `infra`.
+- **Requisitos previos del clúster** (los instala el script una vez, de forma idempotente): `cert-manager` v1.20.2 (ns `cert-manager`) y `clickhouse-operator` 0.0.8 (ns `clickhouse-operator`). Necesitan Kubernetes >= 1.28 y Helm >= 3.17.
+- **Values**: `components/langfuse/langfuse-values.yaml` (recursos y PVCs recortados para local) · **Ingress**: `components/langfuse/langfuse-ingress.yaml` · **Script**: `scripts/09-setup-langfuse.sh`
+- **Acceso**: `http://langfuse.local` (Traefik, entrypoint `web`).
+- **Integración con los backends**: `infra/LANGFUSE-INTEGRATION.md` (en inglés).
 
 ```bash
 bash infra/scripts/09-setup-langfuse.sh
-# Resolve the host (Admin, once):
+# Resolver el host (Admin, una vez):
 #   infra/scripts/add-host.ps1 -Hostname langfuse.local
-# Debug from the host:
+# Depurar desde el host:
 kubectl port-forward svc/langfuse-web 3000:3000 -n langfuse   # http://localhost:3000
 ```
 
-#### Endpoints for the applications
+#### Endpoints para las aplicaciones
 
-| What | Value |
-|------|-------|
+| Qué | Valor |
+|-----|-------|
 | UI | `http://langfuse.local` |
-| Internal host (in-cluster) | `langfuse-web.langfuse.svc.cluster.local:3000` |
-| OTLP ingestion (HTTP/protobuf) | `http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel` (e.g. `/v1/traces`) |
-| OTLP auth | `Authorization: Basic base64(<public key>:<secret key>)` of the project; without credentials it answers 401 |
-| Scores (write) | `POST /api/public/ingestion` with `score-create` events (the body needs an `id`); `POST /api/public/scores` answers 404 in this `events_only` mode |
-| Reads | `GET /api/public/v3/scores`, `GET /api/public/v2/observations` (the v1 reads answer 404) |
+| Host interno (in-cluster) | `langfuse-web.langfuse.svc.cluster.local:3000` |
+| Ingesta OTLP (HTTP/protobuf) | `http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel` (p. ej. `/v1/traces`) |
+| Auth OTLP | `Authorization: Basic base64(<public key>:<secret key>)` del proyecto; sin credenciales responde 401 |
+| Scores (escritura) | `POST /api/public/ingestion` con eventos `score-create` (el cuerpo necesita un `id`); `POST /api/public/scores` responde 404 en este modo `events_only` |
+| Lecturas | `GET /api/public/v3/scores`, `GET /api/public/v2/observations` (las lecturas v1 responden 404) |
 
-Clients must force HTTP/1.1: the JDK `HttpClient` sends `Upgrade: h2c` and Langfuse closes the connection.
+Los clientes deben forzar HTTP/1.1: el `HttpClient` del JDK envía `Upgrade: h2c` y Langfuse cierra la conexión.
 
-#### Secrets and keys (`infra/.env.local`, not versioned)
+#### Secretos y claves (`infra/.env.local`, no versionado)
 
-The script generates them with `openssl rand` the first time and **reuses** them on re-runs (regenerating `LANGFUSE_SALT` invalidates the API keys; `LANGFUSE_ENCRYPTION_KEY`, the encrypted data). They are never printed. They are loaded into the `langfuse` Secret of the namespace through stdin.
+El script las genera con `openssl rand` la primera vez y las **reutiliza** en las siguientes ejecuciones (regenerar `LANGFUSE_SALT` invalida las API keys; `LANGFUSE_ENCRYPTION_KEY`, los datos cifrados). Nunca se imprimen. Se cargan en el Secret `langfuse` del namespace por stdin.
 
-| Variable | Use |
+| Variable | Uso |
 |----------|-----|
-| `LANGFUSE_NEXTAUTH_SECRET`, `LANGFUSE_SALT`, `LANGFUSE_ENCRYPTION_KEY` | Langfuse's own secrets |
-| `LANGFUSE_POSTGRES_PASSWORD`, `LANGFUSE_CLICKHOUSE_PASSWORD`, `LANGFUSE_REDIS_PASSWORD`, `LANGFUSE_S3_PASSWORD` | bundled datastores |
-| `LANGFUSE_ADMIN_PASSWORD` | UI login: `admin@langfuse.local` |
-| `LANGFUSE_AUTOOPS_PUBLIC_KEY` / `LANGFUSE_AUTOOPS_SECRET_KEY` | keys of the **autoops** project (seeded automatically) |
-| `LANGFUSE_L1COPILOT_PUBLIC_KEY` / `LANGFUSE_L1COPILOT_SECRET_KEY` | keys of the **l1-copilot** project (**manual**, see below) |
+| `LANGFUSE_NEXTAUTH_SECRET`, `LANGFUSE_SALT`, `LANGFUSE_ENCRYPTION_KEY` | secretos propios de Langfuse |
+| `LANGFUSE_POSTGRES_PASSWORD`, `LANGFUSE_CLICKHOUSE_PASSWORD`, `LANGFUSE_REDIS_PASSWORD`, `LANGFUSE_S3_PASSWORD` | datastores incluidos |
+| `LANGFUSE_ADMIN_PASSWORD` | login de la UI: `admin@langfuse.local` |
+| `LANGFUSE_AUTOOPS_PUBLIC_KEY` / `LANGFUSE_AUTOOPS_SECRET_KEY` | claves del proyecto **autoops** (se siembran automáticamente) |
+| `LANGFUSE_L1COPILOT_PUBLIC_KEY` / `LANGFUSE_L1COPILOT_SECRET_KEY` | claves del proyecto **l1-copilot** (**manual**, ver abajo) |
 
-These are the names consumed by `infra/projects/<p>.env` and `deploy.sh`.
+Son los nombres que consumen `infra/projects/<p>.env` y `deploy.sh`.
 
-#### Projects: one seeded, one manual
+#### Proyectos: uno sembrado, otro manual
 
-Langfuse supports headless initialization (`LANGFUSE_INIT_*`), but it only creates **one** organization, **one** project and **one** user on startup (and leaves existing ones alone). The script seeds the `portfolio` org with the `autoops` project and the deterministic keys of `.env.local`. The `l1-copilot` project is created by hand, once:
+Langfuse admite inicialización headless (`LANGFUSE_INIT_*`), pero solo crea **una** organización, **un** proyecto y **un** usuario al arrancar (y respeta los existentes). El script siembra la organización `portfolio` con el proyecto `autoops` y las claves deterministas de `.env.local`. El proyecto `l1-copilot` se crea a mano, una sola vez:
 
-1. Log in at `http://langfuse.local` with `admin@langfuse.local` and `LANGFUSE_ADMIN_PASSWORD`.
-2. Organization `Portfolio` → **New project** → name `l1-copilot`.
-3. Project settings → **API Keys** → **Create new API key**.
-4. Add `LANGFUSE_L1COPILOT_PUBLIC_KEY=pk-lf-…` and `LANGFUSE_L1COPILOT_SECRET_KEY=sk-lf-…` to `infra/.env.local` (the secret key is only shown on creation).
+1. Entrar en `http://langfuse.local` con `admin@langfuse.local` y `LANGFUSE_ADMIN_PASSWORD`.
+2. Organización `Portfolio` → **New project** → nombre `l1-copilot`.
+3. Ajustes del proyecto → **API Keys** → **Create new API key**.
+4. Añadir `LANGFUSE_L1COPILOT_PUBLIC_KEY=pk-lf-…` y `LANGFUSE_L1COPILOT_SECRET_KEY=sk-lf-…` a `infra/.env.local` (la secret key solo se muestra al crearla).
 
-> **Reset**: `helm uninstall langfuse -n langfuse` keeps the PVCs and the generated Secrets (`resource-policy: keep`); for a full wipe also run `kubectl delete pvc --all -n langfuse`. After a full reset the manual project is lost: recreate it and update its keys.
+> **Reset**: `helm uninstall langfuse -n langfuse` conserva los PVCs y los Secrets generados (`resource-policy: keep`); para un borrado total ejecuta además `kubectl delete pvc --all -n langfuse`. Tras un reset completo el proyecto manual se pierde: recréalo y actualiza sus claves.
 >
-> **RAM budget**: ClickHouse (2 Gi limit) and `langfuse-web` (2 Gi limit; with 1 Gi the Node heap runs out and the pod goes into CrashLoop) weigh the most; Langfuse totals roughly 5-6 Gi of limits. The first install takes ~15 min because of the image pulls. Check the Rancher Desktop memory setting before installing it next to the rest of the stack.
+> **Presupuesto de RAM**: ClickHouse (límite 2 Gi) y `langfuse-web` (límite 2 Gi; con 1 Gi se agota el heap de Node y el pod entra en CrashLoop) son lo que más pesa; Langfuse suma unos 5-6 Gi de límites. La primera instalación tarda ~15 min por las descargas de imágenes. Revisa la memoria asignada en Rancher Desktop antes de instalarlo junto al resto del stack.
 
 ---
 
@@ -336,7 +336,7 @@ Langfuse supports headless initialization (`LANGFUSE_INIT_*`), but it only creat
 ```
 infra/
 ├── INFRA.md                                # Este documento
-├── LANGFUSE-INTEGRATION.md                 # How the backends report traces and scores to Langfuse
+├── LANGFUSE-INTEGRATION.md                 # Cómo los backends envían trazas y scores a Langfuse (en inglés)
 ├── projects/                               # Descriptores por proyecto (lo que varía)
 │   ├── l1-copilot.env                      #   namespace, imágenes, secrets, rutas ingress
 │   └── autoops.env
@@ -357,8 +357,8 @@ infra/
 ├── components/
 │   ├── weaviate/weaviate.yaml              # Weaviate compartido (ns infra)
 │   └── langfuse/
-│       ├── langfuse-values.yaml            # Values of the langfuse/langfuse chart (trimmed resources)
-│       └── langfuse-ingress.yaml           # Traefik Ingress for langfuse.local
+│       ├── langfuse-values.yaml            # Values del chart langfuse/langfuse (recursos recortados)
+│       └── langfuse-ingress.yaml           # Ingress de Traefik para langfuse.local
 ├── observability/
 │   ├── loki-stack-values.yaml              # Values del chart grafana/loki-stack
 │   └── grafana-ingress.yaml                # Ingress Traefik grafana.local
@@ -372,7 +372,7 @@ infra/
     ├── 06-setup-weaviate.sh                # Weaviate compartido (ns infra)
     ├── 07-setup-observability.sh           # Loki + Promtail + Grafana (ns observability)
     ├── 08-setup-wikijs.sh                  # Wiki.js vía Helm directo (ns wiki, sin deploy.sh)
-    ├── 09-setup-langfuse.sh                # Langfuse v4 + own datastores through Helm (ns langfuse)
+    ├── 09-setup-langfuse.sh                # Langfuse v4 + datastores propios vía Helm (ns langfuse)
     ├── deploy.sh                           # GENÉRICO: deploy.sh --project <p> --component <c>
     ├── setup-app-ingress.sh                # GENÉRICO: ingress por proyecto (--project <p>)
     ├── ingest-autoops.sh                   # Dispara la ingesta del corpus de AutoOps
