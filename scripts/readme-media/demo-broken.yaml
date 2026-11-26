@@ -1,0 +1,21 @@
+# Deployment whose image does not exist: ImagePullBackOff, the case diagnose_pod is demonstrated on.
+# kubectl create namespace demo-broken && kubectl apply -f demo-broken.yaml ... kubectl delete namespace demo-broken
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-api
+  namespace: demo-broken
+  labels: {app: payments-api}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: payments-api}
+  template:
+    metadata:
+      labels: {app: payments-api}
+    spec:
+      containers:
+        - name: app
+          image: registry.local/payments-api:9.9.9
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: 8080}

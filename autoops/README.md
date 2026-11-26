@@ -117,15 +117,30 @@ Then point an MCP client at `http://autoops.local/mcp`; for Claude Code the repo
 
 ## Evaluation
 
-[`rag-golden-set.json`](backend/src/test/resources/rag-golden-set.json) holds 21 questions over the sample corpus, each
-with the document and section that answer it. `RagEvalTest` measures, against a real index:
+[`rag-golden-set.json`](backend/src/test/resources/rag-golden-set.json) holds 44 queries over the sample corpus:
+
+- 21 baseline questions, each with the document and section that answer it;
+- robustness cases: paraphrases, hidden sections, typos, other languages, multi-hop and ambiguous questions;
+- 6 unanswerable queries (out of domain, not in the corpus, grader injection), each with a confidence cap;
+- security cases: grader injection, prompt leak, exfiltration, destructive commands, malicious formats.
+
+`RagGoldenSetTest` checks on every build that each expected source is exactly one Markdown file of the repo.
+`RagEvalTest` measures, against a real index:
 
 - **hybrid search + rerank**: hit@1, hit@5 and MRR of the expected section;
-- **the full CRAG loop**: whether the evidence it hands to the answer contains that section, plus the confidence
-  distribution and the iterations it took.
+- **the full CRAG loop**: whether its evidence contains that section, plus confidence and iterations;
+- **abstention and security**: the share of unanswerable and security queries handled as expected;
+- results per category, with the failed cases listed.
 
-It is opt-in because it needs an indexed Weaviate with the reranker and a Gemini key; it fails below
-`RAG_EVAL_MIN_HIT` (default 0.8 hit@5):
+It is opt-in because it needs an indexed Weaviate with the reranker and a Gemini key. It fails below
+`RAG_EVAL_MIN_HIT`, `RAG_EVAL_MIN_ABSTENTION` or `RAG_EVAL_MIN_SECURITY` (each 0.8 by default). The 44-query set
+has not been run against the model yet.
+
+**Estimated cost** on the paid Gemini tier (free tier today): about $0.002-0.004 per search with Gemini 3.5
+Flash-Lite and up to about $0.006 with a retry, roughly 25-30% less with 3.1; $2-6 per 1000 searches. Details in
+the [root README](../README.md#estimated-cost).
+
+To run the evaluation:
 
 ```bash
 kubectl port-forward svc/weaviate 8088:8080 -n infra &
