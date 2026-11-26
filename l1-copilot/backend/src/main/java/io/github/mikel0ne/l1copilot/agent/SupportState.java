@@ -54,6 +54,7 @@ public class SupportState extends AgentState {
     // Per-turn values: every turn starts from these, so nothing of the previous turn leaks into the next one.
     public static final Map<String, Object> TURN_RESETS = Map.ofEntries(
             Map.entry(CONFIRMATION, Confirmation.NONE.name()),
+            Map.entry(VERDICT, Verdict.NONE.name()),
             Map.entry(TENTATIVE, false),
             Map.entry(NAVIGATING, false),
             Map.entry(PROPOSED_ORDER_ID, 0L),
@@ -140,7 +141,7 @@ public class SupportState extends AgentState {
     }
 
     public Verdict verdict() {
-        return Verdict.fromLlm(this.value(VERDICT, Verdict.SURE.name()));
+        return Verdict.fromLlm(this.value(VERDICT, Verdict.NONE.name()));
     }
 
     public boolean tentative() {

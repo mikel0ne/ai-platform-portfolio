@@ -1,5 +1,7 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
@@ -514,5 +516,27 @@ class RouterNodeTest {
 
         assertThat(updates).containsEntry("intent", "OTHER");
         assertThat(updates).containsEntry("confirmation", "NONE");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"OTHER", "TICKETS", "FAQ", "CHATTY"})
+    @DisplayName("An informational intent never turns an orderId into the focus the next turn inherits")
+    void informationalIntentDoesNotSetFocus(String intent) {
+        decision(new RouterDecision(intent, 305L, "NONE", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of("awaiting", "NOTHING")));
+
+        assertThat(updates).containsEntry("intent", intent);
+        assertThat(updates).doesNotContainKeys("orderId", "proposedOrderId", "candidates");
+    }
+
+    @Test
+    @DisplayName("SUPPORT keeps setting the focus: the ticket needs the order it is about")
+    void supportStillSetsFocus() {
+        decision(new RouterDecision("SUPPORT", 382L, "NONE", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of("awaiting", "NOTHING")));
+
+        assertThat(updates).containsEntry("orderId", 382L);
     }
 }

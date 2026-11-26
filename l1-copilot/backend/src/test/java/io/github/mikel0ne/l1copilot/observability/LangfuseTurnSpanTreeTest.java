@@ -91,7 +91,7 @@ class LangfuseTurnSpanTreeTest {
         assertThat(attribute(root, LangfuseAttributes.TRACE_METADATA_PREFIX + "intent"))
                 .isEqualTo(Intent.TRACKING.name());
         assertThat(attribute(root, LangfuseAttributes.TRACE_METADATA_PREFIX + "verdict"))
-                .isEqualTo(Verdict.SURE.name());
+                .isEqualTo(Verdict.NONE.name());
         assertThat(attribute(root, LangfuseAttributes.TRACE_METADATA_PREFIX + "orderId"))
                 .isEqualTo("777");
         assertThat(attribute(root, LangfuseAttributes.TRACE_METADATA_PREFIX + "ordersShown"))

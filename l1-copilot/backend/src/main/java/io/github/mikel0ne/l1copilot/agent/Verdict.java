@@ -2,7 +2,8 @@ package io.github.mikel0ne.l1copilot.agent;
 
 public enum Verdict {
 
-    SURE, DOUBT, REJECT;
+    // NONE: nothing was verified in this turn, so there is no verdict to report.
+    SURE, DOUBT, REJECT, NONE;
 
     public static Verdict fromLlm(String raw) {
         if (raw == null || raw.isBlank()) {

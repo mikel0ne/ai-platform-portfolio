@@ -113,7 +113,7 @@ public class RouterNode implements NodeAction<SupportState> {
             log.debug("---ROUTER--- stale ticket draft dropped (intent={})", intent);
         }
 
-        if (decision.orderId() != null && decision.orderId() > 0) {
+        if (decision.orderId() != null && decision.orderId() > 0 && !isInformational(intent)) {
             long newFocus = decision.orderId();
             boolean selecting = state.awaiting() == Awaiting.ORDER_CHOICE;
             boolean differentOrder = state.orderId().filter(id -> id == newFocus).isEmpty();
@@ -262,6 +262,12 @@ public class RouterNode implements NodeAction<SupportState> {
 
     private boolean hasOngoingContext(SupportState state) {
         return state.orderId().isPresent() || state.awaiting() != Awaiting.NOTHING;
+    }
+
+    // These intents never act on an order, so an orderId they carry must not become the focus the next turn inherits.
+    private boolean isInformational(Intent intent) {
+        return intent == Intent.OTHER || intent == Intent.TICKETS || intent == Intent.FAQ
+                || intent == Intent.CHATTY;
     }
 
     private boolean isDigression(Intent intent) {

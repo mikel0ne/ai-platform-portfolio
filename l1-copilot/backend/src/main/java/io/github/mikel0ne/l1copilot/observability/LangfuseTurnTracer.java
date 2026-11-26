@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.observability;
 
 import io.github.mikel0ne.l1copilot.agent.SupportState;
+import io.github.mikel0ne.l1copilot.agent.Verdict;
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
@@ -83,8 +84,10 @@ public class LangfuseTurnTracer {
             if (properties.isCaptureContent()) {
                 span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, String.valueOf(reply));
             }
-            scores.sendAsync(traceId, "verify_verdict", state.verdict().name(),
-                    LangfuseScoreGateway.CATEGORICAL, null);
+            if (state.verdict() != Verdict.NONE) {
+                scores.sendAsync(traceId, "verify_verdict", state.verdict().name(),
+                        LangfuseScoreGateway.CATEGORICAL, null);
+            }
             scores.sendAsync(traceId, "resolved", state.resolved() ? 1 : 0,
                     LangfuseScoreGateway.BOOLEAN, null);
         }
