@@ -1,10 +1,13 @@
 package io.github.mikel0ne.autoops.rag.crag.nodes;
 
+import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
 import io.github.mikel0ne.autoops.rag.crag.llm.QueryVariantGenerator;
 import org.bsc.langgraph4j.action.NodeAction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,6 +15,8 @@ import java.util.Map;
 import java.util.Objects;
 
 public class MultiQueryNode implements NodeAction<CragState> {
+
+    private static final Logger log = LoggerFactory.getLogger(MultiQueryNode.class);
 
     private final DocRetriever retriever;
     private final QueryVariantGenerator generator;
@@ -45,7 +50,13 @@ public class MultiQueryNode implements NodeAction<CragState> {
     }
 
     private List<String> generateVariants(String query, int count) {
-        List<String> generated = generator.generate(query, count).variants();
+        List<String> generated;
+        try {
+            generated = generator.generate(query, count).variants();
+        } catch (OutputParsingException e) {
+            log.warn("Unparseable query variants, searching with the original query only: {}", e.getMessage());
+            return List.of();
+        }
         if (generated == null) {
             return List.of();
         }
