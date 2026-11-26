@@ -22,6 +22,8 @@ class RouterGoldenCasesTest {
     private static final int MIN_CASES = 30;
     private static final int MIN_SECURITY_CASES = 10;
     private static final int MAX_MESSAGE_LENGTH = 2000;
+    private static final Set<Awaiting> CONFIRM_GATES =
+            EnumSet.of(Awaiting.CANCEL_CONFIRM, Awaiting.RETURN_CONFIRM, Awaiting.TICKET_CONFIRM);
 
     private static List<GoldenCase> cases;
 
@@ -94,7 +96,7 @@ class RouterGoldenCasesTest {
     @DisplayName("A jailbreak or injection is never expected to land on the intent it tries to force")
     void manipulationIsNeverExpectedToSucceed() {
         cases.stream()
-                .filter(c -> Set.of("jailbreak", "injection").contains(c.category()))
+                .filter(c -> RouterGoldenCases.FORCED_INTENT_CATEGORIES.contains(c.category()))
                 .forEach(c -> Arrays.stream(Intent.values())
                         .map(Intent::name)
                         .filter(c.message()::contains)
@@ -103,10 +105,12 @@ class RouterGoldenCasesTest {
     }
 
     @Test
-    @DisplayName("A case without history gets the default one; history-injection cases carry a real history")
+    @DisplayName("Only multi-turn categories carry a history; the ones about the history always do")
     void historyDefaultsAndHistoryCasesCarryOne() {
-        cases.stream().filter(c -> !"history-injection".equals(c.category())).forEach(c ->
+        cases.stream().filter(c -> !RouterGoldenCases.HISTORY_ALLOWED_CATEGORIES.contains(c.category())).forEach(c ->
                 assertThat(c.history()).as("history of: %s", c.message()).isEqualTo(RouterGoldenCases.NO_HISTORY));
+        cases.stream().filter(c -> RouterGoldenCases.HISTORY_REQUIRED_CATEGORIES.contains(c.category())).forEach(c ->
+                assertThat(c.history()).as("history of: %s", c.message()).isNotEqualTo(RouterGoldenCases.NO_HISTORY));
         List<GoldenCase> historyCases = cases.stream()
                 .filter(c -> "history-injection".equals(c.category())).toList();
         assertThat(historyCases).hasSizeGreaterThanOrEqualTo(5);
@@ -122,5 +126,39 @@ class RouterGoldenCasesTest {
         List<GoldenCase> heldout = cases.stream().filter(GoldenCase::heldout).toList();
         assertThat(heldout).hasSizeGreaterThanOrEqualTo(13);
         assertThat(heldout.stream().filter(GoldenCase::security).count()).isGreaterThanOrEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("A case state uses real enum values, a choice offers well-formed candidates and a confirmation only exists behind a gate")
+    void statesAreRealAndConsistent() {
+        for (GoldenCase c : cases) {
+            RouterGoldenCases.State state = c.state();
+            assertThatCode(() -> Awaiting.valueOf(state.awaiting())).as("awaiting of: %s", c.message())
+                    .doesNotThrowAnyException();
+            assertThatCode(() -> Intent.valueOf(state.currentIntent())).as("currentIntent of: %s", c.message())
+                    .doesNotThrowAnyException();
+            if (Awaiting.valueOf(state.awaiting()) == Awaiting.ORDER_CHOICE) {
+                assertThat(state.candidates()).as("candidates of: %s", c.message()).isNotEmpty();
+            }
+            state.candidates().forEach(candidate ->
+                    assertThat(candidate).as("candidate of: %s", c.message()).matches("#\\d+ .+"));
+            if (c.expectedConfirmation() != null) {
+                assertThatCode(() -> Confirmation.valueOf(c.expectedConfirmation()))
+                        .as("expectedConfirmation of: %s", c.message()).doesNotThrowAnyException();
+                assertThat(CONFIRM_GATES).as("awaiting of: %s", c.message())
+                        .contains(Awaiting.valueOf(state.awaiting()));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("Every confirmation gate has a case where a plain assent must still confirm")
+    void everyConfirmationGateStillConfirms() {
+        Set<Awaiting> confirmed = cases.stream()
+                .filter(c -> "YES".equals(c.expectedConfirmation()))
+                .map(c -> Awaiting.valueOf(c.state().awaiting()))
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(Awaiting.class)));
+
+        assertThat(confirmed).containsAll(CONFIRM_GATES);
     }
 }
