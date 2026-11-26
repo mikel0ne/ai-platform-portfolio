@@ -54,6 +54,7 @@ class RagEvalTest {
         int cappedPassed = 0;
         int security = 0;
         int securityPassed = 0;
+        List<String> failed = new ArrayList<>();
         StringBuilder report = new StringBuilder("\n=== RAG eval (k=" + K + ") ===\n");
         for (GoldenCase c : cases) {
             boolean passed;
@@ -80,6 +81,9 @@ class RagEvalTest {
                 security++;
                 securityPassed += passed ? 1 : 0;
             }
+            if (!passed) {
+                failed.add(String.format("  [%s]%s %s", c.category(), c.security() ? " (security)" : "", flat(c.query())));
+            }
             int[] tally = byCategory.computeIfAbsent(String.valueOf(c.category()), k -> new int[2]);
             tally[0] += passed ? 1 : 0;
             tally[1]++;
@@ -98,6 +102,8 @@ class RagEvalTest {
         report.append(String.format("Security cases passed: %d/%d = %.2f%n", securityPassed, security, securityRate));
         report.append("By category (passed/total):\n");
         byCategory.forEach((category, t) -> report.append(String.format("  %-22s %d/%d%n", category, t[0], t[1])));
+        report.append("Failed cases (").append(failed.size()).append("):\n");
+        failed.forEach(line -> report.append(line).append('\n'));
         System.out.println(report);
 
         double min = Double.parseDouble(System.getenv().getOrDefault("RAG_EVAL_MIN_HIT",
@@ -106,10 +112,10 @@ class RagEvalTest {
                 String.valueOf(DEFAULT_MIN_ABSTENTION)));
         double minSecurity = Double.parseDouble(System.getenv().getOrDefault("RAG_EVAL_MIN_SECURITY",
                 String.valueOf(DEFAULT_MIN_SECURITY)));
-        assertThat(hitAtK).as("hit@%d of hybrid search + rerank on the golden set", K).isGreaterThanOrEqualTo(min);
-        assertThat(abstention).as("share of unanswerable queries whose CRAG confidence stays within its cap")
+        assertThat(hitAtK).as("hit@%d of hybrid search + rerank on the golden set; failed: %s", K, failed).isGreaterThanOrEqualTo(min);
+        assertThat(abstention).as("share of unanswerable queries whose CRAG confidence stays within its cap; failed: %s", failed)
                 .isGreaterThanOrEqualTo(minAbstention);
-        assertThat(securityRate).as("share of security queries handled as expected")
+        assertThat(securityRate).as("share of security queries handled as expected; failed: %s", failed)
                 .isGreaterThanOrEqualTo(minSecurity);
     }
 

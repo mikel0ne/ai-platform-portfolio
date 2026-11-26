@@ -7,11 +7,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,75 +28,105 @@ class RouterEvalTest {
     @Autowired
     private IntentClassifier classifier;
 
+    @Value("${langchain4j.gemini.model-name}")
+    private String modelName;
+
+    private record Outcome(GoldenCase golden, Intent got, boolean ok) {
+    }
+
+    private record Tally(int hits, int total) {
+
+        static Tally of(List<Outcome> outcomes) {
+            return new Tally((int) outcomes.stream().filter(Outcome::ok).count(), outcomes.size());
+        }
+
+        double rate() {
+            return total == 0 ? 1 : (double) hits / total;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("%d/%d = %3.0f%%", hits, total, rate() * 100);
+        }
+    }
+
     @Test
     @DisplayName("The router classifies the golden set above the minimum threshold")
     void routerMeetsAccuracyThreshold() throws Exception {
         List<GoldenCase> cases = RouterGoldenCases.load();
-
-        int hits = 0;
-        int securityCases = 0;
-        int securityHits = 0;
-        Map<String, int[]> byCategory = new TreeMap<>();
-        int[] original = new int[2];
-        int[] heldout = new int[2];
-        int[] originalSecurity = new int[2];
-        int[] heldoutSecurity = new int[2];
         long pauseMs = Long.parseLong(System.getenv().getOrDefault("ROUTER_EVAL_PAUSE_MS", "0"));
-        StringBuilder report = new StringBuilder("\n=== Router eval ===\n");
+
+        List<Outcome> outcomes = new ArrayList<>();
+        StringBuilder report = new StringBuilder("\n=== Router eval (model: " + modelName + ") ===\n");
         for (GoldenCase c : cases) {
             pause(pauseMs);
             RouterDecision decision = classifyWithBackoff(c.message(), c.history());
             Intent got = Intent.fromLlm(decision.intent());
-            boolean ok = got == Intent.fromLlm(c.expectedIntent());
-            if (ok) {
-                hits++;
-            }
-            if (c.security()) {
-                securityCases++;
-                if (ok) {
-                    securityHits++;
-                }
-            }
-            int[] subset = c.heldout() ? heldout : original;
-            subset[0] += ok ? 1 : 0;
-            subset[1]++;
-            if (c.security()) {
-                int[] subsetSecurity = c.heldout() ? heldoutSecurity : originalSecurity;
-                subsetSecurity[0] += ok ? 1 : 0;
-                subsetSecurity[1]++;
-            }
-            int[] tally = byCategory.computeIfAbsent(String.valueOf(c.category()), k -> new int[2]);
-            tally[0] += ok ? 1 : 0;
-            tally[1]++;
-            report.append(ok ? "  [ok] " : "  [XX] ")
+            Outcome outcome = new Outcome(c, got, got == Intent.fromLlm(c.expectedIntent()));
+            outcomes.add(outcome);
+            report.append(outcome.ok() ? "  [ok] " : "  [XX] ")
                     .append(String.format("%-22s %-8s", c.category(), c.expectedIntent()))
                     .append(" -> ").append(String.format("%-8s", got))
-                    .append(" | ").append(abbreviate(c.message())).append('\n');
+                    .append(c.heldout() ? " | (held-out) " : " | ").append(abbreviate(c.message())).append('\n');
         }
 
-        report.append("By category:\n");
-        byCategory.forEach((category, t) -> report.append(String.format("  %-22s %d/%d%n", category, t[0], t[1])));
-        report.append(String.format("Original cases: %d/%d (security %d/%d)%n",
-                original[0], original[1], originalSecurity[0], originalSecurity[1]));
-        report.append(String.format("Held-out cases: %d/%d (security %d/%d)%n",
-                heldout[0], heldout[1], heldoutSecurity[0], heldoutSecurity[1]));
-        double accuracy = (double) hits / cases.size();
-        report.append(String.format("Accuracy: %d/%d = %.0f%%%n", hits, cases.size(), accuracy * 100));
-        double securityAccuracy = securityCases == 0 ? 1 : (double) securityHits / securityCases;
-        report.append(String.format("Security accuracy: %d/%d = %.0f%%%n",
-                securityHits, securityCases, securityAccuracy * 100));
+        List<Outcome> original = outcomes.stream().filter(o -> !o.golden().heldout()).toList();
+        List<Outcome> heldout = outcomes.stream().filter(o -> o.golden().heldout()).toList();
+        appendCategories(report, "Original cases", original);
+        appendCategories(report, "Held-out cases", heldout);
+        report.append("Totals:\n");
+        report.append("  Overall        ").append(Tally.of(outcomes)).append('\n');
+        report.append("  Security       ").append(Tally.of(security(outcomes, true))).append('\n');
+        report.append("  Functional     ").append(Tally.of(security(outcomes, false))).append('\n');
+        report.append("  Original       ").append(Tally.of(original)).append('\n');
+        report.append("  Held-out       ").append(Tally.of(heldout)).append('\n');
+        List<Outcome> failed = outcomes.stream().filter(o -> !o.ok()).toList();
+        report.append("Failed cases (").append(failed.size()).append("):\n");
+        failed.forEach(o -> report.append(String.format("  [%s]%s %s: expected %s, got %s | %s%n",
+                o.golden().category(), o.golden().security() ? " (security)" : "",
+                o.golden().heldout() ? "held-out" : "original", o.golden().expectedIntent(), o.got(),
+                abbreviate(o.golden().message()))));
         System.out.println(report);
 
         double min = Double.parseDouble(
                 System.getenv().getOrDefault("ROUTER_EVAL_MIN", String.valueOf(DEFAULT_MIN_ACCURACY)));
         double minSecurity = Double.parseDouble(System.getenv().getOrDefault("ROUTER_EVAL_MIN_SECURITY",
                 String.valueOf(DEFAULT_MIN_SECURITY_ACCURACY)));
-        assertThat(accuracy)
-                .as("Router accuracy on the golden set (threshold %.0f%%)", min * 100)
+        double minCategory = Double.parseDouble(System.getenv().getOrDefault("ROUTER_EVAL_MIN_CATEGORY", "0"));
+        assertThat(Tally.of(outcomes).rate())
+                .as("Router accuracy on the golden set (threshold %.0f%%); failed: %s", min * 100, describe(failed))
                 .isGreaterThanOrEqualTo(min);
-        assertThat(securityAccuracy)
-                .as("Router accuracy on the security cases of the golden set (threshold %.0f%%)", minSecurity * 100)
+        assertThat(Tally.of(security(outcomes, true)).rate())
+                .as("Router accuracy on the security cases (threshold %.0f%%); failed: %s", minSecurity * 100,
+                        describe(failed.stream().filter(o -> o.golden().security()).toList()))
                 .isGreaterThanOrEqualTo(minSecurity);
+        if (minCategory > 0) {
+            byCategory(outcomes).forEach((category, list) -> assertThat(Tally.of(list).rate())
+                    .as("Router accuracy on category '%s' (threshold %.0f%%); failed: %s", category,
+                            minCategory * 100, describe(list.stream().filter(o -> !o.ok()).toList()))
+                    .isGreaterThanOrEqualTo(minCategory));
+        }
+    }
+
+    private static List<Outcome> security(List<Outcome> outcomes, boolean security) {
+        return outcomes.stream().filter(o -> o.golden().security() == security).toList();
+    }
+
+    private static Map<String, List<Outcome>> byCategory(List<Outcome> outcomes) {
+        return outcomes.stream().collect(Collectors.groupingBy(o -> String.valueOf(o.golden().category()),
+                TreeMap::new, Collectors.toList()));
+    }
+
+    private static void appendCategories(StringBuilder report, String title, List<Outcome> outcomes) {
+        report.append(title).append(" by category:\n");
+        byCategory(outcomes).forEach((category, list) -> report.append(String.format("  %-22s %-6s %s%n",
+                category, list.get(0).golden().security() ? "(sec)" : "", Tally.of(list))));
+    }
+
+    private static String describe(List<Outcome> failed) {
+        return failed.stream()
+                .map(o -> "[" + o.golden().category() + "] " + abbreviate(o.golden().message()))
+                .collect(Collectors.joining("; "));
     }
 
     private RouterDecision classifyWithBackoff(String message, String history) {
