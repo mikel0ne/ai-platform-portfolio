@@ -13,6 +13,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
@@ -31,7 +32,7 @@ class RouterEvalTest {
     @Value("${langchain4j.gemini.model-name}")
     private String modelName;
 
-    private record Outcome(GoldenCase golden, Intent got, boolean ok) {
+    private record Outcome(GoldenCase golden, Intent got, boolean ok, Intent guarded, boolean guardedOk) {
     }
 
     private record Tally(int hits, int total) {
@@ -60,13 +61,17 @@ class RouterEvalTest {
         StringBuilder report = new StringBuilder("\n=== Router eval (model: " + modelName + ") ===\n");
         for (GoldenCase c : cases) {
             pause(pauseMs);
-            RouterDecision decision = classifyWithBackoff(c.message(), c.history());
+            RouterDecision decision = classifyWithBackoff(c);
+            RouterDecision guardedDecision = AssentGuard.apply(decision, Awaiting.fromState(c.state().awaiting()),
+                    Optional.empty(), c.message());
             Intent got = Intent.fromLlm(decision.intent());
-            Outcome outcome = new Outcome(c, got, got == Intent.fromLlm(c.expectedIntent()));
+            Intent guarded = Intent.fromLlm(guardedDecision.intent());
+            Outcome outcome = new Outcome(c, got, matches(c, decision), guarded, matches(c, guardedDecision));
             outcomes.add(outcome);
             report.append(outcome.ok() ? "  [ok] " : "  [XX] ")
                     .append(String.format("%-22s %-8s", c.category(), c.expectedIntent()))
                     .append(" -> ").append(String.format("%-8s", got))
+                    .append(outcome.guarded() == got ? "" : String.format(" [guarded: %s]", outcome.guarded()))
                     .append(c.heldout() ? " | (held-out) " : " | ").append(abbreviate(c.message())).append('\n');
         }
 
@@ -80,6 +85,8 @@ class RouterEvalTest {
         report.append("  Functional     ").append(Tally.of(security(outcomes, false))).append('\n');
         report.append("  Original       ").append(Tally.of(original)).append('\n');
         report.append("  Held-out       ").append(Tally.of(heldout)).append('\n');
+        report.append("  Guarded (sec)  ").append(guardedTally(security(outcomes, true))).append('\n');
+        report.append("  Guarded (all)  ").append(guardedTally(outcomes)).append('\n');
         List<Outcome> failed = outcomes.stream().filter(o -> !o.ok()).toList();
         report.append("Failed cases (").append(failed.size()).append("):\n");
         failed.forEach(o -> report.append(String.format("  [%s]%s %s: expected %s, got %s | %s%n",
@@ -108,6 +115,17 @@ class RouterEvalTest {
         }
     }
 
+    private static boolean matches(GoldenCase c, RouterDecision decision) {
+        boolean intentOk = Intent.fromLlm(decision.intent()) == Intent.fromLlm(c.expectedIntent());
+        boolean confirmationOk = c.expectedConfirmation() == null
+                || Confirmation.fromState(decision.confirmation()).name().equals(c.expectedConfirmation());
+        return intentOk && confirmationOk;
+    }
+
+    private static Tally guardedTally(List<Outcome> outcomes) {
+        return new Tally((int) outcomes.stream().filter(Outcome::guardedOk).count(), outcomes.size());
+    }
+
     private static List<Outcome> security(List<Outcome> outcomes, boolean security) {
         return outcomes.stream().filter(o -> o.golden().security() == security).toList();
     }
@@ -129,11 +147,11 @@ class RouterEvalTest {
                 .collect(Collectors.joining("; "));
     }
 
-    private RouterDecision classifyWithBackoff(String message, String history) {
+    private RouterDecision classifyWithBackoff(GoldenCase c) {
         for (int attempt = 1; ; attempt++) {
             try {
-                return classifier.classify(message, "NONE", "NOTHING", "(ninguno)", "(ninguno)",
-                        IntentClassifier.fenceSafe(history));
+                return classifier.classify(c.message(), c.state().currentIntent(), c.state().awaiting(),
+                        c.state().candidatesText(), c.state().focusText(), IntentClassifier.fenceSafe(c.history()));
             } catch (RuntimeException e) {
                 // Transient quota (429), overload (503) or request timeout: at most two waits for the window to reset, never an open loop.
                 if (attempt > 2 || !isTransient(e)) {
