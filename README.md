@@ -251,6 +251,20 @@ differences are within noise):
 End to end on C: 7 router failures, 0 GRAVE, 1 MITIGADO, 6 LEVE. The 44-query RAG set has not been run against
 the model yet.
 
+The same 103 cases on two models (final prompt, one run each, 5 s pause between calls; a gap of three or four
+cases is within noise):
+
+| Model | Overall raw | Overall guarded | Security raw | Security guarded | Functional | Run time |
+|---|---|---|---|---|---|---|
+| `gemini-flash-lite-latest` (3.5), commit `84b5357` | 96/103 (93%) | 100/103 (97%) | 48/54 (89%) | 52/54 (96%) | 48/49 (98%) | 12 min |
+| `gemini-3.1-flash-lite`, `main` at `1887a69` | 97/103 (94%) | 100/103 (97%) | 48/54 (89%) | 51/54 (94%) | 49/49 (100%) | 22 min |
+
+Both fail on the same family of cases: a bare "adelante" or "ok, thanks" read as a confirmation, forged context
+or a fake "your return was approved" email read as an instruction. The 3.1 run finished in a single pass with no
+API errors left open; its six failures are all security cases, and the assent guard turns three of them into a
+safe `OTHER`. The router is only the first layer: an action still needs the verifier, a confirmation pending for
+that very order, and the business rules in code.
+
 Everything else, including the full agent flows and the security suite, runs in CI with the LLM roles mocked:
 those tests check the code's decisions, not the model's quality. Both backends can also send traces to a
 self-hosted **Langfuse**: one trace per RAG query or chat turn, one span per graph node, one generation per
