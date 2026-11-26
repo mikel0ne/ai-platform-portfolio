@@ -32,4 +32,18 @@ class SupportStateTest {
 
         assertThat(state.candidates()).isEmpty();
     }
+
+    @Test
+    @DisplayName("Without a verification in the turn there is no verdict, not a made-up SURE")
+    void verdictDefaultsToNone() {
+        assertThat(new SupportState(Map.of()).verdict()).isEqualTo(Verdict.NONE);
+    }
+
+    @Test
+    @DisplayName("Every turn starts with no verdict, so a previous one is never reported again")
+    void turnResetsClearTheVerdict() {
+        SupportState state = new SupportState(new java.util.HashMap<>(SupportState.TURN_RESETS));
+
+        assertThat(state.verdict()).isEqualTo(Verdict.NONE);
+    }
 }
