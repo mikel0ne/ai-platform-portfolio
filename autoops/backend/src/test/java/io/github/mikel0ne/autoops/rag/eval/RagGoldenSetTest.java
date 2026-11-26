@@ -176,8 +176,13 @@ class RagGoldenSetTest {
         return byPath;
     }
 
-    // Build output, dependencies and dot-folders never reach the Git ingestion.
+    // Build output, dependencies and dot-folders never reach the Git ingestion; deploy.sh leaves a
+    // git-ignored copy of the corpus in backend/corpus as the image build context.
     private static boolean excluded(Path rel) {
+        String normalized = rel.toString().replace('\\', '/');
+        if (normalized.contains("backend/corpus/")) {
+            return true;
+        }
         for (Path segment : rel) {
             String name = segment.toString();
             if (name.startsWith(".") || Set.of("node_modules", "target", "dist").contains(name)) {
