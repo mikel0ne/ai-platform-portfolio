@@ -43,6 +43,8 @@ configmap:
   data:
     SPRING_PROFILES_ACTIVE: "k8s"
     AUTOOPS_LLM_PROVIDER: "gemini"
+    # Chat model: alias Google keeps pointing at the current Flash-Lite (today gemini-3.5-flash-lite).
+    AUTOOPS_LLM_CHAT_MODEL_NAME: "gemini-flash-lite-latest"
     # Embedding model: gemini-embedding-2 (flexible 128-3000 dims). Free tier: 100 RPM.
     AUTOOPS_LLM_EMBEDDING_MODEL_NAME: "gemini-embedding-2"
     AUTOOPS_WEAVIATE_HOST: "weaviate.infra.svc.cluster.local"

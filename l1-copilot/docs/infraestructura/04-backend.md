@@ -39,7 +39,7 @@ El contenedor es el mismo para cualquier entorno; todo lo variable entra por ent
 | `SPRING_DATASOURCE_URL` | ConfigMap | `jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot` |
 | `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | Secret `postgres-credentials` (ns `l1-copilot`) | `appuser` / `<POSTGRES_PASSWORD>` |
 | `GEMINI_API_KEY` | Secret `gemini-api-key` | — |
-| `langchain4j.gemini.model-name` | `application.yml` (no se sobrescribe en prod) | `gemini-3.1-flash-lite` |
+| `LANGCHAIN4J_GEMINI_MODEL_NAME` | ConfigMap (sobrescribe `langchain4j.gemini.model-name` de `application.yml`) | `gemini-flash-lite-latest` (hoy `gemini-3.5-flash-lite`) |
 | `JAVA_TOOL_OPTIONS` | ConfigMap | `-XX:MaxRAMPercentage=75` |
 
 Los Secrets los sincroniza `deploy.sh` automáticamente desde `infra/.env.local`
@@ -101,9 +101,8 @@ Puntos clave del values
   genérico `infra/scripts/setup-app-ingress.sh --project l1-copilot` con `kubectl` (guía 06).
 - **`secretEnv`**: declara las referencias a los Secrets `gemini-api-key` y
   `postgres-credentials`; **el chart NO crea esos Secrets** (los sincroniza `deploy.sh`).
-- **Modelo Gemini**: `application.yml` fija `gemini-3.1-flash-lite` y `application-prod.yml`
-  **no lo sobrescribe** (solo cambia `server.port`, logging, datasource y el turn-log); el
-  modelo es el mismo en dev/local/prod.
+- **Modelo Gemini**: `application.yml` fija `gemini-3.1-flash-lite` (dev/local); en el clúster el ConfigMap
+  lo sobrescribe con el alias `gemini-flash-lite-latest` (Flash-Lite vigente, hoy `gemini-3.5-flash-lite`).
 
 ## 4. Verificación
 

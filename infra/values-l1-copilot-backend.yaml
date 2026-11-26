@@ -40,6 +40,8 @@ configmap:
     COPILOT_LANGFUSE_ENABLED: "true"
     COPILOT_LANGFUSE_ENDPOINT: "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel"
     COPILOT_LANGFUSE_ENVIRONMENT: "k8s"
+    # Model: alias Google keeps pointing at the current Flash-Lite (today gemini-3.5-flash-lite).
+    LANGCHAIN4J_GEMINI_MODEL_NAME: "gemini-flash-lite-latest"
 
 # Sensitive variables: the chart never creates these Secrets; deploy.sh syncs them
 # from infra/.env.local.
