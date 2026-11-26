@@ -89,7 +89,7 @@ Other choices visible in the code:
 
 ## Stack
 
-Java 17 · Spring Boot 3.5 · **LangChain4j 1.23** (AiServices: `IntentClassifier`, `Verifier`, `Responder`,
+Java 17 · Spring Boot 4.1 · **LangChain4j 1.23** (AiServices: `IntentClassifier`, `Verifier`, `Responder`,
 `TicketWriter`) · **LangGraph4j 1.8** · Gemini through Google AI Studio (Gemma via the OpenAI-compatible endpoint
 also supported) · Spring Data JPA · PostgreSQL / H2 · Angular 22 · Helm on k3s.
 
@@ -99,6 +99,7 @@ also supported) · Spring Data JPA · PostgreSQL / H2 · Angular 22 · Helm on k
 
 ```bash
 cd l1-copilot/backend
+./mvnw -f ../../platform-commons/pom.xml install   # shared library, once and after changing it
 ./mvnw verify                     # unit, routing, full-flow and security tests
 ./mvnw test -Dgroups=security     # only the prompt injection, IDOR and confirmation-injection suite
 ROUTER_EVAL=true GEMINI_API_KEY=... ./mvnw test -Dtest=RouterEvalTest   # opt-in golden set against the real model
@@ -142,8 +143,7 @@ the prompt generic.
 Latest runs, one each: `gemini-flash-lite-latest` 96/103 raw and 100/103 guarded (93% and 97%), 48/54 raw and
 52/54 guarded on security; `gemini-3.1-flash-lite` 91/102 raw and 95/102 guarded once `TICKET_CONFIRM` was
 removed. End to end on the 3.5 run: 7 failures, 0 GRAVE. The comparison of models is in the
-[root README](../README.md#evaluation). The measurement history is in
-[`docs/mejoras/02-router-seguridad-pendientes.md`](docs/mejoras/02-router-seguridad-pendientes.md) (Spanish).
+[root README](../README.md#evaluation).
 `@SpringBootTest` needs Linux on this Windows build: `scripts/verify-in-docker.sh l1-copilot`.
 
 The full-flow and security tests (`SupportAgentFlowTest`, `SecurityInjectionTest`) run with the LLM roles mocked,

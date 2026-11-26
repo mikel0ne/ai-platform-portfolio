@@ -12,8 +12,8 @@ import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodCondition;
 import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -27,18 +27,15 @@ import java.util.Map;
 import java.util.Optional;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class K8sInspectionService {
 
-    private static final Logger log = LoggerFactory.getLogger(K8sInspectionService.class);
     private static final int DOSSIER_LOG_LINES = 50;
     static final int MAX_LOG_LINES = 1000;
     static final int MAX_EVENTS = 50;
 
     private final ObjectProvider<KubernetesClient> clientProvider;
-
-    public K8sInspectionService(ObjectProvider<KubernetesClient> clientProvider) {
-        this.clientProvider = clientProvider;
-    }
 
     private KubernetesClient client() {
         return clientProvider.getObject();

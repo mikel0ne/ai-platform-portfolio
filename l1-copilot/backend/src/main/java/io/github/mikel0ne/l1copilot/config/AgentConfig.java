@@ -16,22 +16,21 @@ import io.github.mikel0ne.l1copilot.config.qualifier.ChattyResponder;
 import io.github.mikel0ne.l1copilot.config.qualifier.Deterministic;
 import io.github.mikel0ne.l1copilot.config.qualifier.ResponseModel;
 import io.github.mikel0ne.l1copilot.config.qualifier.TicketModel;
+import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.CompileConfig;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphRepresentation;
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.checkpoint.BaseCheckpointSaver;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 @Configuration
+@Slf4j
 public class AgentConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(AgentConfig.class);
 
     @Bean
     public IntentClassifier intentClassifier(@Deterministic ChatModel chatModel) {

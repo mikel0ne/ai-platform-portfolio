@@ -134,7 +134,7 @@ io.github.mikel0ne.autoops
 │   ├── LlmProperties.java           # (no en llm/: es config leída por GeminiModelConfig, no parte del SPI de proveedor)
 │   ├── CacheProperties.java  PromptLoader.java
 ├── cache/                     # caché de respuestas LLM (desarrollo, evitar quemar cuota)
-│   ├── CachingChatModel.java  FileCacheManager.java
+│   └── (CachingChatModel y FileCacheManager viven en platform-commons; el bean se declara en config/CacheConfig.java)
 └── error/
     ├── ApiExceptionHandler.java     # RFC 7807 sobre ResponseEntityExceptionHandler
     └── NotFoundException.java  InvalidRequestException.java

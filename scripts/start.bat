@@ -54,7 +54,7 @@ echo [INFO]  Git Bash not found. Opening separate CMD windows...
 echo.
 
 echo [BACK]  Starting Spring Boot on http://localhost:8079
-start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Starting backend... && mvnw.cmd spring-boot:run"
+start "Backend - Spring Boot" cmd /k "cd /d "%BACKEND%" && echo Installing platform-commons... && mvnw.cmd -B -q -f ..\..\platform-commons\pom.xml install -DskipTests && echo Starting backend... && mvnw.cmd spring-boot:run"
 
 :: Short pause so the backend starts before the frontend
 timeout /t 5 /nobreak > nul

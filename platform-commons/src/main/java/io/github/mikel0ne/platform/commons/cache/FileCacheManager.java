@@ -1,10 +1,6 @@
-package io.github.mikel0ne.l1copilot.cache;
+package io.github.mikel0ne.platform.commons.cache;
 
-import io.github.mikel0ne.l1copilot.config.CacheProperties;
-import jakarta.annotation.PostConstruct;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -12,38 +8,51 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 // Plain-text files (expiry on the first line, then the reply): nothing is ever deserialized from disk.
-@Component
+@Slf4j
 public class FileCacheManager {
 
     private static final String SUFFIX = ".cache";
     private static final String TMP_SUFFIX = ".cache.tmp";
 
-    private static final Logger log = LoggerFactory.getLogger(FileCacheManager.class);
-
+    private final boolean enabled;
     private final boolean fileEnabled;
     private final Path cacheDir;
-    private final long defaultTtlSeconds;
+    private final Duration defaultTtl;
 
-    private final Map<String, CacheEntry> memoryCache = new ConcurrentHashMap<>();
+    private final Map<String, Entry> memoryCache = new ConcurrentHashMap<>();
     private final AtomicLong hits = new AtomicLong();
     private final AtomicLong misses = new AtomicLong();
 
-    public FileCacheManager(CacheProperties properties) {
-        this.fileEnabled = properties.isCacheEnabled() && properties.file().enabled();
-        this.cacheDir = Path.of(properties.file().path());
-        this.defaultTtlSeconds = properties.ttlSeconds();
+    public FileCacheManager(boolean enabled, boolean persistToDisk, Path cacheDir, Duration defaultTtl) {
+        this.enabled = enabled;
+        this.fileEnabled = enabled && persistToDisk;
+        this.cacheDir = cacheDir;
+        this.defaultTtl = defaultTtl;
     }
 
-    @PostConstruct
+    public static String key(String material) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(material.getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
     public void init() {
         if (!fileEnabled) {
             return;
@@ -57,25 +66,31 @@ public class FileCacheManager {
         }
     }
 
-    public String get(String key) {
-        CacheEntry entry = memoryCache.get(key);
+    public Optional<String> get(String key) {
+        if (!enabled) {
+            return Optional.empty();
+        }
+        Entry entry = memoryCache.get(key);
         if (entry == null || entry.isExpired()) {
             if (entry != null) {
                 remove(key);
             }
             misses.incrementAndGet();
-            return null;
+            return Optional.empty();
         }
         hits.incrementAndGet();
-        return entry.value();
+        return Optional.of(entry.value());
     }
 
     public void put(String key, String value) {
-        put(key, value, defaultTtlSeconds);
+        put(key, value, defaultTtl);
     }
 
-    public void put(String key, String value, long ttlSeconds) {
-        CacheEntry entry = new CacheEntry(value, Instant.now().plusSeconds(ttlSeconds));
+    public void put(String key, String value, Duration ttl) {
+        if (!enabled || value == null) {
+            return;
+        }
+        Entry entry = new Entry(value, Instant.now().plus(ttl));
         memoryCache.put(key, entry);
         if (fileEnabled) {
             saveCacheToDisk(key, entry);
@@ -104,10 +119,29 @@ public class FileCacheManager {
         }
     }
 
-    private void saveCacheToDisk(String key, CacheEntry entry) {
+    public Map<String, Object> getStats() {
+        long h = hits.get();
+        long m = misses.get();
+        long total = h + m;
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("entriesInMemory", memoryCache.size());
+        stats.put("defaultTtlSeconds", defaultTtl.toSeconds());
+        stats.put("filePersistence", fileEnabled);
+        if (fileEnabled) {
+            stats.put("cacheDir", cacheDir.toAbsolutePath().toString());
+        }
+        stats.put("hits", h);
+        stats.put("misses", m);
+        stats.put("hitRate", total == 0 ? 0.0 : ((double) h) / total);
+        return stats;
+    }
+
+    private void saveCacheToDisk(String key, Entry entry) {
         Path target = cacheDir.resolve(key + SUFFIX);
         Path tmp = cacheDir.resolve(key + TMP_SUFFIX);
         try {
+            Files.createDirectories(cacheDir);
             Files.writeString(tmp, entry.expiresAt().toEpochMilli() + "\n" + entry.value(), StandardCharsets.UTF_8);
             try {
                 Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
@@ -142,7 +176,7 @@ public class FileCacheManager {
         try {
             String content = Files.readString(file, StandardCharsets.UTF_8);
             int newline = content.indexOf('\n');
-            CacheEntry entry = new CacheEntry(content.substring(newline + 1),
+            Entry entry = new Entry(content.substring(newline + 1),
                     Instant.ofEpochMilli(Long.parseLong(content.substring(0, newline))));
             if (entry.isExpired()) {
                 deleteQuietly(file);
@@ -165,21 +199,10 @@ public class FileCacheManager {
         }
     }
 
-    public Map<String, Object> getStats() {
-        long h = hits.get();
-        long m = misses.get();
-        long total = h + m;
+    private record Entry(String value, Instant expiresAt) {
 
-        Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("entriesInMemory", memoryCache.size());
-        stats.put("defaultTtlSeconds", defaultTtlSeconds);
-        stats.put("filePersistence", fileEnabled);
-        if (fileEnabled) {
-            stats.put("cacheDir", cacheDir.toAbsolutePath().toString());
+        boolean isExpired() {
+            return !Instant.now().isBefore(expiresAt);
         }
-        stats.put("hits", h);
-        stats.put("misses", m);
-        stats.put("hitRate", total == 0 ? 0.0 : ((double) h) / total);
-        return stats;
     }
 }

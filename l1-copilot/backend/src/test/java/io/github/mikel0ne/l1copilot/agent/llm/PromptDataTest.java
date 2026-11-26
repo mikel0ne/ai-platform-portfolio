@@ -1,8 +1,8 @@
 package io.github.mikel0ne.l1copilot.agent.llm;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;
 
@@ -20,6 +20,6 @@ class PromptDataTest {
         String rendered = PromptData.strings(candidates);
 
         assertThat(rendered).doesNotContain("\n");
-        assertThat(new ObjectMapper().readValue(rendered, String[].class)).containsExactlyElementsOf(candidates);
+        assertThat(new JsonMapper().readValue(rendered, String[].class)).containsExactlyElementsOf(candidates);
     }
 }

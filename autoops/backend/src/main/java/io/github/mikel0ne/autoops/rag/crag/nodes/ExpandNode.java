@@ -3,6 +3,7 @@ package io.github.mikel0ne.autoops.rag.crag.nodes;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import lombok.RequiredArgsConstructor;
 import org.bsc.langgraph4j.action.NodeAction;
 
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 public class ExpandNode implements NodeAction<CragState> {
 
     // Auto-merging: merge a section when it is small or several of its cores hit, never above the ceiling.
@@ -21,10 +23,6 @@ public class ExpandNode implements NodeAction<CragState> {
     private static final int NEIGHBOUR_RADIUS = 1;
 
     private final DocRetriever retriever;
-
-    public ExpandNode(DocRetriever retriever) {
-        this.retriever = retriever;
-    }
 
     @Override
     public Map<String, Object> apply(CragState state) {

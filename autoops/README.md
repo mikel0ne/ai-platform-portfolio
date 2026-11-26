@@ -88,7 +88,9 @@ client · Loki · Angular 22 · Helm on k3s (Rancher Desktop).
 **Tests** (no cluster or API key needed; the LLM and the external APIs are replaced by test doubles):
 
 ```bash
-cd autoops/backend && ./mvnw verify
+cd autoops/backend
+./mvnw -f ../../platform-commons/pom.xml install   # shared library, once and after changing it
+./mvnw verify
 ```
 
 **Backend on the host**, against the cluster services through port-forwards:

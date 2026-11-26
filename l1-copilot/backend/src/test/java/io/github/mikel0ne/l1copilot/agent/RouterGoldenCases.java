@@ -1,8 +1,9 @@
 package io.github.mikel0ne.l1copilot.agent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mikel0ne.l1copilot.agent.llm.PromptData;
 import org.springframework.core.io.ClassPathResource;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,7 +81,8 @@ final class RouterGoldenCases {
     }
 
     static List<GoldenCase> load() throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
+        // Jackson 3 rejects a missing primitive (heldout); the golden file omits it for false, as Jackson 2 allowed.
+        JsonMapper mapper = JsonMapper.builder().disable(DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES).build();
         try (InputStream in = new ClassPathResource(RESOURCE).getInputStream()) {
             return mapper.readValue(in, mapper.getTypeFactory().constructCollectionType(List.class, GoldenCase.class));
         }

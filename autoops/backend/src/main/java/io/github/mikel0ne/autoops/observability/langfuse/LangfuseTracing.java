@@ -1,28 +1,22 @@
 package io.github.mikel0ne.autoops.observability.langfuse;
 
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
-/**
- * Facade over the {@code Tracer} with Langfuse's vocabulary. Call sites never touch
- * {@link LangfuseAttributes} nor ask whether telemetry is on: with {@code autoops.langfuse.enabled=false}
- * the injected {@code Tracer} is a no-op. Also centralizes the {@code capture-content} privacy switch.
- */
+// With autoops.langfuse.enabled=false the injected Tracer is a no-op, so call sites never check it.
 @Component
+@RequiredArgsConstructor
 public class LangfuseTracing {
 
     private final Tracer tracer;
     private final LangfuseProperties props;
-
-    public LangfuseTracing(Tracer langfuseTracer, LangfuseProperties props) {
-        this.tracer = langfuseTracer;
-        this.props = props;
-    }
 
     // In Langfuse's v4 data model the trace input/output are the root span's.
     public Span root(String name, String type, String input, List<String> tags) {

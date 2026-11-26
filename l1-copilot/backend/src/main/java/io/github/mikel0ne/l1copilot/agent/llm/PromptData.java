@@ -1,8 +1,8 @@
 package io.github.mikel0ne.l1copilot.agent.llm;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mikel0ne.l1copilot.agent.Turn;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  */
 public final class PromptData {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final JsonMapper MAPPER = new JsonMapper();
     // Line breaks JSON would leave raw (U+0085, U+2028, U+2029) and invisible format characters such as bidi overrides or tag characters.
     private static final Pattern UNESCAPED_BREAKS = Pattern.compile("[\\u0085\\u2028\\u2029]");
     private static final Pattern INVISIBLE = Pattern.compile("\\p{Cf}");
@@ -47,7 +47,7 @@ public final class PromptData {
     private static String json(Object value) {
         try {
             return MAPPER.writeValueAsString(value);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("cannot render prompt data", e);
         }
     }

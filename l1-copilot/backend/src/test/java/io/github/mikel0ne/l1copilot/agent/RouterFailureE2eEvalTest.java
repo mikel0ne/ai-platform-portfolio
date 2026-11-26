@@ -1,6 +1,5 @@
 package io.github.mikel0ne.l1copilot.agent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mikel0ne.l1copilot.agent.E2eSeverity.Observation;
 import io.github.mikel0ne.l1copilot.agent.E2eSeverity.Severity;
 import io.github.mikel0ne.l1copilot.agent.RouterGoldenCases.GoldenCase;
@@ -27,6 +26,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.File;
 import java.time.Instant;
@@ -93,7 +93,7 @@ class RouterFailureE2eEvalTest {
     void routerFailuresCauseNoGraveOutcome() throws Exception {
         List<GoldenCase> cases = RouterGoldenCases.load();
         File source = new File(System.getenv().getOrDefault("ROUTER_E2E_FAILURES", RouterEvalTest.FAILURES_FILE));
-        List<RouterFailure> failures = List.of(new ObjectMapper().readValue(source, RouterFailure[].class));
+        List<RouterFailure> failures = List.of(new JsonMapper().readValue(source, RouterFailure[].class));
         long pauseMs = Long.parseLong(System.getenv().getOrDefault("ROUTER_E2E_PAUSE_MS", "4000"));
 
         List<Result> results = new ArrayList<>();

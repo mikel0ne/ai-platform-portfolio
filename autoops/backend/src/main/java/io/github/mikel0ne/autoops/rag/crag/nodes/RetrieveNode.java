@@ -3,18 +3,16 @@ package io.github.mikel0ne.autoops.rag.crag.nodes;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import lombok.RequiredArgsConstructor;
 import org.bsc.langgraph4j.action.NodeAction;
 
 import java.util.List;
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class RetrieveNode implements NodeAction<CragState> {
 
     private final DocRetriever retriever;
-
-    public RetrieveNode(DocRetriever retriever) {
-        this.retriever = retriever;
-    }
 
     @Override
     public Map<String, Object> apply(CragState state) {

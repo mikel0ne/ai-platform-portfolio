@@ -305,8 +305,9 @@ Thinking tokens are billed as output.
 Each project's README has the details. The short version:
 
 ```bash
-# Unit and integration tests, no external services needed
-cd autoops/backend && ./mvnw verify
+# Unit and integration tests, no external services needed. The backends depend on platform-commons,
+# so install it once (and again after changing it)
+cd autoops/backend && ./mvnw -f ../../platform-commons/pom.xml install && ./mvnw verify
 cd l1-copilot/backend && ./mvnw verify
 ```
 
@@ -332,6 +333,7 @@ bash infra/scripts/02-setup-registry.sh         # then 03..08, see infra/INFRA.m
 ```
 autoops/        AutoOps MCP and the corrective RAG: backend (Spring Boot), frontend (Angular), docs, sample corpus
 l1-copilot/     L1 Support Copilot: backend (Spring Boot), frontend (Angular), docs, DB scripts
+platform-commons/  Spring-free library shared by both backends: LLM response cache and Langfuse chat-model tracing
 infra/          Shared platform: generic Helm chart, values per app, Weaviate, Loki, RBAC, scripts
 docker/         Shared Dockerfiles (backend, frontend) and nginx config
 wiki/           Wiki.js content (an extra RAG source) and its seeding scripts

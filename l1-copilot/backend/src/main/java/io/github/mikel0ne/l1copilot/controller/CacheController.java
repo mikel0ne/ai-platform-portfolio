@@ -1,6 +1,6 @@
 package io.github.mikel0ne.l1copilot.controller;
 
-import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
+import io.github.mikel0ne.platform.commons.cache.FileCacheManager;
 import io.swagger.v3.oas.annotations.Hidden;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

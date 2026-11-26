@@ -2,6 +2,7 @@ package io.github.mikel0ne.autoops.tools;
 
 import io.github.mikel0ne.autoops.observability.LokiGateway;
 import io.github.mikel0ne.autoops.observability.model.LogEntry;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -9,13 +10,10 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class ObservabilityTools {
 
     private final LokiGateway loki;
-
-    public ObservabilityTools(LokiGateway loki) {
-        this.loki = loki;
-    }
 
     @Tool(name = "query_logs",
           description = "Aggregated logs from Loki (history across several pods/namespaces), unlike pod_logs which only "

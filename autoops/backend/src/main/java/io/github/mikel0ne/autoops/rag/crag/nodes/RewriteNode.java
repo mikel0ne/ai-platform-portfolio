@@ -3,23 +3,18 @@ package io.github.mikel0ne.autoops.rag.crag.nodes;
 import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.config.PromptTemplates;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
+import lombok.RequiredArgsConstructor;
 import org.bsc.langgraph4j.action.NodeAction;
 
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class RewriteNode implements NodeAction<CragState> {
 
     private final ChatModel chatModel;
     private final String promptTemplate;
     private final int kStep;
     private final int kMax;
-
-    public RewriteNode(ChatModel chatModel, String promptTemplate, int kStep, int kMax) {
-        this.chatModel = chatModel;
-        this.promptTemplate = promptTemplate;
-        this.kStep = kStep;
-        this.kMax = kMax;
-    }
 
     @Override
     public Map<String, Object> apply(CragState state) {

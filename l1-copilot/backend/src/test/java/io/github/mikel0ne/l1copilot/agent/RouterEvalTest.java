@@ -1,6 +1,5 @@
 package io.github.mikel0ne.l1copilot.agent;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.l1copilot.agent.RouterGoldenCases.GoldenCase;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
@@ -11,6 +10,7 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -121,7 +121,7 @@ class RouterEvalTest {
                 abbreviate(o.golden().message()))));
         report.append("API errors (not counted, rerun to complete): ").append(apiErrors.size()).append('\n');
         System.out.println(report);
-        new ObjectMapper().writeValue(new File(FAILURES_FILE), failures);
+        new JsonMapper().writeValue(new File(FAILURES_FILE), failures);
 
         double min = Double.parseDouble(
                 System.getenv().getOrDefault("ROUTER_EVAL_MIN", String.valueOf(DEFAULT_MIN_ACCURACY)));
@@ -203,19 +203,15 @@ class RouterEvalTest {
             return new TreeMap<>();
         }
         try {
-            return new TreeMap<>(new ObjectMapper().readValue(file,
-                    new com.fasterxml.jackson.core.type.TypeReference<Map<Integer, RouterDecision>>() { }));
-        } catch (java.io.IOException e) {
+            return new TreeMap<>(new JsonMapper().readValue(file,
+                    new tools.jackson.core.type.TypeReference<Map<Integer, RouterDecision>>() { }));
+        } catch (tools.jackson.core.JacksonException e) {
             return new TreeMap<>();
         }
     }
 
     private static void saveCache(File file, Map<Integer, RouterDecision> cache) {
-        try {
-            new ObjectMapper().writeValue(file, cache);
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
+        new JsonMapper().writeValue(file, cache);
     }
 
     private static boolean isTransient(RuntimeException e) {

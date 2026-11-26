@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.rag;
 
 import io.github.mikel0ne.autoops.rag.source.GitHubMarkdownSource;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -8,13 +9,10 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 @RestController
+@RequiredArgsConstructor
 public class IngestionController {
 
     private final IngestionService ingestion;
-
-    public IngestionController(IngestionService ingestion) {
-        this.ingestion = ingestion;
-    }
 
     @PostMapping("/admin/ingest")
     public Map<String, Object> ingest(@RequestParam(defaultValue = "false") boolean reset) {

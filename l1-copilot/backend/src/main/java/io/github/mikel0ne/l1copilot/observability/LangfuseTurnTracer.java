@@ -2,17 +2,20 @@ package io.github.mikel0ne.l1copilot.observability;
 
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Verdict;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.Scope;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class LangfuseTurnTracer {
 
     static final String SPAN_NAME = "chat.turn";
@@ -23,13 +26,6 @@ public class LangfuseTurnTracer {
     private final Tracer tracer;
     private final LangfuseProperties properties;
     private final LangfuseScoreGateway scores;
-
-    public LangfuseTurnTracer(Tracer langfuseTracer, LangfuseProperties properties,
-                              LangfuseScoreGateway scores) {
-        this.tracer = langfuseTracer;
-        this.properties = properties;
-        this.scores = scores;
-    }
 
     public TurnTrace start(String userId, String conversationId, String message) {
         Span span = tracer.spanBuilder(SPAN_NAME)

@@ -5,28 +5,22 @@ import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
 import io.github.mikel0ne.autoops.rag.crag.llm.QueryVariantGenerator;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+@Slf4j
+@RequiredArgsConstructor
 public class MultiQueryNode implements NodeAction<CragState> {
-
-    private static final Logger log = LoggerFactory.getLogger(MultiQueryNode.class);
 
     private final DocRetriever retriever;
     private final QueryVariantGenerator generator;
     private final int n;
-
-    public MultiQueryNode(DocRetriever retriever, QueryVariantGenerator generator, int n) {
-        this.retriever = retriever;
-        this.generator = generator;
-        this.n = n;
-    }
 
     @Override
     public Map<String, Object> apply(CragState state) {

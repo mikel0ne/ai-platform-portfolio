@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.github;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestClient;
@@ -12,13 +13,11 @@ import java.util.Base64;
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class GitHubGateway {
 
+    @Qualifier("gitHubClient")
     private final RestClient client;
-
-    public GitHubGateway(@Qualifier("gitHubClient") RestClient gitHubClient) {
-        this.client = gitHubClient;
-    }
 
     public String defaultBranch(String owner, String repo) {
         RepoInfo info = client.get()

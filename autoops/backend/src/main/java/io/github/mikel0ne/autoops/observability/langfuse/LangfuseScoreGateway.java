@@ -1,9 +1,10 @@
 package io.github.mikel0ne.autoops.observability.langfuse;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -13,19 +14,11 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Sends scores to Langfuse as {@code score-create} events of the batch ingestion endpoint. Scores have no
- * OTLP mapping, so they cannot travel with the traces.
- *
- * <p>Not {@code POST /api/public/scores}: the cluster's Langfuse runs in {@code events_only} write mode,
- * where that endpoint answers 404; score-create events remain supported on {@code /api/public/ingestion}.
- *
- * <p>Fire-and-forget: any error is logged at {@code warn} and swallowed, telemetry must never break a query.
- */
+// Not POST /api/public/scores: the cluster's Langfuse runs in events_only write mode and answers 404 there.
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class LangfuseScoreGateway {
-
-    private static final Logger log = LoggerFactory.getLogger(LangfuseScoreGateway.class);
 
     private static final String INGESTION_PATH = "/api/public/ingestion";
 
@@ -36,15 +29,10 @@ public class LangfuseScoreGateway {
     public static final String BOOLEAN = "BOOLEAN";
 
     // ObjectProvider: with Langfuse off the client is never resolved.
+    @Qualifier("langfuseApiClient")
     private final ObjectProvider<RestClient> client;
     private final LangfuseProperties props;
 
-    public LangfuseScoreGateway(ObjectProvider<RestClient> langfuseApiClient, LangfuseProperties props) {
-        this.client = langfuseApiClient;
-        this.props = props;
-    }
-
-    /** @param traceId OpenTelemetry trace id (32 hex), the one Langfuse ingests the spans under */
     public void send(String traceId, List<Score> scores) {
         if (!props.isEnabled() || traceId == null || traceId.isBlank() || scores.isEmpty()) {
             log.debug("Scores of trace '{}' not sent (enabled={}, scores={})",
@@ -97,7 +85,7 @@ public class LangfuseScoreGateway {
         return new Score(name, value ? 1 : 0, BOOLEAN, null);
     }
 
-    /** @param value number for NUMERIC/BOOLEAN, string for CATEGORICAL */
+    // value: number for NUMERIC/BOOLEAN, string for CATEGORICAL
     public record Score(String name, Object value, String dataType, String comment) {}
 
     public record IngestionBatch(List<ScoreEvent> batch) {}

@@ -29,7 +29,8 @@ curl -s http://localhost:30500/v2/_catalog        # {"repositories":[...]}
 Uso (en builds posteriores):
 
 ```bash
-docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile l1-copilot/backend
+docker build --build-context commons=platform-commons \
+  -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile l1-copilot/backend
 docker push registry.local/l1-copilot-backend:1.0.0
 ```
 

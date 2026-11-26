@@ -1,7 +1,7 @@
 package io.github.mikel0ne.autoops.chat;
 
 import io.github.mikel0ne.autoops.error.TooManyRequestsException;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.RagResult;
@@ -9,6 +9,7 @@ import io.github.mikel0ne.autoops.rag.RagService;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
+@RequiredArgsConstructor
 public class SearchController {
 
     private static final List<String> TAGS = List.of("autoops", "rag", "search");
@@ -26,14 +28,6 @@ public class SearchController {
     private final AnswerComposer answerComposer;
     private final SearchRateLimiter rateLimiter;
     private final LangfuseTracing tracing;
-
-    public SearchController(RagService ragService, AnswerComposer answerComposer, SearchRateLimiter rateLimiter,
-                            LangfuseTracing tracing) {
-        this.ragService = ragService;
-        this.answerComposer = answerComposer;
-        this.rateLimiter = rateLimiter;
-        this.tracing = tracing;
-    }
 
     @PostMapping("/search")
     public SearchResponse search(@Valid @RequestBody SearchRequest request) {

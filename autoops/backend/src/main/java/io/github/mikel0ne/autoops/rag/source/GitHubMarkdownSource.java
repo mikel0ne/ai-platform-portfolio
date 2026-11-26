@@ -2,23 +2,19 @@ package io.github.mikel0ne.autoops.rag.source;
 
 import io.github.mikel0ne.autoops.error.InvalidRequestException;
 import io.github.mikel0ne.autoops.github.GitHubGateway;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class GitHubMarkdownSource {
 
-    private static final Logger log = LoggerFactory.getLogger(GitHubMarkdownSource.class);
-
     private final GitHubGateway github;
-
-    public GitHubMarkdownSource(GitHubGateway github) {
-        this.github = github;
-    }
 
     public record GitRepo(String url, String branch, String subdir, String webBase) {}
 

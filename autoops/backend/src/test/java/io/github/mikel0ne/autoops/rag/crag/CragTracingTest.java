@@ -1,7 +1,6 @@
 package io.github.mikel0ne.autoops.rag.crag;
 
 import io.github.mikel0ne.autoops.config.PromptLoader;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseChatModelListener;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTestTracing;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.RagService;
@@ -27,7 +26,7 @@ class CragTracingTest {
     @Test
     void a_query_produces_the_root_crag_node_generation_hierarchy() {
         LangfuseTestTracing t = LangfuseTestTracing.recording();
-        RagService service = service(t.tracing(), List.of(grades("SUFFICIENT")), List.of());
+        RagService service = service(t, List.of(grades("SUFFICIENT")), List.of());
 
         runInRoot(t, service, "test query");
 
@@ -44,7 +43,7 @@ class CragTracingTest {
     @Test
     void every_node_carries_the_observation_type_langfuse_maps() {
         LangfuseTestTracing t = LangfuseTestTracing.recording();
-        RagService service = service(t.tracing(), List.of(grades("SUFFICIENT")), List.of());
+        RagService service = service(t, List.of(grades("SUFFICIENT")), List.of());
 
         runInRoot(t, service, "test query");
 
@@ -59,7 +58,7 @@ class CragTracingTest {
     @Test
     void the_root_carries_the_trace_metadata_of_the_rag_result() {
         LangfuseTestTracing t = LangfuseTestTracing.recording();
-        RagService service = service(t.tracing(), List.of(grades("SUFFICIENT")), List.of());
+        RagService service = service(t, List.of(grades("SUFFICIENT")), List.of());
 
         runInRoot(t, service, "test query");
 
@@ -78,7 +77,7 @@ class CragTracingTest {
     @Test
     void the_corrective_loop_emits_one_span_per_lap_of_each_node() {
         LangfuseTestTracing t = LangfuseTestTracing.recording();
-        RagService service = service(t.tracing(),
+        RagService service = service(t,
                 List.of(grades("INSUFFICIENT"), grades("SUFFICIENT")), List.of("reworded query"));
 
         runInRoot(t, service, "weak query");
@@ -97,10 +96,11 @@ class CragTracingTest {
         }
     }
 
-    private RagService service(LangfuseTracing tracing, List<String> gradeResponses, List<String> rewriteResponses) {
+    private RagService service(LangfuseTestTracing t, List<String> gradeResponses, List<String> rewriteResponses) {
         var chat = new TestSupport.ScriptedChatModel(gradeResponses, rewriteResponses);
         var instrumented = new TestSupport.ListeningChatModel(
-                chat, new LangfuseChatModelListener(tracing, "internal"));
+                chat, t.chatListener("internal"));
+        LangfuseTracing tracing = t.tracing();
         var props = new CragProperties(5, 2, 0.5, 3, 12, 2);
         var graph = new CragGraph(new TestSupport.FakeRetriever(0.9), TestSupport.provider(instrumented), props,
                 prompts, tracing);

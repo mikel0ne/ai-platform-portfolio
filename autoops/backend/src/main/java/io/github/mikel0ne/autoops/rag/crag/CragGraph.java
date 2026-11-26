@@ -3,7 +3,7 @@ package io.github.mikel0ne.autoops.rag.crag;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
 import io.github.mikel0ne.autoops.config.PromptLoader;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.DocRetriever;
 import io.github.mikel0ne.autoops.rag.crag.llm.Grader;
@@ -16,6 +16,7 @@ import io.github.mikel0ne.autoops.rag.crag.nodes.RewriteNode;
 import io.github.mikel0ne.autoops.rag.crag.nodes.TopKNode;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import lombok.RequiredArgsConstructor;
 import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
@@ -30,6 +31,7 @@ import static org.bsc.langgraph4j.action.AsyncEdgeAction.edge_async;
 import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
 @Component
+@RequiredArgsConstructor
 public class CragGraph {
 
     private final DocRetriever retriever;
@@ -40,18 +42,6 @@ public class CragGraph {
 
     // Compiled lazily so the ChatModel (and its API key) is not needed at startup.
     private volatile CompiledGraph<CragState> compiled;
-
-    public CragGraph(DocRetriever retriever,
-                     ObjectProvider<ChatModel> chatModel,
-                     CragProperties props,
-                     PromptLoader prompts,
-                     LangfuseTracing tracing) {
-        this.retriever = retriever;
-        this.chatModel = chatModel;
-        this.props = props;
-        this.prompts = prompts;
-        this.tracing = tracing;
-    }
 
     public CompiledGraph<CragState> get() {
         CompiledGraph<CragState> local = compiled;

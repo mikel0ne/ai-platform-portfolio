@@ -5,20 +5,21 @@ import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig;
 import dev.langchain4j.model.googleai.GeminiThinkingConfig.GeminiThinkingLevel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
-import io.github.mikel0ne.l1copilot.cache.CachingChatModel;
-import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
 import io.github.mikel0ne.l1copilot.config.qualifier.ChattyModel;
 import io.github.mikel0ne.l1copilot.config.qualifier.Deterministic;
 import io.github.mikel0ne.l1copilot.config.qualifier.ResponseModel;
 import io.github.mikel0ne.l1copilot.config.qualifier.TicketModel;
-import io.github.mikel0ne.l1copilot.observability.LangfuseChatModelListener;
 import io.github.mikel0ne.l1copilot.observability.LangfuseProperties;
 import io.github.mikel0ne.l1copilot.resilience.LlmFailureClassifier;
 import io.github.mikel0ne.l1copilot.resilience.LlmRetryProperties;
 import io.github.mikel0ne.l1copilot.resilience.RetryingChatModel;
+import io.github.mikel0ne.platform.commons.cache.CachingChatModel;
+import io.github.mikel0ne.platform.commons.cache.FileCacheManager;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseCacheHitTracer;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseChatModelListener;
 import io.opentelemetry.api.trace.Tracer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -27,9 +28,9 @@ import org.springframework.util.StringUtils;
 import java.util.List;
 
 @Configuration
+@Slf4j
+@RequiredArgsConstructor
 public class ChatModelConfig {
-
-    private static final Logger log = LoggerFactory.getLogger(ChatModelConfig.class);
 
     private static final String GOOGLE_OPENAI_BASE_URL =
             "https://generativelanguage.googleapis.com/v1beta/openai/";
@@ -38,14 +39,6 @@ public class ChatModelConfig {
     private final LangfuseProperties langfuseProperties;
     private final LlmRetryProperties retryProperties;
     private final LlmFailureClassifier failureClassifier;
-
-    public ChatModelConfig(Tracer langfuseTracer, LangfuseProperties langfuseProperties,
-                           LlmRetryProperties retryProperties, LlmFailureClassifier failureClassifier) {
-        this.langfuseTracer = langfuseTracer;
-        this.langfuseProperties = langfuseProperties;
-        this.retryProperties = retryProperties;
-        this.failureClassifier = failureClassifier;
-    }
 
     @Bean
     @Primary
@@ -127,8 +120,8 @@ public class ChatModelConfig {
         if (cacheProperties.isCacheEnabled()) {
             log.info("LLM cache ENABLED for [{}] (ttl={}s, file={})",
                     role, cacheProperties.ttlSeconds(), cacheProperties.file().enabled());
-            return new CachingChatModel(delegate, cache, langfuseTracer, role,
-                    langfuseProperties.isCaptureContent());
+            return new CachingChatModel(delegate, cache,
+                    new LangfuseCacheHitTracer(langfuseTracer, role, langfuseProperties.isCaptureContent()));
         } else {
             log.info("LLM cache DISABLED for [{}] (cache.enabled=false): every request goes to the model", role);
             return delegate;

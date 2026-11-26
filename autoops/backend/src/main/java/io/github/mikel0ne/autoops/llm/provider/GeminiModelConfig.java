@@ -4,12 +4,13 @@ import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiEmbeddingModel;
 import dev.langchain4j.model.googleai.GoogleAiGeminiChatModel;
-import io.github.mikel0ne.autoops.cache.CachingChatModel;
-import io.github.mikel0ne.autoops.cache.FileCacheManager;
 import io.github.mikel0ne.autoops.config.CacheProperties;
 import io.github.mikel0ne.autoops.config.LlmProperties;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseChatModelListener;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
+import io.github.mikel0ne.autoops.observability.langfuse.LangfuseProperties;
+import io.github.mikel0ne.platform.commons.cache.CachingChatModel;
+import io.github.mikel0ne.platform.commons.cache.FileCacheManager;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseChatModelListener;
+import io.opentelemetry.api.trace.Tracer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -53,14 +54,15 @@ public class GeminiModelConfig {
     @Bean
     @Lazy
     public ChatModel chatModel(LlmProperties props, CacheProperties cacheProps, FileCacheManager cache,
-                               LangfuseTracing tracing, @Value("${GEMINI_API_KEY:}") String apiKey) {
+                               Tracer langfuseTracer, LangfuseProperties langfuseProps,
+                               @Value("${GEMINI_API_KEY:}") String apiKey) {
         ChatModel model = GoogleAiGeminiChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.chatModelName())
                 .temperature(props.temperature())
                 .timeout(props.timeout())
                 .maxRetries(props.maxRetries())
-                .listeners(List.of(new LangfuseChatModelListener(tracing, "internal")))
+                .listeners(List.of(new LangfuseChatModelListener(langfuseTracer, "internal", langfuseProps.isCaptureContent())))
                 .build();
         return cacheProps.isCacheEnabled() ? new CachingChatModel(model, cache) : model;
     }

@@ -7,9 +7,11 @@ import dev.langchain4j.model.chat.request.DefaultChatRequestParameters;
 import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Verdict;
-import io.github.mikel0ne.l1copilot.cache.CachingChatModel;
-import io.github.mikel0ne.l1copilot.cache.FileCacheManager;
-import io.github.mikel0ne.l1copilot.config.CacheProperties;
+import io.github.mikel0ne.platform.commons.cache.CachingChatModel;
+import io.github.mikel0ne.platform.commons.cache.FileCacheManager;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseCacheHitTracer;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseChatModelListener;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import org.bsc.langgraph4j.CompileConfig;
@@ -25,6 +27,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -131,11 +134,10 @@ class LangfuseTurnSpanTreeTest {
     void cacheHitDoesNotLookLikeARealCall(@TempDir Path tmp) {
         LangfuseChatModelListener listener =
                 new LangfuseChatModelListener(tracing.tracer(), "determinista", true);
-        FileCacheManager cache = new FileCacheManager(
-                new CacheProperties(true, new CacheProperties.File(false, tmp.toString()), 3600L));
+        FileCacheManager cache = new FileCacheManager(true, false, tmp, Duration.ofSeconds(3600));
         cache.init();
         ChatModel cached = new CachingChatModel(new FakeChatModel(listener), cache,
-                tracing.tracer(), "determinista", true);
+                new LangfuseCacheHitTracer(tracing.tracer(), "determinista", true));
 
         ChatRequest request = ChatRequest.builder()
                 .messages(UserMessage.from("donde esta mi pedido"))
@@ -180,6 +182,10 @@ class LangfuseTurnSpanTreeTest {
     }
 
     private static String attribute(SpanData span, String key) {
-        return span.getAttributes().get(AttributeKey.stringKey(key));
+        return attribute(span, AttributeKey.stringKey(key));
+    }
+
+    private static String attribute(SpanData span, AttributeKey<String> key) {
+        return span.getAttributes().get(key);
     }
 }

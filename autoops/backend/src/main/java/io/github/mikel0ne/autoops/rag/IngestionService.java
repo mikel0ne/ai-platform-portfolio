@@ -3,8 +3,8 @@ package io.github.mikel0ne.autoops.rag;
 import io.github.mikel0ne.autoops.rag.source.SourceDocument;
 import io.github.mikel0ne.autoops.rag.source.DocumentSource;
 import io.github.mikel0ne.autoops.rag.source.GitHubMarkdownSource;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -13,22 +13,14 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class IngestionService {
-
-    private static final Logger log = LoggerFactory.getLogger(IngestionService.class);
 
     private final WeaviateGateway gateway;
     private final IngestionProperties props;
     private final List<DocumentSource> sources;
     private final GitHubMarkdownSource gitHubSource;
-
-    public IngestionService(WeaviateGateway gateway, IngestionProperties props, List<DocumentSource> sources,
-                             GitHubMarkdownSource gitHubSource) {
-        this.gateway = gateway;
-        this.props = props;
-        this.sources = sources;
-        this.gitHubSource = gitHubSource;
-    }
 
     public int reindex() {
         gateway.dropSchema();

@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.observability.langfuse;
 
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseChatModelListener;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -25,12 +26,15 @@ public final class LangfuseTestTracing {
     private final InMemorySpanExporter exporter = InMemorySpanExporter.create();
     private final SdkTracerProvider provider;
     private final LangfuseTracing tracing;
+    private final Tracer tracer;
+    private final boolean captureContent;
 
     private LangfuseTestTracing(boolean captureContent) {
+        this.captureContent = captureContent;
         this.provider = SdkTracerProvider.builder()
                 .addSpanProcessor(SimpleSpanProcessor.create(exporter))
                 .build();
-        Tracer tracer = provider.get("test");
+        this.tracer = provider.get("test");
         this.tracing = new LangfuseTracing(tracer, properties(captureContent));
     }
 
@@ -72,6 +76,10 @@ public final class LangfuseTestTracing {
 
     public LangfuseTracing tracing() {
         return tracing;
+    }
+
+    public LangfuseChatModelListener chatListener(String role) {
+        return new LangfuseChatModelListener(tracer, role, captureContent);
     }
 
     public List<SpanData> spans() {

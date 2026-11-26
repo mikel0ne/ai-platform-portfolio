@@ -13,7 +13,8 @@ en `http://l1-copilot.local/api/...` (incluyendo el actuator).
 caché de dependencias → JRE 17 alpine, usuario no-root).
 
 ```bash
-docker build -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile l1-copilot/backend
+docker build --build-context commons=platform-commons \
+  -t registry.local/l1-copilot-backend:1.0.0 -f docker/backend.Dockerfile l1-copilot/backend
 docker push registry.local/l1-copilot-backend:1.0.0
 ```
 

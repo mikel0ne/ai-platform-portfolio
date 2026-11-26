@@ -24,6 +24,7 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: maven
+      - run: ./mvnw -B -f ../../platform-commons/pom.xml install
       - run: ./mvnw -B verify
 
   frontend:

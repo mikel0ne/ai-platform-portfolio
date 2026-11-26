@@ -61,7 +61,8 @@ rm -f "$PID_FILE"
 echo -e "${GREEN}[BACK]${NC} Starting Spring Boot on http://localhost:8079 ..."
 (
   cd "$BACKEND_DIR"
-  ./mvnw spring-boot:run > "$ROOT_DIR/backend.log" 2>&1
+  ./mvnw -B -q -f ../../platform-commons/pom.xml install -DskipTests > "$ROOT_DIR/backend.log" 2>&1
+  ./mvnw spring-boot:run >> "$ROOT_DIR/backend.log" 2>&1
 ) &
 BACK_PID=$!
 echo "$BACK_PID" >> "$PID_FILE"

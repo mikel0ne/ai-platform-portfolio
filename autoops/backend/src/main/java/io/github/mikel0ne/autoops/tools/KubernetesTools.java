@@ -5,6 +5,7 @@ import io.github.mikel0ne.autoops.k8s.model.PodDescription;
 import io.github.mikel0ne.autoops.k8s.model.PodDiagnosis;
 import io.github.mikel0ne.autoops.k8s.model.PodStatus;
 import io.github.mikel0ne.autoops.k8s.model.WorkloadStatus;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -12,15 +13,12 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class KubernetesTools {
 
     private static final int DEFAULT_LOG_LINES = 200;
 
     private final K8sInspectionService k8s;
-
-    public KubernetesTools(K8sInspectionService k8s) {
-        this.k8s = k8s;
-    }
 
     @Tool(name = "diagnose_pod",
           description = "Diagnostic dossier for a pod: phase, conditions, not-ready reason, containers with restarts, "

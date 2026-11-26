@@ -16,7 +16,8 @@ ver §3).
 
 ## 1. Dockerfile del backend
 
-`docker/backend.Dockerfile` (contexto de build: `autoops/backend/`):
+`docker/backend.Dockerfile` (contexto de build: `autoops/backend/`; la librería `platform-commons` entra como
+contexto con nombre de BuildKit: `--build-context commons=platform-commons`, que `deploy.sh` ya pasa):
 
 ```dockerfile
 # ---- Stage 1: build ----

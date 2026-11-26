@@ -126,7 +126,7 @@ A trace is one chat turn: one call to `ConversationService.chat(userId, conversa
 chat.turn                                   root (agent)
 ├─ <node> (one per graph node that runs)    span/tool/retriever   LangfuseNodeHook (NodeHook.WrapCall)
 │  └─ gemini.chat                           generation            LangfuseChatModelListener
-│  └─ gemini.chat (cache)                   generation            CachingChatModel, on a cache hit
+│  └─ gemini.chat (cache)                   generation            LangfuseCacheHitTracer, on a cache hit
 ```
 
 - **One span per node.** `LangfuseNodeHook` is registered in `SupportAgentGraph.build()` and wraps every
@@ -135,7 +135,7 @@ chat.turn                                   root (agent)
   `retriever`; the rest are plain `span`. As in AutoOps, the hook relies on nodes running on the calling thread.
 - **One `generation` per real model call.** The listener is built per role in `Config.buildModel(role, ...)`, so
   every generation carries a `role` metadata entry and `cache=MISS`. Usage and model name come from the response.
-- **Cache hits are visible.** `CachingChatModel` emits a `gemini.chat (cache)` generation with `cache=HIT`, zero
+- **Cache hits are visible.** `CachingChatModel` calls `LangfuseCacheHitTracer`, which emits a `gemini.chat (cache)` generation with `cache=HIT`, zero
   tokens and cost `{"total":0}`: the hit consumed no quota and must not inflate the spend.
 - **Session, user and intent on every span.** The root sets `langfuse.session.id` (the `conversationId`, the same
   id as the graph's thread) and `langfuse.user.id` (the `X-User-Id` header) and puts them in OpenTelemetry baggage;

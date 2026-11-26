@@ -1,8 +1,8 @@
 package io.github.mikel0ne.autoops.rag.source;
 
 import io.github.mikel0ne.autoops.rag.IngestionProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -17,17 +17,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class LocalMarkdownSource implements DocumentSource {
-
-    private static final Logger log = LoggerFactory.getLogger(LocalMarkdownSource.class);
 
     private static final Pattern H1 = Pattern.compile("(?m)^#\\s+(.+)$");
 
     private final IngestionProperties props;
-
-    public LocalMarkdownSource(IngestionProperties props) {
-        this.props = props;
-    }
 
     @Override
     public String name() {

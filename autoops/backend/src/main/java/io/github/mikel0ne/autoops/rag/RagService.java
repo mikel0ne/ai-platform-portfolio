@@ -1,6 +1,6 @@
 package io.github.mikel0ne.autoops.rag;
 
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseScoreGateway;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.crag.Coverage;
@@ -9,9 +9,9 @@ import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.RunnableConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
@@ -20,9 +20,9 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class RagService {
-
-    private static final Logger log = LoggerFactory.getLogger(RagService.class);
 
     private static final int MAX_DISCARDED = 3;
 
@@ -30,14 +30,6 @@ public class RagService {
     private final CragProperties props;
     private final LangfuseTracing tracing;
     private final LangfuseScoreGateway scores;
-
-    public RagService(CragGraph cragGraph, CragProperties props, LangfuseTracing tracing,
-                      LangfuseScoreGateway scores) {
-        this.cragGraph = cragGraph;
-        this.props = props;
-        this.tracing = tracing;
-        this.scores = scores;
-    }
 
     public RagResult search(String query, int k) {
         int effectiveK = k > 0 ? Math.min(k, props.kMax()) : props.k();

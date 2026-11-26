@@ -11,8 +11,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -24,15 +23,11 @@ import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-/**
- * Plain OpenTelemetry SDK pointed at Langfuse's OTLP endpoint, with no Spring starter or Micrometer: what is
- * exported is exactly what the hooks build. The SDK is not registered in {@code GlobalOpenTelemetry}; with
- * {@code autoops.langfuse.enabled=false} it is not built and {@link #langfuseTracer} returns a no-op.
- */
+// Plain OTel SDK, not registered in GlobalOpenTelemetry: only what the hooks build is exported.
 @Configuration
+@Slf4j
 public class LangfuseTracingConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(LangfuseTracingConfig.class);
 
     private static final String INSTRUMENTATION_NAME = "io.github.mikel0ne.autoops.langfuse";
 

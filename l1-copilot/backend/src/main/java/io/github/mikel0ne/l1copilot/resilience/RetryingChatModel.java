@@ -7,17 +7,16 @@ import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.ChatRequestParameters;
 import dev.langchain4j.model.chat.response.ChatResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 
 // Middleware around any ChatModel: every call of every role goes through the same retry policy.
+@Slf4j
 public class RetryingChatModel implements ChatModel {
 
-    private static final Logger log = LoggerFactory.getLogger(RetryingChatModel.class);
 
     // A minute-quota hint is optimistic by a hair; this margin avoids landing just before the window resets.
     private static final Duration RATE_LIMIT_MARGIN = Duration.ofSeconds(2);

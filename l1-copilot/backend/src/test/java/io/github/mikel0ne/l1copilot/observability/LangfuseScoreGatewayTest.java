@@ -1,9 +1,9 @@
 package io.github.mikel0ne.l1copilot.observability;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import com.sun.net.httpserver.HttpServer;
 import org.springframework.beans.factory.ObjectProvider;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class LangfuseScoreGatewayTest {
 
     private static final String TRACE_ID = "0123456789abcdef0123456789abcdef";
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final JsonMapper JSON = new JsonMapper();
 
     @Test
     @DisplayName("Con Langfuse apagado, send no hace nada ni resuelve el RestClient.Builder")
@@ -39,20 +39,20 @@ class LangfuseScoreGatewayTest {
     void batchHasScoreCreateEvent() throws Exception {
         JsonNode json = serialize("verify_verdict", "SURE", LangfuseScoreGateway.CATEGORICAL, null);
 
-        assertThat(json.fieldNames()).toIterable().containsExactly("batch");
+        assertThat(json.propertyNames()).containsExactly("batch");
         JsonNode event = json.get("batch").get(0);
         assertThat(json.get("batch")).hasSize(1);
-        assertThat(event.get("id").asText()).isEqualTo("evt-1");
-        assertThat(event.get("type").asText()).isEqualTo("score-create");
-        assertThat(event.get("timestamp").asText()).isEqualTo("2026-01-02T03:04:05.000Z");
+        assertThat(event.get("id").asString()).isEqualTo("evt-1");
+        assertThat(event.get("type").asString()).isEqualTo("score-create");
+        assertThat(event.get("timestamp").asString()).isEqualTo("2026-01-02T03:04:05.000Z");
 
         JsonNode body = event.get("body");
-        assertThat(body.get("id").asText()).isEqualTo("score-1");
-        assertThat(body.get("traceId").asText()).isEqualTo(TRACE_ID);
-        assertThat(body.get("name").asText()).isEqualTo("verify_verdict");
-        assertThat(body.get("value").asText()).isEqualTo("SURE");
-        assertThat(body.get("dataType").asText()).isEqualTo("CATEGORICAL");
-        assertThat(body.get("environment").asText()).isEqualTo("test");
+        assertThat(body.get("id").asString()).isEqualTo("score-1");
+        assertThat(body.get("traceId").asString()).isEqualTo(TRACE_ID);
+        assertThat(body.get("name").asString()).isEqualTo("verify_verdict");
+        assertThat(body.get("value").asString()).isEqualTo("SURE");
+        assertThat(body.get("dataType").asString()).isEqualTo("CATEGORICAL");
+        assertThat(body.get("environment").asString()).isEqualTo("test");
     }
 
     @Test
@@ -74,10 +74,10 @@ class LangfuseScoreGatewayTest {
         JsonNode b = JSON.readTree(JSON.writeValueAsString(LangfuseScoreGateway.newBatch(
                 TRACE_ID, "resolved", 1, LangfuseScoreGateway.BOOLEAN, null, "test"))).get("batch").get(0);
 
-        String idA = a.get("body").path("id").asText();
+        String idA = a.get("body").path("id").asString();
         assertThat(java.util.UUID.fromString(idA)).isNotNull();
-        assertThat(idA).isNotEqualTo(b.get("body").path("id").asText());
-        assertThat(idA).isNotEqualTo(a.get("id").asText());
+        assertThat(idA).isNotEqualTo(b.get("body").path("id").asString());
+        assertThat(idA).isNotEqualTo(a.get("id").asString());
     }
 
     @Test

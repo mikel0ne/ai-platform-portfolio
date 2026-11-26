@@ -2,12 +2,13 @@ package io.github.mikel0ne.autoops.tools;
 
 import io.github.mikel0ne.autoops.chat.SearchRequest;
 import io.github.mikel0ne.autoops.error.InvalidRequestException;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import io.github.mikel0ne.autoops.rag.RagService;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -16,17 +17,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class DocsTools {
 
     private static final List<String> TAGS = List.of("autoops", "rag", "mcp-tool");
 
     private final RagService ragService;
     private final LangfuseTracing tracing;
-
-    public DocsTools(RagService ragService, LangfuseTracing tracing) {
-        this.ragService = ragService;
-        this.tracing = tracing;
-    }
 
     // Returns raw chunks on purpose: the MCP client does the reasoning, unlike the /search chat.
     @Tool(name = "search_docs",

@@ -1,10 +1,10 @@
 package io.github.mikel0ne.l1copilot.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -23,14 +23,14 @@ public class TurnLogger {
     private final boolean fileEnabled;
     private final Path file;
     private final boolean dbEnabled;
-    private final ObjectMapper mapper;
+    private final JsonMapper mapper;
     private final JdbcTemplate jdbc;
     private final Object fileLock = new Object();
 
     public TurnLogger(@Value("${copilot.turn-log.file.enabled:false}") boolean fileEnabled,
                       @Value("${copilot.turn-log.file.path:./logs/turns.jsonl}") String file,
                       @Value("${copilot.turn-log.db.enabled:false}") boolean dbEnabled,
-                      ObjectMapper mapper,
+                      JsonMapper mapper,
                       JdbcTemplate jdbc) {
         this.fileEnabled = fileEnabled;
         this.file = Path.of(file);

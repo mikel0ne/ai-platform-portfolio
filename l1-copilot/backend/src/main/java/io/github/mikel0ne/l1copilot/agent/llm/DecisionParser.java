@@ -1,9 +1,8 @@
 package io.github.mikel0ne.l1copilot.agent.llm;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.Set;
 
@@ -11,10 +10,10 @@ import java.util.Set;
  * Turns the raw verifier output into a {@link Verifier.Decision}, tolerating code fences and raw
  * control characters inside strings; anything unparseable degrades to DOUBT instead of failing the turn.
  */
+@Slf4j
 final class DecisionParser {
 
-    private static final Logger log = LoggerFactory.getLogger(DecisionParser.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final JsonMapper MAPPER = new JsonMapper();
     private static final Set<String> VERDICTS = Set.of("SURE", "DOUBT", "REJECT");
 
     private DecisionParser() {
@@ -23,11 +22,11 @@ final class DecisionParser {
     static Verifier.Decision parse(String raw) {
         try {
             JsonNode node = MAPPER.readTree(sanitize(raw));
-            String verdict = node.path("verdict").asText("").trim().toUpperCase();
+            String verdict = node.path("verdict").asString("").trim().toUpperCase();
             if (!VERDICTS.contains(verdict)) {
                 throw new IllegalArgumentException("missing or unknown verdict: '" + verdict + "'");
             }
-            return new Verifier.Decision(verdict, node.path("reason").asText(""));
+            return new Verifier.Decision(verdict, node.path("reason").asString(""));
         } catch (Exception e) {
             log.warn("Verifier output not parseable, degrading to DOUBT ({}): {}",
                     e.getMessage(), abbreviate(raw));

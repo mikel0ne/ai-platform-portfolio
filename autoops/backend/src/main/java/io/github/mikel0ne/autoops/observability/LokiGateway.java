@@ -1,6 +1,7 @@
 package io.github.mikel0ne.autoops.observability;
 
 import io.github.mikel0ne.autoops.observability.model.LogEntry;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestClient;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@RequiredArgsConstructor
 public class LokiGateway {
 
     static final int DEFAULT_LINES = 200;
@@ -20,11 +22,8 @@ public class LokiGateway {
     static final int DEFAULT_WINDOW_MINUTES = 15;
     static final int MAX_WINDOW_MINUTES = 24 * 60;
 
+    @Qualifier("lokiClient")
     private final RestClient client;
-
-    public LokiGateway(@Qualifier("lokiClient") RestClient lokiClient) {
-        this.client = lokiClient;
-    }
 
     public List<LogEntry> queryRange(String namespace, String pod, String container, String text,
                                       String from, String to, Integer windowMinutes, Integer lines) {

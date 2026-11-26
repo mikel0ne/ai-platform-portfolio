@@ -7,11 +7,11 @@ reestructuración "un dir por proyecto", `autoops/` y `l1-copilot/` son proyecto
 `infra/`, `docker/` y `scripts/` compartidos en la raíz). El módulo Maven es `l1-copilot-backend`.
 El backend aporta:
 
-- Spring Boot **3.5.15** + Java 17 (`pom.xml`).
+- Spring Boot **4.1.2** + Java 17 (`pom.xml`).
 - Integración Gemini/Google AI Studio (`langchain4j-google-ai-gemini`) y un cliente
   OpenAI-compatible (`langchain4j-open-ai`) para Gemma; beans `ChatModel` en `config/ChatModelConfig.java`,
   propiedades `langchain4j.gemini.*`.
-- Caché de respuestas en fichero (`cache/FileCacheManager` + `CachingChatModel`), Swagger, Actuator.
+- Caché de respuestas en fichero (`FileCacheManager` + `CachingChatModel`, en `platform-commons`), Swagger, Actuator.
 
 ## Árbol de paquetes (estado real)
 
@@ -67,7 +67,7 @@ l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 │   ├── ReturnCardDto.java / ReturnLabelDto.java
 │   └── tools/ (OrderSummary, ShipmentStatus, CancellationCheck, CancellationResult,
 │              ReturnCheck, ReturnResult, TicketSummary, TicketCreated)
-└── cache/ (CacheEntry, CachingChatModel, FileCacheManager: ficheros de texto, sin deserialización Java)
+└── config/CacheConfig (bean de FileCacheManager; la caché y los listeners de Langfuse del modelo viven en `platform-commons`: ficheros de texto, sin deserialización Java)
 ```
 
 Criterios:

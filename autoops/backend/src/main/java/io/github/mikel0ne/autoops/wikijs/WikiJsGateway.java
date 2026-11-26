@@ -1,7 +1,7 @@
 package io.github.mikel0ne.autoops.wikijs;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestClient;
@@ -10,9 +10,9 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class WikiJsGateway {
-
-    private static final Logger log = LoggerFactory.getLogger(WikiJsGateway.class);
 
     private static final String QUERY_LIST = """
             query {
@@ -46,11 +46,8 @@ public class WikiJsGateway {
             }
             """;
 
+    @Qualifier("wikiJsClient")
     private final RestClient client;
-
-    public WikiJsGateway(@Qualifier("wikiJsClient") RestClient wikiJsClient) {
-        this.client = wikiJsClient;
-    }
 
     public List<PageSummary> listPages() {
         ListResponse resp = client.post()

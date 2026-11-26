@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.observability;
 
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.sdk.trace.data.SpanData;
@@ -67,6 +68,10 @@ class LangfuseSessionPropagationTest {
     }
 
     private static String attribute(SpanData span, String key) {
-        return span.getAttributes().get(AttributeKey.stringKey(key));
+        return attribute(span, AttributeKey.stringKey(key));
+    }
+
+    private static String attribute(SpanData span, AttributeKey<String> key) {
+        return span.getAttributes().get(key);
     }
 }

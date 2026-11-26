@@ -358,7 +358,8 @@ build_and_push() {
       ;;
   esac
   log "Build & push: ${image}:${TAG}  (context: ${context})"
-  ( cd "${REPO_ROOT}" && docker build -t "${image}:${TAG}" -f "${dockerfile}" "${context}" )
+  ( cd "${REPO_ROOT}" && docker build --build-context commons="${REPO_ROOT}/platform-commons" \
+      -t "${image}:${TAG}" -f "${dockerfile}" "${context}" )
   ( cd "${REPO_ROOT}" && docker push "${image}:${TAG}" )
   ok "Image available in the local registry"
 }

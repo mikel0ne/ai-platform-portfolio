@@ -7,9 +7,9 @@ import io.github.mikel0ne.autoops.rag.crag.Coverage;
 import io.github.mikel0ne.autoops.rag.crag.CragState;
 import io.github.mikel0ne.autoops.rag.crag.llm.GradeResult;
 import io.github.mikel0ne.autoops.rag.crag.llm.Grader;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.bsc.langgraph4j.action.NodeAction;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,17 +17,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+@Slf4j
+@RequiredArgsConstructor
 public class GradeNode implements NodeAction<CragState> {
-
-    private static final Logger log = LoggerFactory.getLogger(GradeNode.class);
 
     private final Grader grader;
     private final int maxIterations;
-
-    public GradeNode(Grader grader, int maxIterations) {
-        this.grader = grader;
-        this.maxIterations = maxIterations;
-    }
 
     @Override
     public Map<String, Object> apply(CragState state) {

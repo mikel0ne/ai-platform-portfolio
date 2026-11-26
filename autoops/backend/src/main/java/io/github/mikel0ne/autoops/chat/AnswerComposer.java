@@ -3,13 +3,14 @@ package io.github.mikel0ne.autoops.chat;
 import dev.langchain4j.model.chat.ChatModel;
 import io.github.mikel0ne.autoops.config.PromptLoader;
 import io.github.mikel0ne.autoops.config.PromptTemplates;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.Confidence;
 import io.github.mikel0ne.autoops.rag.DocChunk;
 import io.github.mikel0ne.autoops.rag.RagResult;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Scope;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
@@ -18,17 +19,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
+@RequiredArgsConstructor
 public class AnswerComposer {
 
     private final ObjectProvider<ChatModel> chatModel;
     private final PromptLoader prompts;
     private final LangfuseTracing tracing;
-
-    public AnswerComposer(ObjectProvider<ChatModel> chatModel, PromptLoader prompts, LangfuseTracing tracing) {
-        this.chatModel = chatModel;
-        this.prompts = prompts;
-        this.tracing = tracing;
-    }
 
     public String compose(String query, RagResult rag) {
         List<DocChunk> base = rag.evidence();

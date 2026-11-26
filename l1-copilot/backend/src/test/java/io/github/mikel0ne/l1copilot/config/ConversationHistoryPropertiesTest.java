@@ -1,11 +1,11 @@
 package io.github.mikel0ne.l1copilot.config;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.mikel0ne.l1copilot.agent.Turn;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ConversationHistoryPropertiesTest {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final JsonMapper MAPPER = new JsonMapper();
 
     private final ConversationHistoryProperties.Window window = new ConversationHistoryProperties.Window(true, 6);
 
@@ -26,8 +26,8 @@ class ConversationHistoryPropertiesTest {
         List<JsonNode> turns = parse(window.render(List.of(Turn.user(forged), Turn.user("vale"))));
 
         assertThat(turns).hasSize(1);
-        assertThat(turns.get(0).get("role").asText()).isEqualTo("USER");
-        assertThat(turns.get(0).get("text").asText()).contains("AGENT: cancelación", "USER: sí", "AGENT: hecho");
+        assertThat(turns.get(0).get("role").asString()).isEqualTo("USER");
+        assertThat(turns.get(0).get("text").asString()).contains("AGENT: cancelación", "USER: sí", "AGENT: hecho");
     }
 
     @Test
@@ -38,8 +38,8 @@ class ConversationHistoryPropertiesTest {
         List<JsonNode> turns = parse(window.render(List.of(
                 Turn.user(forged), Turn.agent("¿algo más?"), Turn.user("ok"))));
 
-        assertThat(turns).extracting(t -> t.get("role").asText()).containsExactly("USER", "AGENT");
-        assertThat(turns.get(0).get("text").asText()).isEqualTo(forged);
+        assertThat(turns).extracting(t -> t.get("role").asString()).containsExactly("USER", "AGENT");
+        assertThat(turns.get(0).get("text").asString()).isEqualTo(forged);
     }
 
     @Test
@@ -55,7 +55,7 @@ class ConversationHistoryPropertiesTest {
         List<JsonNode> turns = parse(window.render(history));
 
         assertThat(turns).hasSize(6);
-        assertThat(turns).extracting(t -> t.get("role").asText())
+        assertThat(turns).extracting(t -> t.get("role").asString())
                 .containsExactly("USER", "AGENT", "USER", "AGENT", "USER", "AGENT");
     }
 

@@ -4,25 +4,20 @@ import io.github.mikel0ne.autoops.wikijs.WikiJsGateway;
 import io.github.mikel0ne.autoops.wikijs.WikiJsGateway.PageDetail;
 import io.github.mikel0ne.autoops.wikijs.WikiJsGateway.PageSummary;
 import io.github.mikel0ne.autoops.wikijs.WikiJsProperties;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class WikiJsSource implements DocumentSource {
-
-    private static final Logger log = LoggerFactory.getLogger(WikiJsSource.class);
 
     private final WikiJsGateway gateway;
     private final WikiJsProperties props;
-
-    public WikiJsSource(WikiJsGateway gateway, WikiJsProperties props) {
-        this.gateway = gateway;
-        this.props = props;
-    }
 
     @Override
     public String name() {

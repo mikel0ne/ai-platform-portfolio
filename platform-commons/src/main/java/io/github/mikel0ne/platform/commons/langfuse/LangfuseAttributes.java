@@ -1,4 +1,4 @@
-package io.github.mikel0ne.autoops.observability.langfuse;
+package io.github.mikel0ne.platform.commons.langfuse;
 
 import io.opentelemetry.api.common.AttributeKey;
 
@@ -9,9 +9,11 @@ import java.util.List;
 public final class LangfuseAttributes {
 
     public static final AttributeKey<String> TRACE_NAME = AttributeKey.stringKey("langfuse.trace.name");
-    public static final AttributeKey<List<String>> TRACE_TAGS = AttributeKey.stringArrayKey("langfuse.trace.tags");
+    public static final AttributeKey<String> SESSION_ID = AttributeKey.stringKey("langfuse.session.id");
+    public static final AttributeKey<String> USER_ID = AttributeKey.stringKey("langfuse.user.id");
     public static final AttributeKey<String> ENVIRONMENT = AttributeKey.stringKey("langfuse.environment");
     public static final AttributeKey<String> RELEASE = AttributeKey.stringKey("langfuse.release");
+    public static final AttributeKey<List<String>> TRACE_TAGS = AttributeKey.stringArrayKey("langfuse.trace.tags");
 
     public static final String TRACE_METADATA_PREFIX = "langfuse.trace.metadata.";
 
@@ -26,12 +28,15 @@ public final class LangfuseAttributes {
             AttributeKey.stringKey("langfuse.observation.model.parameters");
     public static final AttributeKey<String> USAGE_DETAILS =
             AttributeKey.stringKey("langfuse.observation.usage_details");
+    public static final AttributeKey<String> COST_DETAILS =
+            AttributeKey.stringKey("langfuse.observation.cost_details");
 
     public static final String OBSERVATION_METADATA_PREFIX = "langfuse.observation.metadata.";
 
+    public static final String TYPE_AGENT = "agent";
+    public static final String TYPE_CHAIN = "chain";
     public static final String TYPE_SPAN = "span";
     public static final String TYPE_GENERATION = "generation";
-    public static final String TYPE_CHAIN = "chain";
     public static final String TYPE_TOOL = "tool";
     public static final String TYPE_RETRIEVER = "retriever";
 

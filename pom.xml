@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.github.mikel0ne</groupId>
+    <artifactId>ai-platform-portfolio</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>AI Platform Portfolio</name>
+    <description>Reactor aggregator only: the apps keep their own Spring Boot parent</description>
+
+    <modules>
+        <module>platform-commons</module>
+        <module>l1-copilot/backend</module>
+        <module>autoops/backend</module>
+    </modules>
+</project>

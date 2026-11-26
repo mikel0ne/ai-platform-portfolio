@@ -12,6 +12,13 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: none
+  servlet:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-request: true
+      force-response: true
   sql:
     init:
       mode: never
@@ -23,12 +30,6 @@ server:
   servlet:
     # The Ingress routes /api/* to this Service unchanged; controllers do not repeat the prefix.
     context-path: /api
-    encoding:
-      charset: UTF-8
-      enabled: true
-      force: true
-      force-request: true
-      force-response: true
 
 logging:
   level:

@@ -4,7 +4,7 @@ import dev.langchain4j.data.embedding.Embedding;
 import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.model.embedding.EmbeddingModel;
-import io.github.mikel0ne.autoops.observability.langfuse.LangfuseAttributes;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTracing;
 import io.github.mikel0ne.autoops.rag.crag.CragProperties;
 import io.opentelemetry.api.trace.Span;
@@ -22,8 +22,8 @@ import io.weaviate.client.v1.graphql.query.argument.WhereArgument;
 import io.weaviate.client.v1.graphql.query.fields.Field;
 import io.weaviate.client.v1.schema.model.Property;
 import io.weaviate.client.v1.schema.model.WeaviateClass;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -41,9 +41,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Component
+@Slf4j
+@RequiredArgsConstructor
 public class WeaviateGateway implements DocRetriever {
-
-    private static final Logger log = LoggerFactory.getLogger(WeaviateGateway.class);
 
     static final String TEXT = "text";
     private static final String TITLE = "title";
@@ -59,27 +59,20 @@ public class WeaviateGateway implements DocRetriever {
     private static final List<String> RESULT_PROPERTIES =
             List.of(TEXT, TITLE, SOURCE, SECTION, URL, ORIGIN, DOC_ID, SECTION_CHARS, ORDER);
 
+    private static final Duration RATE_LIMIT_PAUSE = Duration.ofSeconds(60);
+    private static final int MAX_RATE_LIMIT_RETRIES = 10;
+    // Below the 100-content limit of Gemini batchEmbedContents.
+    private static final int EMBEDDING_BATCH_SIZE = 50;
+    private static final int EXISTING_DOCS_LIMIT = 10_000;
+
     private final WeaviateClient client;
     // Gemini embeds documents and queries with different task types (RETRIEVAL_DOCUMENT vs RETRIEVAL_QUERY).
     private final ObjectProvider<EmbeddingModel> docEmbeddingModel;
+    @Qualifier("queryEmbeddingModel")
     private final ObjectProvider<EmbeddingModel> queryEmbeddingModel;
     private final WeaviateProperties props;
     private final CragProperties crag;
     private final LangfuseTracing tracing;
-
-    public WeaviateGateway(WeaviateClient client,
-                           ObjectProvider<EmbeddingModel> docEmbeddingModel,
-                           @Qualifier("queryEmbeddingModel") ObjectProvider<EmbeddingModel> queryEmbeddingModel,
-                           WeaviateProperties props,
-                           CragProperties crag,
-                           LangfuseTracing tracing) {
-        this.client = client;
-        this.docEmbeddingModel = docEmbeddingModel;
-        this.queryEmbeddingModel = queryEmbeddingModel;
-        this.props = props;
-        this.crag = crag;
-        this.tracing = tracing;
-    }
 
     public void ensureSchema() {
         Result<Boolean> exists = client.schema().exists().withClassName(props.className()).run();
@@ -116,15 +109,6 @@ public class WeaviateGateway implements DocRetriever {
     public void dropSchema() {
         client.schema().classDeleter().withClassName(props.className()).run();
     }
-
-    private static final Duration RATE_LIMIT_PAUSE = Duration.ofSeconds(60);
-
-    private static final int MAX_RATE_LIMIT_RETRIES = 10;
-
-    // Below the 100-content limit of Gemini batchEmbedContents.
-    private static final int EMBEDDING_BATCH_SIZE = 50;
-
-    private static final int EXISTING_DOCS_LIMIT = 10_000;
 
     // Upserts first (chunk ids are stable per document position) and only then removes what the new
     // version no longer has, so a failure halfway never leaves a document deleted. The scope is the origin

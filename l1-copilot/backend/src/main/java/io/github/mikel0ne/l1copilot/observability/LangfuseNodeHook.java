@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.observability;
 
 import io.github.mikel0ne.l1copilot.agent.SupportState;
+import io.github.mikel0ne.platform.commons.langfuse.LangfuseAttributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Scope;

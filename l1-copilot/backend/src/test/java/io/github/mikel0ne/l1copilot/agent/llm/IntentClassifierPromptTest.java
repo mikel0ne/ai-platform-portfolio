@@ -1,7 +1,5 @@
 package io.github.mikel0ne.l1copilot.agent.llm;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -14,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -96,10 +96,10 @@ class IntentClassifierPromptTest {
 
         JsonNode cases;
         try (InputStream in = new ClassPathResource("golden-router-cases.json").getInputStream()) {
-            cases = new ObjectMapper().readTree(in);
+            cases = new JsonMapper().readTree(in);
         }
         for (JsonNode c : cases) {
-            String message = c.path("message").asText().strip().toLowerCase(Locale.ROOT);
+            String message = c.path("message").asString().strip().toLowerCase(Locale.ROOT);
             if (message.length() >= MIN_QUOTED_LENGTH) {
                 assertThat(system).as("prompt quotes a golden case").doesNotContain(message);
             }

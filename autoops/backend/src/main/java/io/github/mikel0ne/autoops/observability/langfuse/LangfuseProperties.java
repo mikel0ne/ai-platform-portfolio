@@ -4,15 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
-/**
- * Connection to the cluster's self-hosted Langfuse. Disabled by default: a local run without Langfuse
- * works the same, with a no-op {@code Tracer}.
- *
- * @param endpoint       OTLP base of Langfuse, <b>without</b> {@code /v1/traces} (see {@link #tracesUrl()})
- * @param apiBaseUrl     base of the Langfuse REST API; derived from {@code endpoint} when omitted
- * @param captureContent privacy switch: when false neither prompts nor answers are exported
- * @param timeout        per-request export cap; telemetry is best-effort
- */
+// The endpoint is the OTLP base without /v1/traces: tracesUrl() appends it.
 @ConfigurationProperties("autoops.langfuse")
 public record LangfuseProperties(
         Boolean enabled,
