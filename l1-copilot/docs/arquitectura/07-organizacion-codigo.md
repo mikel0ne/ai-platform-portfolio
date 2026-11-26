@@ -11,7 +11,8 @@ El backend aporta:
 - Integración Gemini/Google AI Studio (`langchain4j-google-ai-gemini`) y un cliente
   OpenAI-compatible (`langchain4j-open-ai`) para Gemma; beans `ChatModel` en `config/ChatModelConfig.java`,
   propiedades `langchain4j.gemini.*`.
-- Caché de respuestas en fichero (`FileCacheManager` + `CachingChatModel`, en `platform-commons`), Swagger, Actuator.
+- Caché de respuestas en fichero (`FileCacheManager` + `CachingChatModel`, en `platform-commons`; la clave se construye con campos explícitos del mensaje), Swagger, Actuator.
+- Lombok (`lombok.config` en el módulo) y token de demo firmado (`security/TokenSigner`).
 
 ## Árbol de paquetes (estado real)
 
@@ -19,61 +20,82 @@ El backend aporta:
 l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 ├── Application.java
 ├── config/
-│   ├── Config.java                  # beans ChatModel Gemini (1 por temperatura/rol)
-│   ├── AgentConfig.java             # CompiledGraph + MemorySaver + AiServices
-│   ├── CacheInitializer.java / CacheProperties.java
+│   ├── ChatModelConfig.java         # beans ChatModel Gemini/Gemma (1 por temperatura/rol)
+│   ├── AgentConfig.java             # CompiledGraph + memoria + AiServices
+│   ├── CacheConfig.java / CacheProperties.java   # bean de FileCacheManager (la clase vive en platform-commons)
 │   ├── ConversationHistoryProperties.java / LangChain4jProperties.java
 │   ├── TreatmentPolicy.java         # umbral tú/usted por edad
 │   └── qualifier/                   # @Deterministic, @TicketModel, @ResponseModel,
 │                                    #   @ChattyModel, @ChattyResponder (ver #12)
 ├── controller/
+│   ├── AuthController.java          # POST /api/copilot/login (token de demo firmado)
 │   ├── ChatController.java          # /api/copilot/** (chat + users)
 │   ├── TicketController.java        # /api/copilot/tickets/{id}
 │   ├── ReturnController.java        # /api/copilot/returns/{id}
 │   ├── CacheController.java         # /api/cache/** (clear() oculto: @Hidden)
-│   └── ApiExceptionHandler.java
+│   ├── SessionUsers.java            # valida el Bearer y devuelve el userId
+│   └── ApiExceptionHandler.java / ResourceNotFoundException.java / UnknownUserException.java
+├── security/
+│   └── TokenSigner.java             # token de demo: base64url(userId).base64url(HMAC-SHA256)
 ├── service/
 │   ├── ConversationService.java     # puente REST→grafo (invoca por threadId)
+│   ├── OrderService.java / TicketService.java / OrderNotFoundException.java
 │   └── TurnLogger.java              # registro de turnos (turn_log) para evaluación
 ├── agent/                           # todo el agente LangGraph4j
 │   ├── SupportAgentGraph.java       # builder del StateGraph (15 nodos)
 │   ├── SupportRouting.java          # aristas condicionales (funciones estáticas + TO_*)
 │   ├── SupportState.java            # AgentState + SCHEMA (solo canal 'history')
-│   ├── Intent.java / Awaiting.java / Verdict.java / Navigation.java / Treatment.java
+│   ├── Turn.java                    # entrada del historial (rol + texto)
+│   ├── BoundedMemorySaver.java      # checkpointer en memoria con tope
+│   ├── Intent.java / Awaiting.java / Verdict.java / Navigation.java / Confirmation.java / Treatment.java
+│   ├── AssentGuard.java             # un asentimiento suelto sin nada pendiente no cambia de intención
 │   ├── UiAction.java                # parser de acciones de la UI (clics/botones)
-│   ├── node/                        # 15 nodos:
-│   │   ├── RouterNode.java / VerifyNode.java / ClarifyNode.java
+│   ├── node/                        # 15 nodos + colaboradores del router:
+│   │   ├── RouterNode.java          # orquestador fino: atajos → LLM → navegación → políticas
+│   │   ├── RouterShortcuts.java     # botones/tarjetas deterministas, antes del LLM
+│   │   ├── RouterNavigation.java    # BACK / BACK_TO_LIST / BACK_TO_MENU (retorno anticipado)
+│   │   ├── RouterTurn.java          # contexto del turno: estado, decisión y actualizaciones
+│   │   ├── RouterPolicies.java      # pasos ordenados (digresión, intención, borrador, foco, confirmación, aclaración)
+│   │   ├── OrderCandidates.java     # formato y reconocimiento de los candidatos (lo usa también ResolveOrderNode)
+│   │   ├── VerifyNode.java / ClarifyNode.java
 │   │   ├── ResolveOrderNode.java / TrackingNode.java
 │   │   ├── CancelCheckNode.java / CancelExecNode.java
 │   │   ├── ReturnCheckNode.java / ReturnExecNode.java
 │   │   ├── SupportNode.java / TicketsNode.java
 │   │   ├── FaqNode.java / ChattyNode.java / FallbackNode.java
 │   │   └── RespondNode.java
-│   └── llm/                         # AiServices (interfaces con @SystemMessage):
+│   └── llm/                         # AiServices (interfaces con @SystemMessage) y soporte:
 │       ├── IntentClassifier.java / Responder.java / Verifier.java
 │       ├── TicketWriter.java / FaqKnowledgeBase.java
-├── tools/
-│   ├── OrderService.java / TicketService.java
-│   └── OrderNotFoundException.java
+│       └── ParsingVerifier.java / RawVerifier.java / DecisionParser.java / PromptData.java
+├── resilience/                      # reintentos del LLM: RetryingChatModel, LlmFailureClassifier,
+│                                    #   GoogleAiFailureClassifier, LlmRetryProperties
+├── observability/                   # Langfuse ligado a Spring: LangfuseNodeHook, LangfuseTurnTracer,
+│                                    #   LangfuseTracingConfig, LangfuseProperties, LangfuseScoreGateway,
+│                                    #   LangfuseTraceAttributesProcessor
 ├── domain/
 │   ├── Order.java / OrderStatus.java
 │   ├── Ticket.java / TicketStatus.java
 │   ├── User.java
 │   └── repository/ (OrderRepository, TicketRepository, UserRepository)
-├── dto/
-│   ├── ChatRequest.java / ChatResponse.java / UserDto.java
-│   ├── ConfirmActionDto.java
-│   ├── OrderCardDto.java / TicketCardDto.java / TicketDetailDto.java
-│   ├── ReturnCardDto.java / ReturnLabelDto.java
-│   └── tools/ (OrderSummary, ShipmentStatus, CancellationCheck, CancellationResult,
-│              ReturnCheck, ReturnResult, TicketSummary, TicketCreated)
-└── config/CacheConfig (bean de FileCacheManager; la caché y los listeners de Langfuse del modelo viven en `platform-commons`: ficheros de texto, sin deserialización Java)
+└── dto/
+    ├── ChatRequest.java / ChatResponse.java / UserDto.java
+    ├── LoginRequest.java / LoginResponse.java
+    ├── ConfirmActionDto.java
+    ├── OrderCardDto.java / TicketCardDto.java / TicketDetailDto.java
+    ├── ReturnCardDto.java / ReturnLabelDto.java
+    └── result/ (OrderSummary, ShipmentStatus, CancellationCheck, CancellationResult,
+               ReturnCheck, ReturnResult, TicketSummary, TicketCreated)
+
+platform-commons/src/main/java/io/github/mikel0ne/platform/commons/   # librería sin Spring, compartida con AutoOps
+├── cache/                           # FileCacheManager, CachingChatModel, CacheHitListener
+└── langfuse/                        # LangfuseAttributes, LangfuseChatModelListener, LangfuseCacheHitTracer
 ```
 
 Criterios:
 
 - **`agent/` no conoce HTTP** (no importa nada de `controller/`); `controller/` no conoce LangGraph4j. El puente es `ConversationService`.
-- **`tools/` no conoce el grafo**: reciben primitivas y devuelven records de `dto/result`. Reutilizables desde un futuro `AiServices` con function-calling.
+- **`service/` (`OrderService`, `TicketService`) no conoce el grafo**: reciben primitivas y devuelven records de `dto/result`. Reutilizables desde un futuro `AiServices` con function-calling.
 - Los **AiServices** (interfaces con `@SystemMessage`) viven junto al agente (`agent/llm/`) porque sus prompts son parte de la lógica del grafo.
 
 ## Dependencias Maven a añadir

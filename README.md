@@ -110,8 +110,9 @@ spans and the cost of each LLM call:
 
 - [`SupportRouting.java`](l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/agent/SupportRouting.java):
   every routing decision as a pure function, including the verifier's asymmetric rule.
-- [`RouterNode.java`](l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/agent/node/RouterNode.java):
-  confirm commands accepted only for the confirmation pending on that order.
+- [`RouterShortcuts.java`](l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/agent/node/RouterShortcuts.java):
+  confirm commands accepted only for the confirmation pending on that order. `RouterNode` orchestrates it with
+  `RouterNavigation` and the ordered steps of `RouterPolicies`.
 - [`SecurityInjectionTest.java`](l1-copilot/backend/src/test/java/io/github/mikel0ne/l1copilot/agent/SecurityInjectionTest.java):
   jailbreak, IDOR, confirmation injection, forged confirm and conversation hijack.
 - ADRs 3 and 4 in [`02-arquitectura-sistema.md`](l1-copilot/docs/arquitectura/02-arquitectura-sistema.md) (Spanish).

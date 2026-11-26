@@ -79,14 +79,14 @@ Puntos clave:
 
 ## El estado: `SupportState`
 
-Extiende `org.bsc.langgraph4j.state.AgentState`. El `SCHEMA` solo declara **un canal explícito**: `history` como `appender` (acumulación). El resto de claves usan el comportamiento por defecto (`Channels.base` = reemplazo) y se **leen** con `value(clave, default)`; no se declaran en el `SCHEMA`. Todos los valores son tipos serializables simples (String, Long, Boolean, Map) para que el checkpointer no necesite serializers a medida.
+Extiende `org.bsc.langgraph4j.state.AgentState`. El `SCHEMA` solo declara **un canal explícito**: `history`, con un reductor que acumula (`appendCapped`: acumula hasta 20 turnos y, al superarlos, conserva los últimos 10). El resto de claves usan el comportamiento por defecto (`Channels.base` = reemplazo) y se **leen** con `value(clave, default)`; no se declaran en el `SCHEMA`. Todos los valores son tipos serializables simples (String, Long, Boolean, Map) para que el checkpointer no necesite serializers a medida.
 
 ```java
 public class SupportState extends AgentState {
 
-    // ÚNICO canal declarado: el historial se ACUMULA (appender). Lo demás es base (reemplazo).
+    // ÚNICO canal declarado: el historial se ACUMULA (con tope). Lo demás es base (reemplazo).
     public static final Map<String, Channel<?>> SCHEMA = Map.of(
-        "history", Channels.appender(ArrayList::new)   // "USER: ..."/"AGENT: ..."
+        "history", Channels.<List<Turn>>base(SupportState::appendCapped, ArrayList::new)
     );
 
     public SupportState(Map<String, Object> initData) { super(initData); }
@@ -95,12 +95,12 @@ public class SupportState extends AgentState {
     public String userId();          // lo fija la capa HTTP, jamás el LLM
     public String userMessage();     // último mensaje del usuario (este turno)
     public Treatment treatment();    // registro tú/usted (lo siembra el servicio)
-    public List<String> history();   // historial acumulado (canal appender)
+    public List<Turn> history();     // solo mensajes del usuario y respuestas finales del agente
 
     // --- Intención y foco ---
     public Intent intent();                    // TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE
     public Optional<Intent> suspendedIntent(); // gestión en pausa por digresión FAQ/CHATTY
-    public Optional<Long> orderId();           // pedido en foco (comprometido)
+    public Optional<Long> orderId();           // pedido en foco (comprometido; se lee de cualquier Number)
     public Optional<Long> proposedOrderId();   // foco propuesto por el router, sin comprometer (lo asciende verify)
     public List<String> candidates();          // pedidos ofrecidos para desambiguar (texto plano)
     public Awaiting awaiting();                // pregunta pendiente del turno anterior
@@ -256,33 +256,19 @@ Cada nodo es una clase Spring (`@Component`) que implementa `NodeAction<SupportS
 
 ### `router` — clasificación de intención + extracción
 
-```java
-@Component
-@RequiredArgsConstructor
-@Slf4j
-public class RouterNode implements NodeAction<SupportState> {
+`RouterNode` es un orquestador fino (`apply`, `classify` y la preparación de las entradas del prompt) que delega en cinco clases de paquete (`agent/node`, sin `@Component`):
 
-    private final IntentClassifier classifier; // AiService de LangChain4j
+| Clase | Responsabilidad |
+|---|---|
+| `RouterShortcuts` | Acciones de la UI resueltas sin LLM: confirmar/descartar cancelación o devolución y selección de tarjeta de pedido. |
+| `RouterNavigation` | `BACK_TO_LIST` / `BACK_TO_MENU` / `BACK` (resuelve el nivel de un `BACK`). Retorno anticipado: libera el foco y no aplica el resto de políticas. |
+| `RouterTurn` | Contexto del turno: estado de inicio de turno, decisión del LLM y actualizaciones acumuladas; escrituras tipadas y lecturas `effective…` que ven lo ya escrito en este turno. |
+| `RouterPolicies` | Pasos ordenados que traducen la decisión en actualizaciones de estado (ver abajo). |
+| `OrderCandidates` | Contrato de formato y reconocimiento de los `candidates` (`#<id> descripción (estado…)`); lo usan `ResolveOrderNode` (los genera) y `RouterShortcuts` (comprueba que un id está ofrecido). |
 
-    @Override
-    public Map<String, Object> apply(SupportState state) {
-        log.debug("---ROUTER---");
-        String lastUserMessage = lastUserText(state);
+El flujo de `RouterNode.apply` es: atajos de UI → clasificación con LLM (una salida no parseable degrada a `OTHER`) → `AssentGuard` → navegación → políticas. Los atajos y la navegación terminan el turno antes de llegar a las políticas.
 
-        // Si el turno anterior dejó una pregunta pendiente, el router decide:
-        // ¿el mensaje responde a la pregunta o cambia de tema?
-        RouterDecision d = classifier.classify(
-            lastUserMessage,
-            state.awaiting().name(),
-            state.candidates().toString());
-
-        Map<String, Object> updates = new HashMap<>();
-        if (d.intent() != Intent.NONE)  updates.put("intent", d.intent().name());
-        if (d.orderId() != null)        updates.put("orderId", d.orderId());
-        return updates;
-    }
-}
-```
+Orden de las políticas (importa, está fijado por dependencias de lectura): `suspendForDigression` (retorno anticipado) → `resumeAfterDigression` → `recordIntent` → `dropTicketDraft` → `moveFocus` → `bindConfirmation` → `countClarifyAttempts`. El descarte del borrador va antes que el foco porque `routesToVerify` lee el `awaiting` y el borrador *efectivos*; el foco va antes que la confirmación porque `confirmsPendingAction` lee el pedido que escribió el paso de foco.
 
 El clasificador es un **AiService de LangChain4j con salida estructurada**:
 
@@ -316,7 +302,7 @@ Una vez resuelto el pedido, `orderId` es el **foco** de la conversación y es *p
 2. **Cambio explícito** — el usuario nombra **otro** pedido (por número o descripción inequívoca); el router devuelve ese `orderId` y descarta el menú anterior.
 3. **Salida explícita del foco** — `navigation == BACK_TO_LIST`, `BACK_TO_MENU` o `BACK`: se suelta el foco (`orderId`, `candidates` y `ticketDraft` a `MARK_FOR_REMOVAL`), pero con destinos distintos.
 
-Dos invariantes lo sostienen: el router recibe el foco actual y, si el usuario no nombra otro pedido, devuelve `orderId = null` (conservar foco); y **los `candidates` se descartan en cuanto una skill resuelve** (tracking, cancelación o ticket), para que el router no pueda "reelegir" del menú anterior por parecido temático. Esto es lo que evitaba el salto observado en la demo (`#789` consultado → "no lo he recibido" → el modelo reelegía `#123` del menú aún presente). Cubierto por `RouterNodeTest` y los escenarios de foco de `SupportAgentFlowTest`.
+Dos invariantes lo sostienen: el router recibe el foco actual y, si el usuario no nombra otro pedido, devuelve `orderId = null` (conservar foco); y **los `candidates` se descartan en cuanto una skill resuelve** (tracking, cancelación o ticket), para que el router no pueda "reelegir" del menú anterior por parecido temático. Esto es lo que evitaba el salto observado en la demo (`#789` consultado → "no lo he recibido" → el modelo reelegía `#123` del menú aún presente). Cubierto por `RouterPoliciesTest`, `RouterNodeTest` y los escenarios de foco de `SupportAgentFlowTest`.
 
 ##### Navegación jerárquica: `BACK_TO_LIST`, `BACK_TO_MENU` y `BACK`
 
@@ -324,7 +310,7 @@ La conversación tiene tres niveles: **Menú principal** (capacidades) → **Lis
 
 - **`BACK_TO_LIST`** (explícito: "mis pedidos", "ver todos", "otro pedido", "enséñame el listado"): el router fuerza `intent=TRACKING` (o `CANCEL` si la gestión en curso era una cancelación), de modo que con `orderId` vacío la arista cae en `resolve_order`, que re-ofrece el listado de pedidos.
 - **`BACK_TO_MENU`** (explícito: "menú principal", "volver al inicio", "empezar de nuevo"): el router fuerza `intent=OTHER`, de modo que `fromRouter` cae siempre en `fallback`, que presenta de nuevo las capacidades del asistente (incluida la invitación a hacer preguntas generales tipo FAQ).
-- **`BACK`** ("atrás" / "volver" a secas, sin decir destino): significa **subir exactamente un nivel**. El LLM **no** decide el destino; lo resuelve `RouterNode.resolveNavigation(...)` según el nivel real. La clave es distinguir si la conversación está **por debajo del listado** (trabajando un pedido concreto) o **en el propio listado**:
+- **`BACK`** ("atrás" / "volver" a secas, sin decir destino): significa **subir exactamente un nivel**. El LLM **no** decide el destino; lo resuelve `RouterNavigation.destination(...)` según el nivel real. La clave es distinguir si la conversación está **por debajo del listado** (trabajando un pedido concreto) o **en el propio listado**:
   - **Por debajo del listado** → `BACK_TO_LIST` (se vuelve al listado). Es así cuando hay un pedido en **foco real** (`orderId`) **o** cuando se está iniciando una gestión sobre un pedido elegido del listado cuyo **foco aún no se ha comprometido** (foco diferido): `verify` no lo ascendió —p. ej. devolvió DUDA y mandó a `clarify`— y `proposedOrderId` es efímero, así que `orderId` quedó vacío PERO el listado sigue ahí (`candidates`) y ya no estamos eligiendo (`awaiting != ORDER_CHOICE`).
   - **En el propio listado** (`awaiting == ORDER_CHOICE`, eligiendo todavía) o sin nada → `BACK_TO_MENU` (se sube al menú).
 
@@ -343,7 +329,7 @@ Se implementa con un canal `suspendedIntent` (pila de un solo nivel; otra digres
 1. **Suspensión** — el router detecta `FAQ`/`CHATTY` con `awaiting != NOTHING`: guarda la intención de la tarea en `suspendedIntent`, enruta a `faq`/`chatty` y **no toca** `orderId`/`candidates`/`ticketDraft`/`awaiting`. El nodo responde con `resolved=false` y `respond` cierra recordando lo que quedaba pendiente.
 2. **Retorno** — al turno siguiente, el router pasa al clasificador el `suspendedIntent` como intención "vigente"; cuando el usuario retoma, el LLM mantiene la gestión —no la digresión— y el router descarta `suspendedIntent`.
 
-Una digresión **sin** gestión pendiente es una consulta normal, no se suspende nada. Cubierto por `RouterNodeTest` y `SupportAgentFlowTest` (`faqDigressionDuringOrderChoiceResumes`, `chattyDoesNotTouchBusiness`).
+Una digresión **sin** gestión pendiente es una consulta normal, no se suspende nada. Cubierto por `RouterPoliciesTest`, `RouterNodeTest` y `SupportAgentFlowTest` (`faqDigressionDuringOrderChoiceResumes`, `chattyDoesNotTouchBusiness`).
 
 #### `chatty`: la charla informal no es negocio
 
@@ -361,13 +347,13 @@ Cubierto por `SupportAgentFlowTest` (`ambiguousWithFocusClarifiesThenEscalates`,
 
 #### Acciones de la interfaz: atajos deterministas (sin LLM)
 
-No todo lo que llega como "mensaje del usuario" es lenguaje natural. Algunos mensajes son en realidad **acciones de la interfaz** (clic en una tarjeta o en un botón). El router los resuelve en un *fast-path* al inicio de `apply()`, **antes** de llamar al LLM (clase [`UiAction`](../../backend/src/main/java/io/github/mikel0ne/l1copilot/agent/UiAction.java)):
+No todo lo que llega como "mensaje del usuario" es lenguaje natural. Algunos mensajes son en realidad **acciones de la interfaz** (clic en una tarjeta o en un botón). El router los resuelve en un *fast-path* (`RouterShortcuts`) al inicio de `apply()`, **antes** de llamar al LLM (clase [`UiAction`](../../backend/src/main/java/io/github/mikel0ne/l1copilot/agent/UiAction.java)):
 
 - **Selección de pedido** — al pulsar una tarjeta, la UI envía `#<id>`. Si hay un menú activo (`awaiting=ORDER_CHOICE`) y el id está entre los candidatos, el router fija el foco de forma determinista, conservando la intención (tracking/cancelación) con la que se ofreció el menú. Antes esto dependía de que el LLM extrajera el id; si fallaba, el foco se desmoronaba y la conversación volvía a `resolve_order`.
 - **Confirmación de cancelación** — una acción **irreversible** no debe depender de interpretar "sí/cancélalo/confirmo" con NLU (era frágil: el modelo a veces devolvía `NONE` y se entraba en un bucle de "¿me lo confirmas?"). Cuando `cancel_check` necesita confirmación, marca `pendingCancelId`; `ConversationService` lo traduce en un `ConfirmActionDto` (título, aviso de irreversibilidad y dos botones). Cada botón lleva un `payload` (`action:confirm-cancel:<id>` / `action:abort-cancel:<id>`) que el router interpreta como `confirmation=YES/NO` sin tocar el modelo. El clic ES la autorización.
 - **Confirmación de devolución** — idéntico mecanismo para la skill `RETURN`. Cuando `return_check` necesita confirmación, marca `pendingReturnId`; `ConversationService` genera el `ConfirmActionDto` con los botones `action:confirm-return:<id>` / `action:abort-return:<id>`, que el router resuelve de forma determinista como `RETURN` + `confirmation=YES/NO`. Misma convención `UiAction` a ambos lados.
 
-Patrón **human-in-the-loop** clásico: la decisión crítica se materializa como una acción explícita del usuario, determinista y testeable, no como una inferencia probabilística. Cubierto por `RouterNodeTest` (comandos y selección) y `SupportAgentFlowTest.cancellationViaButtonIsDeterministic`.
+Patrón **human-in-the-loop** clásico: la decisión crítica se materializa como una acción explícita del usuario, determinista y testeable, no como una inferencia probabilística. Cubierto por `RouterShortcutsTest` (comandos y selección) y `SupportAgentFlowTest.cancellationViaButtonIsDeterministic`.
 
 #### Base de conocimiento estática: `faq.md` / `FaqKnowledgeBase`
 
@@ -429,8 +415,8 @@ public Map<String, Object> apply(SupportState state) {
         state.awaiting().name(),
         state.toolResult(),                   // String (vacío si no hay datos)
         lastUserText(state));
-    // history es el único canal appender; reply es base (reemplazo)
-    return Map.of("reply", reply, "history", List.of("AGENT: " + reply));
+    // history acumula; reply es base (reemplazo)
+    return Map.of("reply", reply, "history", List.of(Turn.agent(reply)));
 }
 ```
 
@@ -458,7 +444,7 @@ public class AgentConfig {
 
     @Bean
     public BaseCheckpointSaver checkpointSaver() {
-        return new MemorySaver(); // prototipo: en memoria (ADR-6)
+        return new BoundedMemorySaver(maxConversations, maxPerConversation); // prototipo: en memoria con tope (ADR-6)
     }
 
     @Bean
@@ -484,7 +470,7 @@ public ChatResult chat(String userId, String conversationId, String message) {
             Map.of("userId", userId,
                    "userMessage", message,
                    "treatment", treatment.name(),
-                   "history", List.of("USER: " + message)),  // + reseteo de campos efímeros del turno
+                   "history", List.of(Turn.user(message))),  // + reseteo de campos efímeros del turno
             config)
         .orElseThrow(() -> new IllegalStateException("El grafo no devolvió estado"));
 

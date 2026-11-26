@@ -28,7 +28,7 @@ prompt) and every irreversible action needs an explicit confirmation from the us
 
 ## Agent graph
 
-Every HTTP turn runs the graph from start to end; the `MemorySaver` checkpointer, keyed by user and conversation id,
+Every HTTP turn runs the graph from start to end; the in-memory checkpointer (`BoundedMemorySaver`), keyed by user and conversation id,
 carries the state into the next turn.
 
 ```mermaid
@@ -81,8 +81,11 @@ Other choices visible in the code:
   ticket drafting (0.2), business answers (0.35), small talk (0.7).
 - **A verifier node** double-checks fresh actions before acting; on doubt it asks instead of acting.
 - **Deterministic shortcuts** for UI buttons and card clicks: confirming a cancellation never depends on how
-  the LLM reads a message.
-- **Per-role conversation memory**: each LLM sees its own window of the history.
+  the LLM reads a message. `RouterNode` only orchestrates: `RouterShortcuts` (buttons and cards, before the LLM),
+  `RouterNavigation` (back to the list or menu), and `RouterPolicies`, ordered steps over a `RouterTurn`
+  (digression, intent, ticket draft, focus, confirmation, clarification attempts).
+- **Per-role conversation memory**: each LLM sees its own window of the history, which stores only the user's
+  messages and the agent's final replies.
 - **Retries around every model call** (`copilot.llm-retry`): up to 4 attempts; overloads (503) and timeouts back
   off 2 s, 4 s, 8 s; a per-minute 429 waits the window the provider reports (70 s at most); a daily 429 or an
   invalid request fails at once. Gemma's free tier (16,000 input tokens per minute) needs it.

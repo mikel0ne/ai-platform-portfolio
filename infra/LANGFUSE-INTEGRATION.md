@@ -17,6 +17,10 @@ and spans created by hand at three hooks:
 
 Scores have no OTLP mapping, so a small gateway (`LangfuseScoreGateway`) posts them to Langfuse.
 
+The Spring-free parts (`LangfuseChatModelListener`, `LangfuseCacheHitTracer`, `LangfuseAttributes`) live in the
+`platform-commons` library shared by both backends; each app keeps its Spring-bound classes (properties, tracing
+config, score gateway, and the node hook or turn tracer).
+
 Why not the alternatives: Micrometer/Spring Boot OTel starters only instrument Spring AI `ChatModel`
 (neither backend calls the LLM through it), differ between Spring Boot 3.5 and 4.x, and clash with this
 setup; the Java agent gives HTTP spans but no prompts, tokens or verdicts. **Do not add
@@ -133,7 +137,7 @@ chat.turn                                   root (agent)
   node that actually runs (a turn only walks one branch). Node ids map to an observation type: `resolve_order`,
   `tracking`, `cancel_check`, `cancel_exec`, `return_check`, `return_exec` and `tickets` are `tool`; `faq` is
   `retriever`; the rest are plain `span`. As in AutoOps, the hook relies on nodes running on the calling thread.
-- **One `generation` per real model call.** The listener is built per role in `Config.buildModel(role, ...)`, so
+- **One `generation` per real model call.** The listener is built per role in `ChatModelConfig.buildModel(role, ...)`, so
   every generation carries a `role` metadata entry and `cache=MISS`. Usage and model name come from the response.
 - **Cache hits are visible.** `CachingChatModel` calls `LangfuseCacheHitTracer`, which emits a `gemini.chat (cache)` generation with `cache=HIT`, zero
   tokens and cost `{"total":0}`: the hit consumed no quota and must not inflate the spend.

@@ -41,12 +41,12 @@ Responsabilidades por capa:
 |---|---|---|
 | API | `ChatController`, `TicketController`, `ReturnController`, `ApiExceptionHandler` | Validar entrada, extraer `userId` (sesión simulada) y `conversationId`, devolver DTOs |
 | Orquestación | `ConversationService`, `TurnLogger` | Invocar el grafo con `RunnableConfig.threadId(conversationId)`, mapear estado→respuesta, registrar el turno (`turn_log`) |
-| Agente | `SupportAgentGraph` (builder), `SupportRouting` (aristas), `SupportState`, 15 nodos | Toda la lógica de decisión del agente |
+| Agente | `SupportAgentGraph` (builder), `SupportRouting` (aristas), `SupportState`, 15 nodos (el router delega en `RouterShortcuts`, `RouterNavigation`, `RouterPolicies`) | Toda la lógica de decisión del agente |
 | AiServices | `IntentClassifier`, `Verifier`, `Responder`, `TicketWriter`, `FaqKnowledgeBase` | Interfaces `@SystemMessage`; prompts del grafo |
 | Herramientas | `OrderService`, `TicketService` | Operaciones deterministas sobre BD, reglas de negocio, `@Tool` |
 | Datos | Entidades + repositorios JPA | Persistencia |
-| Configuración | `Config` (beans `ChatModel` por temperatura/rol), `AgentConfig` (`CompiledGraph` + `MemorySaver` + AiServices), `config/qualifier/` (`@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`) | Wiring |
-| Caché | `CachingChatModel`, `FileCacheManager` | Cachea respuestas del modelo en fichero |
+| Configuración | `ChatModelConfig` (beans `ChatModel` por temperatura/rol), `AgentConfig` (`CompiledGraph` + `MemorySaver` + AiServices), `config/qualifier/` (`@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`) | Wiring |
+| Caché | `CachingChatModel`, `FileCacheManager` (en `platform-commons`) | Cachea respuestas del modelo en fichero |
 
 ## Flujo de una petición extremo a extremo
 

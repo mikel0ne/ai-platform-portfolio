@@ -128,6 +128,8 @@ io.github.mikel0ne.autoops
 │   ├── LokiGateway.java             # construye LogQL, resuelve ventana temporal, aplana la respuesta
 │   ├── LokiProperties.java
 │   └── model/LogEntry.java
+├── langfuse/                  # trazas y scores en Langfuse, ligado a Spring (el listener y el trazador de cache hits viven en platform-commons)
+│   └── LangfuseTracing / LangfuseTracingConfig / LangfuseProperties / LangfuseScoreGateway
 ├── llm/provider/              # abstracción de proveedor (doc 06) — única clase que conoce el vendor
 │   └── GeminiModelConfig.java
 ├── config/                    # configuración tipada transversal
