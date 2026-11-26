@@ -5,13 +5,6 @@ public enum Confirmation {
     YES, NO, NONE;
 
     public static Confirmation fromState(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return NONE;
-        }
-        try {
-            return valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return NONE;
-        }
+        return EnumParsing.parse(Confirmation.class, raw, NONE, NONE);
     }
 }

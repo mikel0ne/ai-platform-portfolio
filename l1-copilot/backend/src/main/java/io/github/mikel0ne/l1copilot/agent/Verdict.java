@@ -6,13 +6,6 @@ public enum Verdict {
     SURE, DOUBT, REJECT, NONE;
 
     public static Verdict fromLlm(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return DOUBT;
-        }
-        try {
-            return valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return DOUBT;
-        }
+        return EnumParsing.parse(Verdict.class, raw, DOUBT, DOUBT);
     }
 }

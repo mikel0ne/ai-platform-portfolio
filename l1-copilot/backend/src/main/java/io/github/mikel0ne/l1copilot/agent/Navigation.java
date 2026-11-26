@@ -11,13 +11,6 @@ public enum Navigation {
     BACK;
 
     public static Navigation fromLlm(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return NONE;
-        }
-        try {
-            return valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return NONE;
-        }
+        return EnumParsing.parse(Navigation.class, raw, NONE, NONE);
     }
 }

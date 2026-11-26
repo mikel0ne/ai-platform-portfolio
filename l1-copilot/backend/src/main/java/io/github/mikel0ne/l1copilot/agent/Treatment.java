@@ -9,13 +9,6 @@ public enum Treatment {
     }
 
     public static Treatment fromState(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return TU;
-        }
-        try {
-            return valueOf(raw.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return TU;
-        }
+        return EnumParsing.parse(Treatment.class, raw, TU, TU);
     }
 }

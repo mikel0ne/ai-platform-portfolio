@@ -26,6 +26,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Locale;
 
 @Configuration
 @Slf4j
@@ -136,7 +137,7 @@ public class ChatModelConfig {
     private GeminiThinkingLevel parseThinkingLevel(String level) {
         if (!StringUtils.hasText(level) || "NONE".equalsIgnoreCase(level)) return null;
         try {
-            return GeminiThinkingLevel.valueOf(level.toUpperCase());
+            return GeminiThinkingLevel.valueOf(level.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             log.warn("Unknown thinking level '{}'; thinking disabled for this role", level);
             return null;

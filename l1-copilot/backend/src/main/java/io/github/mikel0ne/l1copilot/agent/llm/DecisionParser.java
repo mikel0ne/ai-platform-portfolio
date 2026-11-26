@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -22,7 +23,7 @@ final class DecisionParser {
     static Verifier.Decision parse(String raw) {
         try {
             JsonNode node = MAPPER.readTree(sanitize(raw));
-            String verdict = node.path("verdict").asString("").trim().toUpperCase();
+            String verdict = node.path("verdict").asString("").trim().toUpperCase(Locale.ROOT);
             if (!VERDICTS.contains(verdict)) {
                 throw new IllegalArgumentException("missing or unknown verdict: '" + verdict + "'");
             }
