@@ -499,7 +499,7 @@ cp infra/.env.local.example infra/.env.local
 
 ### Guarda de variables vacías
 
-`deploy.sh` aborta antes de construir la imagen o tocar el clúster si alguna variable mapeada en `SECRETS_BACKEND`/`SECRETS_FRONTEND` del componente está vacía o ausente en los `.env`; el error lista solo los nombres. Las realmente opcionales se declaran en `OPTIONAL_SECRET_VARS=(...)` de `infra/projects/<p>.env` (hoy solo `WIKIJS_API_KEY` en autoops) y solo avisan; `--allow-empty` degrada el error a aviso para un caso puntual. Aunque se permita vacío, una clave vacía nunca pisa un valor no vacío que ya tenga el Secret en el clúster. Pruebas sin clúster: `bash infra/scripts/test/deploy-guards.sh`.
+`deploy.sh` aborta antes de construir la imagen o tocar el clúster si alguna variable mapeada en `SECRETS_BACKEND`/`SECRETS_FRONTEND` del componente está vacía o ausente en los `.env`; el error lista solo los nombres. Las realmente opcionales se declaran en `OPTIONAL_SECRET_VARS=(...)` de `infra/projects/<p>.env` (hoy `WIKIJS_API_KEY` en autoops y `COPILOT_AUTH_TOKEN_SECRET` en l1-copilot) y solo avisan; `--allow-empty` degrada el error a aviso para un caso puntual. Aunque se permita vacío, una clave vacía nunca pisa un valor no vacío que ya tenga el Secret en el clúster. Pruebas sin clúster: `bash infra/scripts/test/deploy-guards.sh`.
 
 ### Flujo Secret → variable de entorno
 

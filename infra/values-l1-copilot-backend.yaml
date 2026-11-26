@@ -61,6 +61,9 @@ secretEnv:
   - name: LANGFUSE_SECRET_KEY
     secretName: langfuse-api-keys
     secretKey: LANGFUSE_L1COPILOT_SECRET_KEY
+  - name: COPILOT_AUTH_TOKEN_SECRET
+    secretName: copilot-auth-token
+    secretKey: COPILOT_AUTH_TOKEN_SECRET
 
 probes:
   # Up to 150s for the JVM to start before liveness may restart it.

@@ -8,6 +8,7 @@ el repo jamás.**
 | Dato | Sensible | Dónde vive | Quién lo consume |
 |---|---|---|---|
 | `GEMINI_API_KEY` | 🔴 sí | Secret `gemini-api-key` en `l1-copilot` (lo sincroniza `deploy.sh` desde `infra/.env.local`) | backend |
+| `COPILOT_AUTH_TOKEN_SECRET` | 🔴 sí, opcional | Secret `copilot-auth-token` en `l1-copilot` (lo sincroniza `deploy.sh` desde `infra/.env.local`) | backend (firma de los tokens demo) |
 | Password de Postgres compartido | 🔴 sí | Secret `postgres-credentials` en `infra` (lo crea [`03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh)) + Secret `postgres-credentials` en `l1-copilot` (lo sincroniza `deploy.sh`) | postgres / backend |
 | Perfil Spring, URL JDBC, opciones JVM | no | ConfigMap (lo crea el chart a partir de `configmap.data` en `values-l1-copilot-backend.yaml`) | backend |
 | Esquema + seed SQL del proyecto | no | `l1-copilot/backend/src/main/resources/schema-postgresql.sql` y `data-postgresql.sql` (en repo) | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) |
@@ -69,8 +70,19 @@ GEMINI_API_KEY=AIza...
 
 Qué clave va a qué Secret lo declara `infra/projects/l1-copilot.env` (`SECRETS_BACKEND`):
 `gemini-api-key` ← `GEMINI_API_KEY`; `postgres-credentials` ← `POSTGRES_USER`
-`POSTGRES_PASSWORD`. **`deploy.sh` materializa los Secrets automáticamente** (`sync_secrets`)
+`POSTGRES_PASSWORD`; `copilot-auth-token` ← `COPILOT_AUTH_TOKEN_SECRET`. **`deploy.sh` materializa los Secrets automáticamente** (`sync_secrets`)
 en cada despliegue; no hay que crearlos a mano.
+
+`COPILOT_AUTH_TOKEN_SECRET` es opcional (`OPTIONAL_SECRET_VARS`): si falta o está vacía,
+`deploy.sh` solo avisa y el backend genera un secreto aleatorio en cada arranque, de modo que
+cada reinicio (o réplica adicional) invalida todos los tokens. Para un valor estable, generarlo en
+local y añadirlo a `infra/.env.local` antes de desplegar (nunca en el repo):
+
+```bash
+echo "COPILOT_AUTH_TOKEN_SECRET=$(openssl rand -base64 32)" >> infra/.env.local
+```
+
+Una clave vacía nunca pisa el valor no vacío que ya tenga el Secret en el clúster.
 
 > Alternativa puntual (sin desplegar): `infra/scripts/create-secrets.ps1 -Namespace
 > l1-copilot -SecretName <secret> -EnvFile <fichero.env>`, idempotente (usa `kubectl apply`
