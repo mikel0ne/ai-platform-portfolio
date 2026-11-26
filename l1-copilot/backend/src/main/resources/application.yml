@@ -60,7 +60,7 @@ langchain4j:
 
 copilot:
   max-recent-orders: 3
-  # How much of the conversation each LLM sees; the full history always lives in the graph state.
+  # How much of the conversation each LLM sees (max 9: the graph state keeps 10-20 turns, compacted to 10 above 20).
   history:
     classifier:
       enabled: true

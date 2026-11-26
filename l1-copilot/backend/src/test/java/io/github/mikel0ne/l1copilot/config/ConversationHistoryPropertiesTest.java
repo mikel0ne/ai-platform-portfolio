@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ConversationHistoryPropertiesTest {
 
@@ -73,6 +74,17 @@ class ConversationHistoryPropertiesTest {
     @DisplayName("A first turn has no previous history")
     void firstTurnHasNoHistory() {
         assertThat(window.render(List.of(Turn.user("hola")))).isEqualTo("(sin historial previo)");
+    }
+
+    @Test
+    @DisplayName("A window larger than what compaction retains is rejected instead of silently truncated")
+    void sizeAboveRetainedTurnsIsRejected() {
+        assertThat(new ConversationHistoryProperties.Window(true, ConversationHistoryProperties.Window.MAX_SIZE).size())
+                .isEqualTo(ConversationHistoryProperties.Window.MAX_SIZE);
+        assertThatThrownBy(() -> new ConversationHistoryProperties.Window(true, 15))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("size 15")
+                .hasMessageContaining("last 10 turns");
     }
 
     private static List<JsonNode> parse(String rendered) throws Exception {

@@ -43,8 +43,9 @@ public class SupportState extends AgentState {
     public static final String TICKET_CARDS = "ticketCards";
     public static final String RETURN_CARDS = "returnCards";
 
-    // Well above the prompt windows: older turns are never read, so keeping them only grows the checkpoints.
-    static final int MAX_STORED_TURNS = 40;
+    // Compacting in batches instead of trimming every turn; older turns are never read by the prompts.
+    static final int COMPACT_ABOVE_TURNS = 20;
+    public static final int RETAINED_TURNS = 10;
 
     // Only simple serializable values: the checkpointer persists the state between HTTP turns.
     public static final Map<String, Channel<?>> SCHEMA = Map.of(
@@ -72,9 +73,9 @@ public class SupportState extends AgentState {
         if (added != null) {
             all.addAll(added);
         }
-        return all.size() <= MAX_STORED_TURNS
+        return all.size() <= COMPACT_ABOVE_TURNS
                 ? all
-                : new ArrayList<>(all.subList(all.size() - MAX_STORED_TURNS, all.size()));
+                : new ArrayList<>(all.subList(all.size() - RETAINED_TURNS, all.size()));
     }
 
     public SupportState(Map<String, Object> initData) {
