@@ -1,6 +1,9 @@
 package io.github.mikel0ne.platform.commons.cache;
 
 import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.ChatModel;
@@ -54,6 +57,41 @@ class CachingChatModelTest {
         assertThat(CachingChatModel.keyMaterial(base))
                 .isNotEqualTo(CachingChatModel.keyMaterial(otherTopK))
                 .isNotEqualTo(CachingChatModel.keyMaterial(otherModel));
+    }
+
+    @Test
+    @DisplayName("Equal requests built separately share the key, whatever the message type")
+    void equalRequestsShareTheKey() {
+        assertThat(CachingChatModel.keyMaterial(conversation("hello")))
+                .isEqualTo(CachingChatModel.keyMaterial(conversation("hello")));
+    }
+
+    @Test
+    @DisplayName("Another text in any message is another key")
+    void differentTextIsAnotherKey() {
+        assertThat(CachingChatModel.keyMaterial(conversation("hello")))
+                .isNotEqualTo(CachingChatModel.keyMaterial(conversation("bye")));
+    }
+
+    @Test
+    @DisplayName("The same text under another role is another key")
+    void sameTextWithAnotherRoleIsAnotherKey() {
+        ChatRequest asUser = ChatRequest.builder().messages(UserMessage.from("text")).build();
+        ChatRequest asSystem = ChatRequest.builder().messages(SystemMessage.from("text")).build();
+        ChatRequest asAi = ChatRequest.builder().messages(AiMessage.from("text")).build();
+
+        assertThat(CachingChatModel.keyMaterial(asUser))
+                .isNotEqualTo(CachingChatModel.keyMaterial(asSystem))
+                .isNotEqualTo(CachingChatModel.keyMaterial(asAi));
+        assertThat(CachingChatModel.keyMaterial(asSystem)).isNotEqualTo(CachingChatModel.keyMaterial(asAi));
+    }
+
+    private static ChatRequest conversation(String text) {
+        return ChatRequest.builder()
+                .messages(SystemMessage.from("rules"), UserMessage.from(text), AiMessage.from("answer"),
+                        ToolExecutionResultMessage.from("id-1", "lookup", text))
+                .temperature(0.0)
+                .build();
     }
 
     @Test

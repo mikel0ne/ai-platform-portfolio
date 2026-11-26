@@ -2,6 +2,12 @@ package io.github.mikel0ne.platform.commons.cache;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.Content;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.TextContent;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.Capability;
 import dev.langchain4j.model.chat.ChatModel;
@@ -85,6 +91,38 @@ public class CachingChatModel implements ChatModel {
                     .append("|topK=").append(params.topK())
                     .append("|maxOut=").append(params.maxOutputTokens())
                     .append("|respFormat=").append(params.responseFormat());
+        }
+        return sb.toString();
+    }
+
+    // Explicit per-type rendering: ChatMessage.toString() is not a stable contract across langchain4j versions.
+    private static String render(ChatMessage message) {
+        if (message instanceof SystemMessage system) {
+            return system.text();
+        }
+        if (message instanceof UserMessage user) {
+            String name = user.name() == null ? "" : user.name() + ":";
+            return name + (user.hasSingleText() ? user.singleText() : renderContents(user.contents()));
+        }
+        if (message instanceof AiMessage ai) {
+            StringBuilder sb = new StringBuilder(ai.text() == null ? "" : ai.text());
+            for (ToolExecutionRequest request : ai.toolExecutionRequests()) {
+                sb.append("|tool=").append(request.name()).append('(').append(request.arguments()).append(')');
+            }
+            return sb.toString();
+        }
+        if (message instanceof ToolExecutionResultMessage result) {
+            return result.toolName() + ":" + result.text();
+        }
+        return message.toString();
+    }
+
+    private static String renderContents(List<Content> contents) {
+        StringBuilder sb = new StringBuilder();
+        for (Content content : contents) {
+            sb.append(content.type()).append(':')
+                    .append(content instanceof TextContent text ? text.text() : content.toString())
+                    .append(';');
         }
         return sb.toString();
     }
