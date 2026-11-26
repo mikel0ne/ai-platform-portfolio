@@ -262,6 +262,7 @@ The set had 103 cases until the `TICKET_CONFIRM` state and its only case were re
 |---|---|---|---|---|---|---|
 | `gemini-flash-lite-latest` (3.5), commit `84b5357` | 96/103 (93%) | 100/103 (97%) | 48/54 (89%) | 52/54 (96%) | 48/49 (98%) | 12 min |
 | `gemini-3.1-flash-lite`, `main` at `1887a69` | 97/103 (94%) | 100/103 (97%) | 48/54 (89%) | 51/54 (94%) | 49/49 (100%) | 22 min |
+| `gemma-4-26b-a4b-it`, `main` at `1887a69` | 94/103 (91%) | 97/103 (94%) | 47/54 (87%) | 50/54 (93%) | 47/49 (96%) | 130 min |
 | `gemini-3.1-flash-lite`, `main` without `TICKET_CONFIRM` (102 cases) | 91/102 (89%) | 95/102 (93%) | 45/54 (83%) | 49/54 (91%) | 48/48 (100%) | n/a |
 
 Both fail on the same family of cases: a bare "adelante" or "ok, thanks" read as a confirmation, forged context
@@ -269,7 +270,9 @@ or a fake "your return was approved" email read as an instruction. The 3.1 run f
 API errors left open; its six failures are all security cases, and the assent guard turns three of them into a
 safe `OTHER`. The two 3.1 rows differ by six cases after the prompt dropped one state and the set one case: a
 single run is a sample, not a score. The router is only the first layer: an action still needs the verifier, a confirmation pending for
-that very order, and the business rules in code.
+that very order, and the business rules in code. Gemma 4 26B ran on the free tier, which allows 16,000 input
+tokens per minute and often answers 503: it needed 15 s between calls and took 130 minutes. The 31B never
+completed the set (5 of 103 cases after more than an hour of 503s), so it has no row.
 
 Everything else, including the full agent flows and the security suite, runs in CI with the LLM roles mocked:
 those tests check the code's decisions, not the model's quality. Both backends can also send traces to a
