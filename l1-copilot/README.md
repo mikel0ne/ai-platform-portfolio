@@ -108,6 +108,10 @@ cd l1-copilot/backend
 ROUTER_EVAL=true GEMINI_API_KEY=... ./mvnw test -Dtest=RouterEvalTest   # opt-in golden set against the real model
 ```
 
+The JVM must run with `-Dfile.encoding=UTF-8` (the system prompts are read from `src/main/resources/prompts`
+with the default charset): the pom, `.mvn/jvm.config`, the IDE run configurations and the Helm values already
+set it, and the backend refuses to start otherwise. Set it yourself if you launch the jar or the main class by hand.
+
 **Locally with H2** (dev profile, seeded on startup):
 
 ```bash

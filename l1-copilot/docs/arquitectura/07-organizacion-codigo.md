@@ -214,7 +214,7 @@ Secretos: `GEMINI_API_KEY` ya se lee de entorno (patrón existente `${GEMINI_API
 - **Idioma:** código e identificadores en inglés; javadoc, logs y prompts en español (coherente con el código existente).
 - **Lombok:** `@RequiredArgsConstructor` + `@Slf4j` en servicios/nodos; `@Getter/@Setter` (no `@Data`) en entidades.
 - **Records** para todos los DTOs y salidas estructuradas del LLM.
-- **Prompts:** siempre en text blocks (`"""`), versionados con el código del nodo que los usa; nada de prompts en `application.yml`.
+- **Prompts:** los largos en `src/main/resources/prompts/*.txt` (`@SystemMessage(fromResource = ...)`), los cortos en text blocks (`"""`); versionados con el código del nodo que los usa y nada de prompts en `application.yml`. LangChain4j lee el recurso con el charset por defecto de la JVM: por eso se arranca con `-Dfile.encoding=UTF-8` y `CharsetGuard` aborta el arranque si no es UTF-8.
 - **Logs de nodos:** prefijo `---NOMBRE---` en DEBUG (patrón de los ejemplos LangGraph4j), con `conversationId` en el MDC para correlar turnos.
 - **Tests:** JUnit 5; unitarios para aristas y tools, `@SpringBootTest` con LLM fakes para el flujo; los tests que llaman a Gemini real van con `@Tag("llm")` y excluidos del build por defecto.
 

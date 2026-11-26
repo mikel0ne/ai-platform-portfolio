@@ -34,7 +34,7 @@ configmap:
   data:
     SPRING_PROFILES_ACTIVE: "prod"
     SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot"
-    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8"
     # LLM observability: Langfuse is only enabled in the cluster (off locally).
     # Service of the langfuse/langfuse chart with release "langfuse" -> langfuse-web:3000.
     COPILOT_LANGFUSE_ENABLED: "true"

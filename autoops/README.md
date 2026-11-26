@@ -103,6 +103,10 @@ export AUTOOPS_ADMIN_TOKEN=...     # any long random string, protects /admin/*
 cd autoops/backend && ./mvnw spring-boot:run
 ```
 
+The JVM must run with `-Dfile.encoding=UTF-8` (the prompt files are read with the default charset): the
+pom, `.mvn/jvm.config`, the IDE run configurations and the Helm values already set it, and the backend
+refuses to start otherwise. Set it yourself if you launch the jar or the main class by hand.
+
 The Kubernetes tools use the current kubeconfig context. The search chat runs with
 `cd autoops/frontend && npm ci && npm start` (http://localhost:4199).
 

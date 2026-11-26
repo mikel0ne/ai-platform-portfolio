@@ -47,7 +47,7 @@ configmap:
   # data:
   #   SPRING_PROFILES_ACTIVE: "prod"
   #   SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/mydb"
-  #   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+  #   JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8"
 
 # -- Existing ConfigMaps in the cluster to mount as envFrom
 envFrom:

@@ -28,6 +28,8 @@
         <fabric8.version>6.14.0</fabric8.version>
         <springdoc.version>3.2.0</springdoc.version>
         <opentelemetry.version>1.68.0</opentelemetry.version>
+        <!-- overwritten by the jacoco agent; empty when it is skipped -->
+        <argLine></argLine>
     </properties>
 
     <dependencyManagement>
@@ -168,6 +170,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <jvmArguments>-Dfile.encoding=UTF-8</jvmArguments>
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>
@@ -188,6 +191,14 @@
                             <version>${lombok.version}</version>
                         </path>
                     </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>@{argLine} -Dfile.encoding=UTF-8</argLine>
                 </configuration>
             </plugin>
 

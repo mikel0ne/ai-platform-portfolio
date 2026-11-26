@@ -13,6 +13,7 @@
       <env name="SPRING_PROFILES_ACTIVE" value="dev" />
     </envs>
     <option name="MAIN_CLASS_NAME" value="io.github.mikel0ne.l1copilot.Application" />
+    <option name="VM_PARAMETERS" value="-Dfile.encoding=UTF-8" />
     <module name="l1-copilot-backend" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/l1-copilot/backend" />
     <method v="2">

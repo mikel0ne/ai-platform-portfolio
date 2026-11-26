@@ -34,7 +34,7 @@ configmap:
   data:
     SPRING_PROFILES_ACTIVE: "prod"
     SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres.infra.svc.cluster.local:5432/mydb"
-    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8"
 
 # Sensitive variables: the chart references the Secrets but never creates them.
 # Create them first with infra/scripts/create-secrets.ps1 or kubectl.

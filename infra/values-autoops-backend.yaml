@@ -63,7 +63,7 @@ configmap:
     AUTOOPS_LANGFUSE_ENABLED: "true"
     AUTOOPS_LANGFUSE_ENDPOINT: "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel"
     AUTOOPS_LANGFUSE_ENVIRONMENT: "k8s"
-    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
+    JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8"
 
 # Secrets synced by deploy.sh from infra/.env.local: Gemini key (chat + embeddings), GitHub
 # token (reads the repo for RAG ingestion), Wiki.js key, the /admin token and the /mcp token.
