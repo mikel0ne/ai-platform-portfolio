@@ -257,6 +257,29 @@ self-hosted **Langfuse**: one trace per RAG query or chat turn, one span per gra
 model call with its tokens, and scores such as the verifier verdict and the RAG confidence
 ([`LANGFUSE-INTEGRATION.md`](infra/LANGFUSE-INTEGRATION.md)).
 
+## Estimated cost
+
+Everything here runs on the free tier of the Gemini API, so the real cost is zero. This is what it would cost on
+the paid tier, from estimated average token counts per call and the list prices of November 2026.
+
+| Model | Input | Output (thinking included) |
+|---|---|---|
+| `gemini-flash-lite-latest` (Gemini 3.5 Flash-Lite, used in the cluster) | $0.30 / M tokens | $2.50 / M tokens |
+| `gemini-3.1-flash-lite` (used in development) | $0.25 / M tokens | $1.50 / M tokens |
+| `gemini-embedding-2` | $0.20 / M tokens | free |
+
+| Operation | Estimated tokens (in / out) | With 3.5 | With 3.1 |
+|---|---|---|---|
+| L1 chat turn, a read such as order tracking: router 3000/50, verifier 1500/50, responder 3000/150 | ~7500 / 250 | ~$0.0029 | ~$0.0022 |
+| AutoOps `search_docs`, no retry: query variants 300/100, grading 3000/300 | ~3300 / 400 | ~$0.0020 | ~$0.0014 |
+| AutoOps `/search` chat, no retry: the above plus the answer 2800/300 | ~6100 / 700 | ~$0.0036 | ~$0.0026 |
+| AutoOps search with one retry: plus rewrite 300/50 and a second grading 3500/300 | ~9900 / 1050 | ~$0.0056 | ~$0.0041 |
+
+That is about **$3 per 1000 L1 turns** and **$2-6 per 1000 searches** with 3.5, and 25-30% less with 3.1.
+Query embeddings are negligible (about $0.00002 per search). The CRAG grader is the most expensive call because it
+reads every retrieved chunk. A confirmation button does not call the router LLM, and L1 cache hits cost nothing.
+Thinking tokens are billed as output.
+
 ## Running it
 
 Each project's README has the details. The short version:

@@ -121,13 +121,31 @@ bash l1-copilot/scripts/setup-l1-copilot-db.sh
 
 ## Evaluation
 
-[`golden-router-cases.json`](backend/src/test/resources/golden-router-cases.json) holds 15 cases, each mapping a user
-message to the intent the router should pick. `RouterEvalTest` measures the classifier's accuracy against the real
-model.
+[`golden-router-cases.json`](backend/src/test/resources/golden-router-cases.json) holds 103 cases in 24 categories.
+Each case maps a user message to the intent the router should pick. Some also carry conversation history, agent
+state or an expected confirmation. 54 are security cases and 61 are held out: they were never used to tune the
+prompt. `RouterGoldenCasesTest` validates the set offline on every build. `promptDoesNotQuoteGoldenCases` keeps
+the prompt generic.
 
-It is opt-in because it needs a Gemini key (`ROUTER_EVAL=true`); it fails below `ROUTER_EVAL_MIN` (default 0.7
-accuracy). The full-flow and security tests (`SupportAgentFlowTest`, `SecurityInjectionTest`) run with the LLM roles
-mocked, so they test the code's decisions, not the model's quality.
+- `RouterEvalTest` (`ROUTER_EVAL=true`) runs the set against the real model. It reports accuracy overall, per
+  category, held-out against original, and raw (model only) against guarded (after `AssentGuard`). It writes
+  the failed cases to `target/router-eval-failures.json`. It fails below `ROUTER_EVAL_MIN` (default 0.7) or
+  `ROUTER_EVAL_MIN_SECURITY` (default 0.8). Output that cannot be parsed counts as a failure.
+- `RouterFailureE2eEvalTest` (`ROUTER_E2E_EVAL=true`) replays each router failure through the real graph, using
+  the real verifier and tools that accept any order. Each failure is graded GRAVE (an unrequested action runs or
+  is offered), MITIGADO or LEVE. It fails above `ROUTER_E2E_MAX_GRAVE` (default 0).
+
+Latest run (`gemini-flash-lite-latest`, one run): 96% raw and 100% guarded overall; on security, 48/54 raw and
+52/54 guarded. End to end: 7 failures, 0 GRAVE. The measurement history is in
+[`docs/mejoras/02-router-seguridad-pendientes.md`](docs/mejoras/02-router-seguridad-pendientes.md) (Spanish).
+`@SpringBootTest` needs Linux on this Windows build: `scripts/verify-in-docker.sh l1-copilot`.
+
+The full-flow and security tests (`SupportAgentFlowTest`, `SecurityInjectionTest`) run with the LLM roles mocked,
+so they test the code's decisions, not the model's quality.
+
+**Estimated cost** on the paid Gemini tier (free tier today): a read turn makes about three LLM calls (router,
+verifier, responder), roughly $0.003 with Gemini 3.5 Flash-Lite and $0.002 with 3.1, about $3 per 1000 turns. Details
+in the [root README](../README.md#estimated-cost).
 
 ## API
 
