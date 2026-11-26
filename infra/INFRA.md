@@ -404,6 +404,7 @@ infra/
 
 ## Notas
 
+- En Windows 11 build 26300 los `@SpringBootTest` no arrancan en local (`Selector.open()` falla con "Unable to establish loopback connection"); ejecútalos en un contenedor Linux con `./scripts/verify-in-docker.sh [autoops|l1-copilot|all]`.
 - El registry local solo consume recursos durante push/pull de imágenes.
 - Traefik gestiona el ingress sin configuración adicional.
 - Desde dentro del clúster, k3s pulla por `registry.local` (resuelto por `/etc/hosts` de la WSL `rancher-desktop` y enrutado por Traefik a `svc/registry:5000`).
