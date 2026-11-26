@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.agent;
 
+import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.l1copilot.agent.RouterGoldenCases.GoldenCase;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier.RouterDecision;
@@ -152,6 +153,9 @@ class RouterEvalTest {
             try {
                 return classifier.classify(c.message(), c.state().currentIntent(), c.state().awaiting(),
                         c.state().candidatesText(), c.state().focusText(), IntentClassifier.fenceSafe(c.history()));
+            } catch (OutputParsingException e) {
+                // The model broke the JSON contract: that is a failed case (intent NONE), not an aborted eval.
+                return new RouterDecision("", null, "NONE", "NONE");
             } catch (RuntimeException e) {
                 // Transient quota (429), overload (503) or request timeout: at most two waits for the window to reset, never an open loop.
                 if (attempt > 2 || !isTransient(e)) {
