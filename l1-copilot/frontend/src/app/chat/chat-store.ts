@@ -28,8 +28,8 @@ export class ChatStore {
   greet(name: string, formal = false): void {
     this.formal = formal;
     const text = formal
-      ? `Hola ${name}, soy su asistente. Puedo informarle del estado de sus envíos, cancelar sus pedidos o abrir una incidencia.`
-      : `Hola ${name}, soy tu asistente. Puedo informarte del estado de tus envíos, cancelar tus pedidos o abrir una incidencia.`;
+      ? `Hola ${name}, soy su asistente. Puedo informarle del estado de sus envíos, cancelar sus pedidos, iniciar una devolución o abrir una incidencia.`
+      : `Hola ${name}, soy tu asistente. Puedo informarte del estado de tus envíos, cancelar tus pedidos, iniciar una devolución o abrir una incidencia.`;
     this.messages.set([{ from: 'agent', text, at: new Date() }]);
   }
 
