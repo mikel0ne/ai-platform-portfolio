@@ -86,13 +86,18 @@ class RouterEvalTest {
                 return classifier.classify(message, "NONE", "NOTHING", "(ninguno)", "(ninguno)",
                         "(sin historial previo)");
             } catch (RuntimeException e) {
-                // Free-tier per-minute quota only: waits once for the window to reset, never loops.
-                if (attempt >= 2 || !String.valueOf(e).contains("429")) {
+                // Transient quota (429) or overload (503): at most two waits for the window to reset, never an open loop.
+                if (attempt > 2 || !isTransient(e)) {
                     throw e;
                 }
                 pause(65_000);
             }
         }
+    }
+
+    private static boolean isTransient(RuntimeException e) {
+        String text = String.valueOf(e);
+        return text.contains("429") || text.contains("503");
     }
 
     private static void pause(long millis) {
