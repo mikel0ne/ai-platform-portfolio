@@ -152,6 +152,55 @@ class LangfuseScoreGatewayTest {
         });
     }
 
+    @Test
+    @DisplayName("sendAsync no espera a un Langfuse lento y el score llega igualmente")
+    void sendAsyncDoesNotWaitForSlowLangfuse() throws Exception {
+        java.util.concurrent.CountDownLatch received = new java.util.concurrent.CountDownLatch(1);
+        HttpServer server;
+        try {
+            server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        } catch (IOException e) {
+            org.junit.jupiter.api.Assumptions.abort("loopback not available: " + e);
+            return;
+        }
+        server.createContext("/api/public/ingestion", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            byte[] ok = "{\"successes\":[],\"errors\":[]}".getBytes();
+            exchange.getResponseHeaders().add("Content-Type", "application/json");
+            exchange.sendResponseHeaders(207, ok.length);
+            exchange.getResponseBody().write(ok);
+            exchange.close();
+            received.countDown();
+        });
+        server.start();
+        try {
+            LangfuseProperties props = new LangfuseProperties(true,
+                    "http://127.0.0.1:" + server.getAddress().getPort() + "/api/public/otel",
+                    "pk", "sk", "test", "0", 1.0, false);
+            ObjectProvider<RestClient.Builder> builder = new ObjectProvider<>() {
+                @Override
+                public RestClient.Builder getObject() {
+                    return RestClient.builder();
+                }
+            };
+            LangfuseScoreGateway gateway = new LangfuseScoreGateway(props, builder);
+
+            long start = System.nanoTime();
+            gateway.sendAsync(TRACE_ID, "resolved", 1, LangfuseScoreGateway.BOOLEAN, null);
+            long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+
+            assertThat(elapsedMs).isLessThan(500);
+            assertThat(received.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+        } finally {
+            server.stop(0);
+        }
+    }
+
     private static JsonNode serialize(String name, Object value, String dataType, String comment) throws Exception {
         return JSON.readTree(JSON.writeValueAsString(LangfuseScoreGateway.batch("evt-1", "score-1",
                 Instant.parse("2026-01-02T03:04:05.0001234Z"), TRACE_ID, name, value, dataType, comment, "test")));

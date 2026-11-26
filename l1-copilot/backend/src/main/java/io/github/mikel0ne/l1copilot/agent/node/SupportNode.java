@@ -1,7 +1,6 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
-import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.SupportRouting;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
@@ -43,8 +42,7 @@ public class SupportNode implements NodeAction<SupportState> {
         log.debug("---SUPPORT--- awaiting={} confirmation={} draftLength={}",
                 awaiting, state.confirmation(), state.ticketDraft().length());
 
-        if (awaiting != Awaiting.TICKET_CONFIRM && awaiting != Awaiting.TICKET_INFO
-                && state.ticketDraft().isBlank()) {
+        if (awaiting != Awaiting.TICKET_INFO && state.ticketDraft().isBlank()) {
             String ticketDraft = message;
             String focus = state.orderId().map(id -> "#" + id).orElse("(ninguno)");
             Verifier.Decision decision = verifier.verify(message, Intent.SUPPORT.name(), focus);
@@ -70,30 +68,6 @@ public class SupportNode implements NodeAction<SupportState> {
                     SupportState.TOOL_RESULT, "El usuario quiere CONFIRMAR que se abra una incidencia. Confirma "
                             + "que vas a gestionarlo y pídele que describa con detalle el problema "
                             + "para poder registrar la incidencia correctamente.");
-        }
-
-        if (awaiting == Awaiting.TICKET_CONFIRM) {
-            if (state.confirmation() == Confirmation.NO) {
-                Map<String, Object> declined = new HashMap<>();
-                declined.put(SupportState.AWAITING, Awaiting.NOTHING.name());
-                declined.put(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
-                declined.put(SupportState.RESOLVED, true);
-                declined.put(SupportState.TOOL_RESULT, "El usuario NO quiere abrir la incidencia. Reconduce con "
-                        + "naturalidad hacia en qué más puedes ayudarle, sin abrir nada.");
-                return declined;
-            }
-
-            boolean briefConfirmation = state.confirmation() == Confirmation.YES
-                    && message.length() < MIN_DETAIL_LENGTH;
-            if (briefConfirmation) {
-                return Map.of(
-                        SupportState.AWAITING, Awaiting.TICKET_INFO.name(),
-                        SupportState.TOOL_RESULT, "El usuario confirma que quiere abrir la incidencia. Pídele que "
-                                + "describa con detalle qué ha ocurrido para poder abrirla. No "
-                                + "inventes datos.");
-            }
-
-            return collectOrCreate(state, message);
         }
 
         String rawDescription = state.ticketDraft().isBlank()

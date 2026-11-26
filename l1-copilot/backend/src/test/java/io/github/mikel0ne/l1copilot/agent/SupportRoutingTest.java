@@ -66,10 +66,10 @@ class SupportRoutingTest {
 
         assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "ticketDraft", "algo"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
-        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "awaiting", "TICKET_CONFIRM"))))
+        assertThat(SupportRouting.fromRouter(state(Map.of("intent", "SUPPORT", "awaiting", "TICKET_INFO"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
         assertThat(SupportRouting.fromRouter(state(Map.of(
-                "intent", "SUPPORT", "orderRelated", true, "awaiting", "TICKET_CONFIRM"))))
+                "intent", "SUPPORT", "orderRelated", true, "awaiting", "TICKET_INFO"))))
                 .isEqualTo(SupportRouting.TO_SUPPORT);
     }
 

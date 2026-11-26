@@ -339,7 +339,7 @@ class RouterNodeTest {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_CONFIRM", "ticketDraft", "el monitor llegó roto")));
+                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "el monitor llegó roto")));
 
         assertThat(updates).containsEntry("intent", "SUPPORT");
 
@@ -353,7 +353,7 @@ class RouterNodeTest {
         decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_CONFIRM", "ticketDraft", "tengo un problema")));
+                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "tengo un problema")));
 
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
@@ -368,7 +368,7 @@ class RouterNodeTest {
         decision(new RouterDecision("CANCEL", 200L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_CONFIRM", "ticketDraft", "esto va fatal")));
+                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "esto va fatal")));
 
         assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
         assertThat(updates).containsEntry("awaiting", "NOTHING");
@@ -384,7 +384,7 @@ class RouterNodeTest {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_CONFIRM", "ticketDraft", "el monitor llegó roto")));
+                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "el monitor llegó roto")));
 
         assertThat(updates).containsEntry("intent", "FAQ");
         assertThat(updates).containsEntry("suspendedIntent", "SUPPORT");

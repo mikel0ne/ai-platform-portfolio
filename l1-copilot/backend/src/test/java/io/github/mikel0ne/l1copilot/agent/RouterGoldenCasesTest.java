@@ -23,7 +23,7 @@ class RouterGoldenCasesTest {
     private static final int MIN_SECURITY_CASES = 10;
     private static final int MAX_MESSAGE_LENGTH = 2000;
     private static final Set<Awaiting> CONFIRM_GATES =
-            EnumSet.of(Awaiting.CANCEL_CONFIRM, Awaiting.RETURN_CONFIRM, Awaiting.TICKET_CONFIRM);
+            EnumSet.of(Awaiting.CANCEL_CONFIRM, Awaiting.RETURN_CONFIRM);
 
     private static List<GoldenCase> cases;
 

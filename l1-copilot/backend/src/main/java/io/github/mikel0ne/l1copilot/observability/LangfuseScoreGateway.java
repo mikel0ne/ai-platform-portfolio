@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -22,6 +23,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @Component
 public class LangfuseScoreGateway {
@@ -42,8 +47,18 @@ public class LangfuseScoreGateway {
 
     static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
 
+    private static final int MAX_PENDING_SCORES = 100;
+
     private final LangfuseProperties properties;
     private final RestClient client;
+    private final ExecutorService sender = new ThreadPoolExecutor(1, 1, 0L, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(MAX_PENDING_SCORES),
+            runnable -> {
+                Thread thread = new Thread(runnable, "langfuse-scores");
+                thread.setDaemon(true);
+                return thread;
+            },
+            (task, executor) -> log.warn("Langfuse score queue is full, dropping a score"));
 
     // The builder is resolved lazily so a start-up with Langfuse disabled behaves exactly as before.
     public LangfuseScoreGateway(LangfuseProperties properties, ObjectProvider<RestClient.Builder> builder) {
@@ -56,6 +71,19 @@ public class LangfuseScoreGateway {
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http11Client());
         factory.setReadTimeout(READ_TIMEOUT);
         return factory;
+    }
+
+    // Off the turn thread: a slow Langfuse must not delay the reply, and a lost score is only telemetry.
+    public void sendAsync(String traceId, String name, Object value, String dataType, String comment) {
+        if (client == null || traceId == null || traceId.isBlank()) {
+            return;
+        }
+        sender.execute(() -> send(traceId, name, value, dataType, comment));
+    }
+
+    @PreDestroy
+    void shutdown() {
+        sender.shutdown();
     }
 
     public void send(String traceId, String name, Object value, String dataType, String comment) {

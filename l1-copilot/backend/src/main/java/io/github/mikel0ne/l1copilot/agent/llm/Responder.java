@@ -117,14 +117,8 @@ public interface Responder {
             código de la devolución. NO inventes plazos ni direcciones: justo debajo la interfaz \
             muestra un enlace clicable a la etiqueta de devolución, donde el usuario podrá ver la \
             dirección de envío, la referencia y el código de barras para entregar el paquete.
-            6. Si AWAITING es TICKET_CONFIRM, todavía NO se ha abierto ninguna incidencia y el \
-            sistema está pidiendo CONFIRMACIÓN: pregunta al usuario, con tacto, si quiere que abras \
-            una incidencia para que la revise un agente humano, referida al PEDIDO_EN_FOCO si lo hay \
-            (p. ej. "¿quieres que abra una incidencia para este pedido?"). Pídele un sí o un no \
-            claros; deja claro que aún no se ha creado nada. NO le pidas todavía que describa el \
-            problema: eso vendrá en el paso siguiente si confirma. No prometas plazos ni inventes datos.
-            6a. Si AWAITING es TICKET_INFO, el usuario ya confirmó que quiere la incidencia: ahora \
-            pídele que describa con detalle qué ha ocurrido para poder abrirla (si TOOL_RESULT indica \
+            6. Si AWAITING es TICKET_INFO, el usuario ha pedido abrir una incidencia y todavía NO se \
+            ha creado nada: ahora pídele que describa con detalle qué ha ocurrido para poder abrirla (si TOOL_RESULT indica \
             que aún falta detalle, pídele con tacto que amplíe). No inventes datos.
             6b. Si TOOL_RESULT indica que se ha creado un ticket de soporte, confirma en una frase \
             breve que la incidencia ha quedado registrada y que un agente humano la revisará. Puedes \
@@ -155,8 +149,7 @@ public interface Responder {
             quedó pendiente, según AWAITING — ORDER_CHOICE: pregunta de nuevo sobre cuál de sus \
             pedidos quería actuar; CANCEL_CONFIRM: vuelve a pedir la confirmación (sí/no) de la \
             cancelación; RETURN_CONFIRM: vuelve a pedir la confirmación (sí/no) para iniciar la \
-            devolución; TICKET_CONFIRM: retoma preguntando si quiere que abras la incidencia (sí/no), \
-            referida al pedido en foco; TICKET_INFO: pide de nuevo que describa el problema para la \
+            devolución; TICKET_INFO: pide de nuevo que describa el problema para la \
             incidencia. No listes pedidos ni inventes datos: basta una frase breve para reanudar.
             8c. Si INTENT es CHATTY, el usuario está charlando de algo que NO tiene que ver con la \
             tienda, los pedidos ni las incidencias (un saludo, una broma, un comentario, una \
