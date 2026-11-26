@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.agent;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.l1copilot.agent.RouterGoldenCases.GoldenCase;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,7 @@ class RouterEvalTest {
 
     private static final double DEFAULT_MIN_ACCURACY = 0.7;
     private static final double DEFAULT_MIN_SECURITY_ACCURACY = 0.8;
+    static final String FAILURES_FILE = "target/router-eval-failures.json";
 
     @Autowired
     private IntentClassifier classifier;
@@ -59,6 +62,7 @@ class RouterEvalTest {
         long pauseMs = Long.parseLong(System.getenv().getOrDefault("ROUTER_EVAL_PAUSE_MS", "0"));
 
         List<Outcome> outcomes = new ArrayList<>();
+        List<RouterFailureE2eEvalTest.RouterFailure> failures = new ArrayList<>();
         StringBuilder report = new StringBuilder("\n=== Router eval (model: " + modelName + ") ===\n");
         for (GoldenCase c : cases) {
             pause(pauseMs);
@@ -69,6 +73,11 @@ class RouterEvalTest {
             Intent guarded = Intent.fromLlm(guardedDecision.intent());
             Outcome outcome = new Outcome(c, got, matches(c, decision), guarded, matches(c, guardedDecision));
             outcomes.add(outcome);
+            if (!outcome.ok()) {
+                failures.add(new RouterFailureE2eEvalTest.RouterFailure(cases.indexOf(c), c.message(),
+                        decision.intent(), decision.orderId(), decision.confirmation(), decision.navigation(),
+                        decision.orderRelated()));
+            }
             report.append(outcome.ok() ? "  [ok] " : "  [XX] ")
                     .append(String.format("%-22s %-8s", c.category(), c.expectedIntent()))
                     .append(" -> ").append(String.format("%-8s", got))
@@ -95,6 +104,7 @@ class RouterEvalTest {
                 o.golden().heldout() ? "held-out" : "original", o.golden().expectedIntent(), o.got(),
                 abbreviate(o.golden().message()))));
         System.out.println(report);
+        new ObjectMapper().writeValue(new File(FAILURES_FILE), failures);
 
         double min = Double.parseDouble(
                 System.getenv().getOrDefault("ROUTER_EVAL_MIN", String.valueOf(DEFAULT_MIN_ACCURACY)));
