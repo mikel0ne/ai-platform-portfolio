@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><title>diagnose_pod</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0f1117; color: #d7dae0; font: 15px/1.55 "Cascadia Mono", Consolas, monospace; }
+  .win { width: 1000px; height: 600px; box-sizing: border-box; padding: 0 26px 20px; overflow: hidden; }
+  .bar { margin: 0 -26px 18px; padding: 10px 26px; background: #1a1d27; color: #8b91a3; font-size: 13px; border-bottom: 1px solid #262a38; }
+  .user { color: #e6e8ee; margin: 6px 0 14px; }
+  .user b { color: #9ece6a; }
+  .tool { margin: 10px 0 2px; color: #7aa2f7; }
+  .tool span { color: #8b91a3; }
+  pre { margin: 2px 0 12px 18px; color: #a9afc0; white-space: pre-wrap; word-break: break-word; font: inherit; }
+  .warn { color: #e0af68; }
+  .bad { color: #f7768e; }
+  .ok { color: #9ece6a; }
+  .ans { margin: 14px 0 0; padding: 12px 16px; background: #171a24; border-left: 3px solid #7aa2f7; color: #e6e8ee; }
+  .ans p { margin: 0 0 6px; }
+  .hide { display: none; }
+  .note { position: absolute; bottom: 8px; right: 14px; color: #5c6379; font-size: 11px; }
+</style></head>
+<body>
+<div class="win">
+  <div class="bar">Claude Code · servidor MCP «autoops» (solo lectura) · http://autoops.local/mcp</div>
+  <div class="user"><b>&gt;</b> ¿Por qué no arranca payments-api en el namespace demo-broken?</div>
+
+  <div id="s1" class="hide">
+    <div class="tool">● autoops › list_pods <span>(namespace: "demo-broken")</span></div>
+    <pre>[{"name":"payments-api-78c5bf6759-qk4rp","phase":"<span class="warn">Pending</span>","ready":<span class="bad">false</span>,"restarts":0,"age":"21s"}]</pre>
+  </div>
+
+  <div id="s2" class="hide">
+    <div class="tool">● autoops › diagnose_pod <span>(namespace: "demo-broken", name: "payments-api-78c5bf6759-qk4rp")</span></div>
+<pre>{ "phase": "Pending", "ready": false,
+  "reason": "<span class="bad">ImagePullBackOff</span>",
+  "containers": [{ "name": "app", "image": "registry.local/payments-api:9.9.9",
+                   "restarts": 0, "state": "Waiting", "stateReason": "<span class="bad">ImagePullBackOff</span>" }],
+  "events": [
+    { "type": "Warning", "reason": "Failed",
+      "message": "<span class="warn">Failed to pull image "registry.local/payments-api:9.9.9": … not found</span>", "ago": "5s" },
+    { "type": "Warning", "reason": "Failed", "message": "Error: ErrImagePull", "ago": "5s" },
+    { "type": "Normal",  "reason": "BackOff", "message": "Back-off pulling image …", "ago": "20s" } ],
+  "logs": "(no logs available: … container "app" is waiting to start: trying and failing to pull image)" }</pre>
+  </div>
+
+  <div id="s3" class="hide">
+    <div class="ans">
+      <p><span class="bad">Causa:</span> la imagen <b>registry.local/payments-api:9.9.9</b> no existe en el registro (<i>not found</i>), así que el
+      contenedor nunca llega a arrancar: <span class="bad">ImagePullBackOff</span>.</p>
+      <p>No hay logs porque no hubo ejecución. No es un problema de la aplicación ni de la readiness probe.</p>
+      <p><span class="ok">Siguiente paso:</span> publicar esa etiqueta en el registro o corregir la imagen del Deployment.</p>
+    </div>
+  </div>
+</div>
+<script>
+  const step = Number(new URLSearchParams(location.search).get('step') || 3);
+  for (let i = 1; i <= step; i++) document.getElementById('s' + i).classList.remove('hide');
+</script>
+</body></html>

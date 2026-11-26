@@ -41,6 +41,14 @@ for scenario in ('tracking', 'cancel', 'jailbreak'):
         l1.append((ms, frame(f'{scenario}-{i:02d}-{label}.png', CHAT_BOX)))
 build(f'{out}/l1-copilot-demo.gif', l1)
 
+# diagnose-shots.mjs renders diagnose-scene.html in four steps: question, list_pods, diagnose_pod, conclusion
+build(f'{out}/autoops-diagnose-demo.gif', [
+    (1200, frame('diagnose-00.png')),
+    (2200, frame('diagnose-01.png')),
+    (4500, frame('diagnose-02.png')),
+    (7000, frame('diagnose-03.png')),
+])
+
 build(f'{out}/autoops-search-demo.gif', [
     (1500, frame('autoops-00-start.png', (255, 0, 1395, 900))),
     (4500, frame('autoops-01-answer.png', (255, 80, 1395, 1570))),

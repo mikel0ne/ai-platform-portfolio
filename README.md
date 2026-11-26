@@ -141,17 +141,11 @@ flowchart LR
     rag --> gemini[[Gemini]]
 ```
 
-What the assistant receives from `diagnose_pod` (real output for the L1 Copilot frontend pod, log tail
-cut here):
+![A deployment whose image does not exist: list_pods and diagnose_pod return ImagePullBackOff and "not found", and the assistant concludes the image must be published](docs/img/autoops-diagnose-demo.gif)
 
-```json
-{"phase":"Running","ready":true,"reason":null,
- "conditions":[{"type":"Initialized","state":"True"},{"type":"Ready","state":"True"},
-               {"type":"ContainersReady","state":"True"},{"type":"PodScheduled","state":"True"}],
- "containers":[{"name":"app","image":"registry.local/l1-copilot-frontend:1.5.0","restarts":0,"state":"Running"}],
- "events":[],
- "logs":"{\"service\":\"frontend\",\"level\":\"info\",\"type\":\"access\",\"method\":\"GET\",\"uri\":\"/\",\"status\":200, ...}"}
-```
+A deliberately broken Deployment ([`demo-broken.yaml`](scripts/readme-media/demo-broken.yaml), image tag that
+does not exist). The two tool calls and their results are real, taken from the running server and
+abridged with `…`; the window and the closing paragraph are a re-creation, not a recording of Claude Code.
 
 And the read-only guarantee, checked against the cluster (the last two must answer `no`):
 
