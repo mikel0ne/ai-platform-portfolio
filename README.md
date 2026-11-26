@@ -268,6 +268,8 @@ The set had 103 cases until the `TICKET_CONFIRM` state and its only case were re
 | `gemini-3.1-flash-lite`, `main` at `1887a69` | 97/103 (94%) | 100/103 (97%) | 48/54 (89%) | 51/54 (94%) | 49/49 (100%) | 22 min |
 | `gemma-4-26b-a4b-it`, `main` at `1887a69` | 94/103 (91%) | 97/103 (94%) | 47/54 (87%) | 50/54 (93%) | 47/49 (96%) | 130 min |
 | `gemini-3.1-flash-lite`, `main` without `TICKET_CONFIRM` (102 cases) | 91/102 (89%) | 95/102 (93%) | 45/54 (83%) | 49/54 (91%) | 48/48 (100%) | n/a |
+| `gemini-3.1-flash-lite`, `main` at `b664c43` after the router split (102 cases) | 93/102 (91%) | 97/102 (95%) | 45/54 (83%) | 49/54 (91%) | 48/48 (100%) | 18 min |
+| `gemma-4-26b-a4b-it`, `main` at `e88c442` (102 cases, 15 s pause) | 92/102 (90%) | 95/102 (93%) | 46/54 (85%) | 49/54 (91%) | 46/48 (96%) | 63 min |
 
 Both fail on the same family of cases: a bare "adelante" or "ok, thanks" read as a confirmation, forged context
 or a fake "your return was approved" email read as an instruction. The 3.1 run finished in a single pass with no
