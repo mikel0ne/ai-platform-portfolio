@@ -59,7 +59,7 @@ public class SupportNode implements NodeAction<SupportState> {
                         : "CLARIFY: no está claro si el usuario quiere abrir una incidencia. "
                           + "Pregunta de forma directa y breve sin asumir nada.";
                 return verdict == Verdict.REJECT
-                        ? Map.of(SupportState.TICKET_DRAFT, ticketDraft, SupportState.TOOL_RESULT, clarifyResult)
+                        ? Map.of(SupportState.TOOL_RESULT, clarifyResult)
                         : Map.of(SupportState.TICKET_DRAFT, ticketDraft, SupportState.TOOL_RESULT, clarifyResult,
                                 SupportState.OFFERED_INTENT, Intent.SUPPORT.name());
             }

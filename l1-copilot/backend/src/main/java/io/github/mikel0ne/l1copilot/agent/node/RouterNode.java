@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
+import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.l1copilot.agent.AssentGuard;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.Confirmation;
@@ -53,13 +54,7 @@ public class RouterNode implements NodeAction<SupportState> {
         // During a digression the suspended request is the current one, so resuming it keeps its intent.
         Intent effectiveCurrent = state.suspendedIntent().orElse(state.intent());
 
-        IntentClassifier.RouterDecision raw = classifier.classify(
-                state.userMessage(),
-                effectiveCurrent.name(),
-                state.awaiting().name(),
-                describeCandidates(state),
-                describeFocus(state),
-                IntentClassifier.fenceSafe(history.classifier().render(state.history())));
+        IntentClassifier.RouterDecision raw = classify(state, effectiveCurrent);
         IntentClassifier.RouterDecision decision =
                 AssentGuard.apply(raw, state.awaiting(), state.offeredIntent(), state.userMessage());
         if (!decision.equals(raw)) {
@@ -110,6 +105,15 @@ public class RouterNode implements NodeAction<SupportState> {
             log.debug("---ROUTER--- ticket dropped: the user asks for something else (intent={})", intent);
         }
 
+        // A draft left by a doubtful SUPPORT only survives the turn that accepts it; otherwise it would skip
+        // the verifier of every later action and become the start of an unrequested ticket.
+        boolean staleTicketDraft = state.awaiting() == Awaiting.NOTHING && !state.ticketDraft().isBlank()
+                && intent != Intent.SUPPORT && intent != Intent.NONE;
+        if (staleTicketDraft) {
+            updates.put(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
+            log.debug("---ROUTER--- stale ticket draft dropped (intent={})", intent);
+        }
+
         if (decision.orderId() != null && decision.orderId() > 0) {
             long newFocus = decision.orderId();
             boolean selecting = state.awaiting() == Awaiting.ORDER_CHOICE;
@@ -130,7 +134,13 @@ public class RouterNode implements NodeAction<SupportState> {
 
         if (state.awaiting() == Awaiting.CANCEL_CONFIRM || state.awaiting() == Awaiting.RETURN_CONFIRM
                 || state.awaiting() == Awaiting.TICKET_CONFIRM) {
-            updates.put(SupportState.CONFIRMATION, Confirmation.fromState(decision.confirmation()).name());
+            Confirmation confirmation = Confirmation.fromState(decision.confirmation());
+            if (confirmation == Confirmation.YES && !confirmsPendingAction(state, intent, updates)) {
+                log.debug("---ROUTER--- YES ignored: it does not match the pending {} of order {}",
+                        state.awaiting(), state.orderId().orElse(null));
+                confirmation = Confirmation.NONE;
+            }
+            updates.put(SupportState.CONFIRMATION, confirmation.name());
         }
 
         if (intent == Intent.OTHER && hasOngoingContext(state) && !abandoningTicketGate) {
@@ -142,6 +152,23 @@ public class RouterNode implements NodeAction<SupportState> {
         log.debug("---ROUTER--- decision: intent={} orderId={} confirmation={}",
                 decision.intent(), decision.orderId(), decision.confirmation());
         return updates;
+    }
+
+    // An unparseable decision degrades to OTHER, which asks for clarification and executes nothing.
+    private IntentClassifier.RouterDecision classify(SupportState state, Intent effectiveCurrent) {
+        try {
+            return classifier.classify(
+                    state.userMessage(),
+                    effectiveCurrent.name(),
+                    state.awaiting().name(),
+                    describeCandidates(state),
+                    describeFocus(state),
+                    IntentClassifier.fenceSafe(history.classifier().render(state.history())));
+        } catch (OutputParsingException e) {
+            log.warn("Router output not parseable, degrading to OTHER: {}", e.getMessage());
+            return new IntentClassifier.RouterDecision(Intent.OTHER.name(), null, Confirmation.NONE.name(),
+                    Navigation.NONE.name());
+        }
     }
 
     private Optional<Map<String, Object>> deterministicShortcut(SupportState state) {
@@ -198,6 +225,22 @@ public class RouterNode implements NodeAction<SupportState> {
                 SupportState.ORDER_ID, orderId,
                 SupportState.CONFIRMATION, (expected ? Confirmation.YES : Confirmation.NONE).name(),
                 SupportState.CLARIFY_ATTEMPTS, 0);
+    }
+
+    // A typed YES only executes the action and order the confirmation card was shown for.
+    private boolean confirmsPendingAction(SupportState state, Intent intent, Map<String, Object> updates) {
+        Intent pendingAction = switch (state.awaiting()) {
+            case CANCEL_CONFIRM -> Intent.CANCEL;
+            case RETURN_CONFIRM -> Intent.RETURN;
+            case TICKET_CONFIRM -> Intent.SUPPORT;
+            default -> Intent.NONE;
+        };
+        Intent effectiveIntent = intent == Intent.NONE ? state.intent() : intent;
+        Optional<Long> confirmedOrder = state.orderId();
+        Object pendingFocus = updates.get(SupportState.ORDER_ID);
+        Optional<Long> effectiveOrder = pendingFocus instanceof Long id ? Optional.of(id) : confirmedOrder;
+        boolean sameOrder = pendingAction == Intent.SUPPORT || effectiveOrder.equals(confirmedOrder);
+        return effectiveIntent == pendingAction && sameOrder && updates.get(SupportState.PROPOSED_ORDER_ID) == null;
     }
 
     private boolean isCandidate(SupportState state, long orderId) {

@@ -43,10 +43,38 @@ public class SupportState extends AgentState {
     public static final String TICKET_CARDS = "ticketCards";
     public static final String RETURN_CARDS = "returnCards";
 
+    // Well above the prompt windows: older turns are never read, so keeping them only grows the checkpoints.
+    static final int MAX_STORED_TURNS = 40;
+
     // Only simple serializable values: the checkpointer persists the state between HTTP turns.
     public static final Map<String, Channel<?>> SCHEMA = Map.of(
-            HISTORY, Channels.appender(ArrayList::new)
+            HISTORY, Channels.<List<Turn>>base(SupportState::appendCapped, ArrayList::new)
     );
+
+    // Per-turn values: every turn starts from these, so nothing of the previous turn leaks into the next one.
+    public static final Map<String, Object> TURN_RESETS = Map.ofEntries(
+            Map.entry(CONFIRMATION, Confirmation.NONE.name()),
+            Map.entry(TENTATIVE, false),
+            Map.entry(NAVIGATING, false),
+            Map.entry(PROPOSED_ORDER_ID, 0L),
+            Map.entry(TOOL_RESULT, ""),
+            Map.entry(REPLY, ""),
+            Map.entry(RESOLVED, false),
+            Map.entry(ORDER_CARDS, List.of()),
+            Map.entry(TICKET_CARDS, List.of()),
+            Map.entry(RETURN_CARDS, List.of()),
+            Map.entry(PENDING_CANCEL_ID, 0L),
+            Map.entry(PENDING_RETURN_ID, 0L));
+
+    static List<Turn> appendCapped(List<Turn> stored, List<Turn> added) {
+        List<Turn> all = new ArrayList<>(stored == null ? List.of() : stored);
+        if (added != null) {
+            all.addAll(added);
+        }
+        return all.size() <= MAX_STORED_TURNS
+                ? all
+                : new ArrayList<>(all.subList(all.size() - MAX_STORED_TURNS, all.size()));
+    }
 
     public SupportState(Map<String, Object> initData) {
         super(initData);
