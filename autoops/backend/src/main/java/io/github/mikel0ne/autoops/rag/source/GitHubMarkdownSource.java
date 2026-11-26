@@ -77,6 +77,11 @@ public class GitHubMarkdownSource {
         return webBase + "/blob/" + branch + "/" + relPath;
     }
 
+    public static String docIdPrefix(GitRepo repo) {
+        String subdir = repo.subdir() == null || repo.subdir().isBlank() ? "" : repo.subdir() + "/";
+        return ownerRepo(repo.url())[1] + ":" + subdir;
+    }
+
     static String[] ownerRepo(String url) {
         String clean = withoutGitSuffix(stripTrailingSlash(url == null ? "" : url));
         int slash = clean.lastIndexOf('/');

@@ -40,13 +40,22 @@ public class LangfuseScoreGateway {
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
+    static final Duration READ_TIMEOUT = Duration.ofSeconds(3);
+
     private final LangfuseProperties properties;
     private final RestClient client;
 
     // The builder is resolved lazily so a start-up with Langfuse disabled behaves exactly as before.
     public LangfuseScoreGateway(LangfuseProperties properties, ObjectProvider<RestClient.Builder> builder) {
         this.properties = properties;
-        this.client = properties.isEnabled() ? builder.getObject().requestFactory(new JdkClientHttpRequestFactory(http11Client())).build() : null;
+        this.client = properties.isEnabled() ? builder.getObject().requestFactory(requestFactory()).build() : null;
+    }
+
+    // Scores are sent inside the chat turn, so a slow Langfuse may delay the reply by this much at most.
+    static JdkClientHttpRequestFactory requestFactory() {
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http11Client());
+        factory.setReadTimeout(READ_TIMEOUT);
+        return factory;
     }
 
     public void send(String traceId, String name, Object value, String dataType, String comment) {

@@ -81,6 +81,15 @@ copilot:
     sample-ratio: 1.0
     # Privacy switch: false keeps prompts and replies (user messages, order data) out of the traces.
     capture-content: true
+  # Retries around every LLM call: 5xx and timeouts back off (2 s, 4 s, ...); a per-minute 429 waits the
+  # provider's hint; a daily 429 or an invalid request is never retried. A rate-limit wait longer than
+  # rate-limit-max-wait fails at once. max-attempts counts the first call.
+  llm-retry:
+    enabled: true
+    max-attempts: 4
+    transient-delay: 2s
+    max-transient-delay: 20s
+    rate-limit-max-wait: 70s
   # Turn log: raw material for the router's golden evaluation set.
   turn-log:
     file:

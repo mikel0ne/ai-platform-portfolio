@@ -2,7 +2,6 @@ package io.github.mikel0ne.l1copilot.service;
 
 import dev.langchain4j.exception.LangChain4jException;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
-import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Treatment;
 import io.github.mikel0ne.l1copilot.agent.Turn;
@@ -53,27 +52,11 @@ public class ConversationService {
                 .threadId(threadId(userId, conversationId))
                 .build();
 
-        Map<String, Object> input = new HashMap<>();
+        Map<String, Object> input = new HashMap<>(SupportState.TURN_RESETS);
         input.put(SupportState.USER_ID, userId);
         input.put(SupportState.TREATMENT, treatment.name());
         input.put(SupportState.USER_MESSAGE, message);
         input.put(SupportState.HISTORY, List.of(Turn.user(message)));
-        input.put(SupportState.CONFIRMATION, Confirmation.NONE.name());
-        input.put(SupportState.TENTATIVE, false);
-
-        input.put(SupportState.NAVIGATING, false);
-
-        input.put(SupportState.PROPOSED_ORDER_ID, 0L);
-        input.put(SupportState.TOOL_RESULT, "");
-        input.put(SupportState.REPLY, "");
-        input.put(SupportState.RESOLVED, false);
-        input.put(SupportState.ORDER_CARDS, List.of());
-        input.put(SupportState.TICKET_CARDS, List.of());
-        input.put(SupportState.RETURN_CARDS, List.of());
-
-        input.put(SupportState.PENDING_CANCEL_ID, 0L);
-
-        input.put(SupportState.PENDING_RETURN_ID, 0L);
 
         SupportState state;
         try {

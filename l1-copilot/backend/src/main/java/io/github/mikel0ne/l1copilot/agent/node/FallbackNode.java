@@ -14,7 +14,8 @@ public class FallbackNode implements NodeAction<SupportState> {
 
     private static final String CAPABILITIES = "Mensaje fuera de las gestiones soportadas. "
             + "Saludar si procede y explicar las capacidades: informar del estado de envíos, "
-            + "cancelar pedidos, abrir incidencias para un agente humano, consultar las "
+            + "cancelar pedidos, iniciar la devolución de pedidos entregados, abrir incidencias "
+            + "para un agente humano, consultar las "
             + "incidencias ya abiertas y su estado, y responder dudas generales sobre envíos, "
             + "devoluciones, pagos o garantía. Preguntar además si el usuario tiene alguna duda "
             + "general de ese tipo. No ofrecer NUNCA tareas fuera de esas capacidades.";
@@ -22,12 +23,13 @@ public class FallbackNode implements NodeAction<SupportState> {
     private static final String CLARIFY = "El usuario ha dicho algo poco claro mientras "
             + "seguíamos con el pedido en foco (ver PEDIDO_EN_FOCO). NO listes todas las "
             + "capacidades en frío: pregunta con tacto, tomando ese pedido como contexto, qué "
-            + "quiere hacer con él (consultar el envío, cancelarlo, o abrir una incidencia) o si "
+            + "quiere hacer con él (consultar el envío, cancelarlo, devolverlo si ya está entregado, "
+            + "o abrir una incidencia) o si "
             + "tiene alguna duda general.";
 
     private static final String CLARIFY_ESCALATE = "El usuario vuelve a decir algo poco claro "
             + "sobre el pedido en foco (ver PEDIDO_EN_FOCO). Reorienta con tacto: recuerda en una "
-            + "frase qué se puede hacer con ese pedido (envío, cancelación, incidencia) o "
+            + "frase qué se puede hacer con ese pedido (envío, cancelación, devolución, incidencia) o "
             + "responder una duda general, y sugiérele volver al menú principal si prefiere "
             + "empezar de cero.";
 

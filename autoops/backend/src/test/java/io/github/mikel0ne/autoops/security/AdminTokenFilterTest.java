@@ -35,4 +35,22 @@ class AdminTokenFilterTest {
         assertThat(call("", "").getStatus()).isEqualTo(401);
         assertThat(call(null, "anything").getStatus()).isEqualTo(401);
     }
+
+    @Test
+    void opt_in_filter_stays_open_until_a_token_is_configured() throws Exception {
+        assertThat(callMcp("", null).getStatus()).isEqualTo(200);
+        assertThat(callMcp("s3cret", null).getStatus()).isEqualTo(401);
+        assertThat(callMcp("s3cret", "s3cret").getStatus()).isEqualTo(200);
+    }
+
+    private static MockHttpServletResponse callMcp(String configuredToken, String header) throws Exception {
+        var request = new MockHttpServletRequest("POST", "/mcp");
+        if (header != null) {
+            request.addHeader(AdminSecurityConfig.MCP_HEADER, header);
+        }
+        var response = new MockHttpServletResponse();
+        new AdminTokenFilter(AdminSecurityConfig.MCP_HEADER, configuredToken, true)
+                .doFilter(request, response, new MockFilterChain());
+        return response;
+    }
 }

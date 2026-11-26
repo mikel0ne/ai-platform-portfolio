@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -123,9 +124,12 @@ public class WeaviateGateway implements DocRetriever {
     // Below the 100-content limit of Gemini batchEmbedContents.
     private static final int EMBEDDING_BATCH_SIZE = 50;
 
-    // Replaces each document as a whole, so re-ingesting never duplicates chunks nor leaves stale ones behind.
-    // Everything is embedded first: a quota failure halfway must not leave documents deleted.
-    public int ingest(List<Chunk> chunks) {
+    private static final int EXISTING_DOCS_LIMIT = 10_000;
+
+    // Upserts first (chunk ids are stable per document position) and only then removes what the new
+    // version no longer has, so a failure halfway never leaves a document deleted. The scope is the origin
+    // (and optionally a docId prefix) that this batch is the complete picture of.
+    public int ingest(List<Chunk> chunks, String origin, String docIdPrefix) {
         if (chunks.isEmpty()) {
             return 0;
         }
@@ -136,22 +140,73 @@ public class WeaviateGateway implements DocRetriever {
             embeddings.addAll(embedWithRetry(embedder, chunks.subList(from, to)));
         }
 
-        chunks.stream().map(Chunk::docId).distinct().forEach(this::deleteDocument);
         for (int from = 0; from < chunks.size(); from += EMBEDDING_BATCH_SIZE) {
             int to = Math.min(from + EMBEDDING_BATCH_SIZE, chunks.size());
             insert(chunks.subList(from, to), embeddings.subList(from, to));
         }
 
-        log.info("Weaviate ingestion: {} chunks inserted into {}", chunks.size(), props.className());
+        chunkCounts(chunks).forEach(this::deleteChunksFrom);
+        List<String> existing = existingDocIds(origin, docIdPrefix);
+        List<String> stale = staleDocIds(existing, chunks);
+        stale.forEach(this::deleteDocument);
+
+        log.info("Weaviate ingestion: {} chunks inserted into {}, {} removed documents",
+                chunks.size(), props.className(), stale.size());
         return chunks.size();
     }
 
-    private void deleteDocument(String docId) {
+    static Map<String, Integer> chunkCounts(List<Chunk> chunks) {
+        Map<String, Integer> counts = new LinkedHashMap<>();
+        chunks.forEach(c -> counts.merge(c.docId(), 1, Integer::sum));
+        return counts;
+    }
+
+    static List<String> staleDocIds(List<String> existing, List<Chunk> chunks) {
+        Set<String> current = chunks.stream().map(Chunk::docId).collect(Collectors.toSet());
+        return existing.stream().filter(id -> !current.contains(id)).toList();
+    }
+
+    List<String> existingDocIds(String origin, String docIdPrefix) {
+        WhereFilter byOrigin = WhereFilter.builder().path(ORIGIN).operator(Operator.Equal).valueText(origin).build();
+        WhereFilter filter = docIdPrefix == null ? byOrigin : WhereFilter.builder()
+                .operator(Operator.And)
+                .operands(new WhereFilter[]{byOrigin, WhereFilter.builder().path(DOC_ID).operator(Operator.Like)
+                        .valueText(docIdPrefix + "*").build()})
+                .build();
+        Result<GraphQLResponse> result = client.graphQL().get()
+                .withClassName(props.className())
+                .withWhere(WhereArgument.builder().filter(filter).build())
+                .withLimit(EXISTING_DOCS_LIMIT)
+                .withFields(Field.builder().name(DOC_ID).build())
+                .run();
+        failOnError("listing the indexed documents of " + origin, result);
+        List<DocChunk> rows = parse(result.getResult());
+        if (rows.size() >= EXISTING_DOCS_LIMIT) {
+            log.warn("More than {} chunks indexed for {}: skipping the removal of vanished documents",
+                    EXISTING_DOCS_LIMIT, origin);
+            return List.of();
+        }
+        return rows.stream().map(DocChunk::docId).distinct().toList();
+    }
+
+    void deleteChunksFrom(String docId, int firstStaleOrder) {
+        WhereFilter filter = WhereFilter.builder()
+                .operator(Operator.And)
+                .operands(new WhereFilter[]{
+                        WhereFilter.builder().path(DOC_ID).operator(Operator.Equal).valueText(docId).build(),
+                        WhereFilter.builder().path(ORDER).operator(Operator.GreaterThanEqual)
+                                .valueInt(firstStaleOrder).build()})
+                .build();
+        failOnError("deleting the stale chunks of " + docId, client.batch().objectsBatchDeleter()
+                .withClassName(props.className()).withWhere(filter).run());
+    }
+
+    void deleteDocument(String docId) {
         Result<?> result = client.batch().objectsBatchDeleter()
                 .withClassName(props.className())
                 .withWhere(WhereFilter.builder().path(DOC_ID).operator(Operator.Equal).valueText(docId).build())
                 .run();
-        failOnError("deleting the previous chunks of " + docId, result);
+        failOnError("deleting the chunks of " + docId, result);
     }
 
     private List<Embedding> embedWithRetry(EmbeddingModel embedder, List<Chunk> batch) {
@@ -170,7 +225,7 @@ public class WeaviateGateway implements DocRetriever {
         }
     }
 
-    private void insert(List<Chunk> batch, List<Embedding> embeddings) {
+    void insert(List<Chunk> batch, List<Embedding> embeddings) {
         WeaviateObject[] objects = new WeaviateObject[batch.size()];
         for (int i = 0; i < batch.size(); i++) {
             objects[i] = toObject(batch.get(i), embeddings.get(i));
