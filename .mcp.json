@@ -2,7 +2,10 @@
   "mcpServers": {
     "autoops": {
       "type": "http",
-      "url": "http://autoops.local/mcp"
+      "url": "http://autoops.local/mcp",
+      "headers": {
+        "X-MCP-Token": "${AUTOOPS_MCP_TOKEN}"
+      }
     }
   }
 }

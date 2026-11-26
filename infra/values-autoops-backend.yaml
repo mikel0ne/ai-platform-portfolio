@@ -66,7 +66,7 @@ configmap:
     JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"
 
 # Secrets synced by deploy.sh from infra/.env.local: Gemini key (chat + embeddings), GitHub
-# token (reads the repo for RAG ingestion), Wiki.js key and the /admin token.
+# token (reads the repo for RAG ingestion), Wiki.js key, the /admin token and the /mcp token.
 # The chart never creates them.
 secretEnv:
   - name: GEMINI_API_KEY
@@ -81,6 +81,9 @@ secretEnv:
   - name: AUTOOPS_ADMIN_TOKEN
     secretName: autoops-admin-secret
     secretKey: AUTOOPS_ADMIN_TOKEN
+  - name: AUTOOPS_MCP_TOKEN
+    secretName: autoops-mcp-token
+    secretKey: AUTOOPS_MCP_TOKEN
   # Keys of the "autoops" Langfuse project. The Secret key name is set by deploy.sh (one per
   # infra/.env.local variable); the pod variable name is the chart's choice.
   - name: LANGFUSE_PUBLIC_KEY

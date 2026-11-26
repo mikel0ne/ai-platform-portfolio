@@ -51,10 +51,19 @@ config MCP del cliente:
 ```jsonc
 {
   "mcpServers": {
-    "autoops": { "type": "http", "url": "http://autoops.local/mcp" }
+    "autoops": {
+      "type": "http",
+      "url": "http://autoops.local/mcp",
+      "headers": { "X-MCP-Token": "${AUTOOPS_MCP_TOKEN}" }
+    }
   }
 }
 ```
+
+El endpoint `/mcp` exige la cabecera `X-MCP-Token`; su valor es el secreto `AUTOOPS_MCP_TOKEN` de
+`infra/.env.local` (variable obligatoria del despliegue: `deploy.sh` aborta si falta; generarla con
+`openssl rand -hex 32`). El cliente lo lee de la variable de entorno del mismo nombre, sin guardarlo en el repo: en
+Windows, variable de entorno de usuario `AUTOOPS_MCP_TOKEN` y reiniciar el cliente MCP.
 
 Para uso **local por stdio** (sin desplegar), el cliente arranca el jar:
 

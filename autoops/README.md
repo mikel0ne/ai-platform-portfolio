@@ -114,8 +114,10 @@ The Kubernetes tools use the current kubeconfig context. The search chat runs wi
 bash infra/scripts/ingest-autoops.sh --reset      # indexes this repository's docs into Weaviate
 ```
 
-Then point an MCP client at `http://autoops.local/mcp`; for Claude Code the repo already ships
-[`.mcp.json`](../.mcp.json).
+`AUTOOPS_MCP_TOKEN` is a required deploy variable (`openssl rand -hex 32` into `infra/.env.local`): the deploy
+aborts without it. Then point an MCP client at `http://autoops.local/mcp` sending the same value in the
+`X-MCP-Token` header; for Claude Code the repo already ships [`.mcp.json`](../.mcp.json), which reads it from the
+environment variable `AUTOOPS_MCP_TOKEN` (on Windows a user environment variable; restart the client after setting it).
 
 ## Evaluation
 
@@ -170,8 +172,9 @@ The ADRs are in [`docs/arquitectura/02-arquitectura-sistema.md`](docs/arquitectu
 
 - `/admin/*` (ingestion, vector store drop) requires the `X-Admin-Token` header and is not routed by the Ingress.
 - Actuator exposes only `health` and `info`.
-- `/mcp` and `/search` have no authentication: this is a local demo. A real deployment would put OAuth
-  (the MCP authorization spec) or an authenticating gateway in front of them.
+- `/mcp` requires the `X-MCP-Token` header whenever `AUTOOPS_MCP_TOKEN` is set; the cluster deploy makes that secret
+  mandatory, while a local run without it leaves the endpoint open. `/search` has no authentication: this is a local
+  demo. A real deployment would put OAuth (the MCP authorization spec) or an authenticating gateway in front of both.
 - `/search` is capped by `SearchRateLimiter`, a global in-memory counter (not per client): it only holds with a
   single replica, and a scaled-out deployment would need a shared store or a gateway-level limit.
 
