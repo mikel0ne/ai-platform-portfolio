@@ -8,7 +8,7 @@ smoke test extremo a extremo superado.
 ## 1. Reglas de enrutado
 
 El Ingress **no lo genera el chart de Helm** — se aplica directamente con el script genérico
-[`infra/scripts/setup-app-ingress.sh`](../../infra/scripts/setup-app-ingress.sh) pasándole
+[`infra/scripts/setup-app-ingress.sh`](../../../infra/scripts/setup-app-ingress.sh) pasándole
 `--project l1-copilot`. En los values del backend y del frontend `ingress.enabled: false`.
 
 Dos paths, sin puertos adicionales, puerto 80 estándar de Traefik:

@@ -5,7 +5,7 @@
 ```mermaid
 graph LR
     U[Usuario<br/>cliente del e-commerce] -->|chat HTTP| FE[Frontend Angular<br/>SPA de chat]
-    FE -->|REST /api/chat| BE[Backend Spring Boot<br/>L1 Support Copilot]
+    FE -->|REST /api/copilot/*| BE[Backend Spring Boot<br/>L1 Support Copilot]
     BE -->|generateContent| LLM[Gemini<br/>Google AI Studio]
     BE -->|JDBC| DB[(PostgreSQL / H2<br/>orders, tickets, users)]
 ```
@@ -28,7 +28,7 @@ graph TB
         AI --> LC[ChatModel Gemini<br/>+ CachingChatModel / FileCacheManager]
         ND --> T[Tools Java<br/>OrderService / TicketService]
         T --> R[Spring Data JPA<br/>Order / Ticket / UserRepository]
-        G --> CP[(Checkpointer<br/>MemorySaver por threadId)]
+        G --> CP[(Checkpointer<br/>BoundedMemorySaver por threadId)]
         CS --> TL[TurnLogger → turn_log]
     end
     R --> DB[(BD)]
@@ -39,14 +39,14 @@ Responsabilidades por capa:
 
 | Capa | Componentes | Responsabilidad |
 |---|---|---|
-| API | `ChatController`, `TicketController`, `ReturnController`, `ApiExceptionHandler` | Validar entrada, extraer `userId` (sesión simulada) y `conversationId`, devolver DTOs |
+| API | `ChatController`, `TicketController`, `ReturnController`, `ApiExceptionHandler` | Validar entrada, extraer el `userId` del token de sesión firmado y `conversationId`, devolver DTOs |
 | Orquestación | `ConversationService`, `TurnLogger` | Invocar el grafo con `RunnableConfig.threadId(conversationId)`, mapear estado→respuesta, registrar el turno (`turn_log`) |
 | Agente | `SupportAgentGraph` (builder), `SupportRouting` (aristas), `SupportState`, 15 nodos (el router delega en `RouterShortcuts`, `RouterNavigation`, `RouterPolicies`) | Toda la lógica de decisión del agente |
-| AiServices | `IntentClassifier`, `Verifier`, `Responder`, `TicketWriter`, `FaqKnowledgeBase` | Interfaces `@SystemMessage`; prompts del grafo |
+| AiServices | `IntentClassifier`, `Verifier`, `Responder`, `TicketWriter`, `FaqKnowledgeBase` | Interfaces `@SystemMessage`; los prompts largos viven en `src/main/resources/prompts/*.txt` (`@SystemMessage(fromResource)`) |
 | Herramientas | `OrderService`, `TicketService` | Operaciones deterministas sobre BD, reglas de negocio, `@Tool` |
 | Datos | Entidades + repositorios JPA | Persistencia |
-| Configuración | `ChatModelConfig` (beans `ChatModel` por temperatura/rol), `AgentConfig` (`CompiledGraph` + `MemorySaver` + AiServices), `config/qualifier/` (`@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`) | Wiring |
-| Caché | `CachingChatModel`, `FileCacheManager` (en `platform-commons`) | Cachea respuestas del modelo en fichero |
+| Configuración | `ChatModelConfig` (beans `ChatModel` por temperatura/rol), `AgentConfig` (`CompiledGraph` + `BoundedMemorySaver` + AiServices), `config/qualifier/` (`@Deterministic`/`@TicketModel`/`@ResponseModel`/`@ChattyModel`) | Wiring |
+| Caché | `CachingChatModel`, `FileCacheManager` (en `platform-commons`) | Cachea respuestas del modelo en fichero; solo desarrollo, desactivada por defecto (`cache.enabled=false`) y `/cache/*` solo existe si se activa |
 
 ## Flujo de una petición extremo a extremo
 
@@ -62,8 +62,8 @@ sequenceDiagram
     participant T as OrderService
     participant D as BD
 
-    A->>C: POST /api/chat {conversationId, userId, message}
-    C->>S: chat(userId, conversationId, message)
+    A->>C: POST /api/copilot/chat {conversationId, message}<br/>Authorization: Bearer token
+    C->>S: chat(userId del token, conversationId, message)
     S->>G: invoke({userId, userMessage, treatment, history}, threadId=conversationId)
     G->>L: [nodo router] clasifica intención
     L-->>G: TRACKING
@@ -89,7 +89,7 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 
 ### ADR-2: Un turno HTTP = una invocación del grafo
 **Decisión:** Cada mensaje del usuario es un `graph.invoke(...)` con `threadId` = `conversationId`. El grafo siempre llega a `END` en cada turno (terminando con respuesta final o con pregunta de clarificación).
-**Motivo:** Encaja con el modelo request/response de REST, evita mantener hilos bloqueados esperando al usuario, y el checkpointer (`MemorySaver`) hace la reanudación trivial. Alternativa descartada: `interruptBefore` + `update_state`, más potente pero innecesariamente compleja para 3 skills.
+**Motivo:** Encaja con el modelo request/response de REST, evita mantener hilos bloqueados esperando al usuario, y el checkpointer (`BoundedMemorySaver`) hace la reanudación trivial. Alternativa descartada: `interruptBefore` + `update_state`, más potente pero innecesariamente compleja para 3 skills.
 
 ### ADR-3: El LLM clasifica, el código decide
 **Decisión:** El nodo router usa el LLM solo para producir una etiqueta (`TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE`, más slots `orderRelated`/`navigation`/`confirmation`) con salida estructurada; las aristas condicionales (`SupportRouting`) son `switch` Java sobre esa etiqueta. Las reglas de negocio (¿se puede cancelar?) viven en las tools.
@@ -103,8 +103,8 @@ En el **segundo turno** ("El portátil"), `ConversationService` invoca el grafo 
 **Decisión:** Perfil `dev` con H2 en memoria + seed automático; perfil `prod` con PostgreSQL.
 **Motivo:** Arranque sin dependencias en local; realismo en Kubernetes. El esquema se gestiona con scripts SQL separados por dialecto (`schema-h2.sql`/`data-h2.sql` en dev con `spring.sql.init.platform=h2`; versión Postgres en `schema-postgresql.sql`/`data-postgresql.sql` aplicada a la BD del proyecto por `l1-copilot/scripts/setup-l1-copilot-db.sh` — ver [`docs/infraestructura/03-infra-compartida.md`](../infraestructura/03-infra-compartida.md)). La separación es necesaria porque la aritmética de fechas del seed no es portable entre H2 y PostgreSQL.
 
-### ADR-6: Memoria conversacional en `MemorySaver`
-**Decisión:** Checkpointer en memoria del proceso.
+### ADR-6: Memoria conversacional en memoria (`BoundedMemorySaver`)
+**Decisión:** Checkpointer en memoria del proceso, con tope de conversaciones (1000) y de checkpoints por conversación (10) para que un pod longevo no crezca sin límite.
 **Motivo:** Suficiente para prototipo single-replica. Limitación aceptada: las conversaciones se pierden al reiniciar y no funciona con varias réplicas (documentado; el puerto de extensión es implementar `BaseCheckpointSaver` sobre Postgres).
 
 ## Estados de un turno de conversación

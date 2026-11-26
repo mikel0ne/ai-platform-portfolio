@@ -2,7 +2,9 @@
 
 Plan troceado en **fases independientes y demostrables**, pensado para ejecutarse en sesiones/conversaciones separadas. Cada fase indica: entradas (docs a releer), tareas, y criterio de aceptación (DoD) verificable.
 
-> **Estado:** Fases 0-7 ✅ completadas. Backend funcional, frontend Angular en `l1-copilot/frontend/` y despliegue en K8s verificado (`l1-copilot.local`). El proyecto vive en el monorepo (`l1-copilot/`), no en repos separados. Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`. Además, sobre el alcance original se añadieron las skills `RETURN`, `TICKETS`, `FAQ` y `CHATTY`, los nodos `verify`/`clarify`, navegación jerárquica (BACK_*), digresión con retorno, tratamiento tú/usted, caché de respuestas y `turn_log`.
+> **Estado:** Fases 0-7 ✅ completadas. Backend funcional, frontend Angular en `l1-copilot/frontend/` y despliegue en K8s verificado (`l1-copilot.local`). El proyecto vive en el monorepo (`l1-copilot/`), no en repos separados. Desviaciones de diseño aplicadas al implementar: `CancellationCheck` como DTO propio de la comprobación (las aristas no parsean strings), aristas extraídas a `SupportRouting` (funciones estáticas puras) y campo `confirmation` YES/NO/NONE en lugar del booleano `confirmed`. Además, sobre el alcance original se añadieron las skills `RETURN`, `TICKETS`, `FAQ` y `CHATTY`, los nodos `verify`/`clarify`, navegación jerárquica (BACK_*), digresión con retorno, tratamiento tú/usted, caché de respuestas (solo desarrollo) y `turn_log`.
+>
+> **Después del plan** (el texto de las fases conserva el diseño original; el estado real está en los demás documentos): Spring Boot 4.1.2, LangChain4j 1.23.0 y LangGraph4j 1.8.27; la caché y las trazas Langfuse viven en el módulo `platform-commons`, compartido con AutoOps; el checkpointer es `BoundedMemorySaver` (en memoria, con tope); la sesión es un token de demo firmado (`POST /api/copilot/login` + `Authorization: Bearer`, sin la cabecera `X-User-Id` del diseño inicial); `RouterNode` se dividió en colaboradores; los prompts largos viven en `src/main/resources/prompts/`; las llamadas al modelo pasan por reintentos (`copilot.llm-retry`); y los servicios ya no llevan anotaciones `@Tool` (los nodos los invocan explícitamente).
 
 ```mermaid
 gantt
@@ -32,7 +34,7 @@ gantt
 3. Adaptar el código existente a la API 1.x: `Config.java` (`ChatLanguageModel`→`ChatModel`, `generate()`→`chat()`).
 4. Smoke test: `mvn test` + arrancar y probar por Swagger con `GEMINI_API_KEY`.
 
-**DoD:** la app arranca, `mvn dependency:tree` sin conflictos de langchain4j duplicado. (El andamiaje `LlmController`/`LlmService` que existía aquí se retiró después, ver mejora #2.)
+**DoD:** la app arranca, `mvn dependency:tree` sin conflictos de langchain4j duplicado. (El andamiaje `LlmController`/`LlmService` que existía aquí se retiró después.)
 
 ## Fase 1 — Dominio y datos
 
@@ -49,7 +51,7 @@ gantt
 
 **Releer:** [05 — Tools Java](05-tools-java.md).
 
-1. `OrderService` (`getRecentOrders`, `trackShipment`, `checkCancellable`, `cancelOrder`) y `TicketService` (`createTicket`), con `@Tool`/`@P` y transaccionalidad.
+1. `OrderService` (`getRecentOrders`, `trackShipment`, `checkCancellable`, `cancelOrder`) y `TicketService` (`createTicket`), con transaccionalidad (el plan original preveía anotarlos con `@Tool`/`@P`; no se hizo).
 2. `OrderNotFoundException` + reglas de cancelación en `OrderStatus.isCancellable()`.
 3. Tests unitarios de reglas y de propiedad (matriz del doc 05).
 
@@ -60,9 +62,9 @@ gantt
 **Releer:** [04 — Grafo LangGraph4j](04-grafo-langgraph.md) **y** los ejemplos oficiales de LangGraph4j (adaptive-rag y memory-agent).
 
 1. `SupportState` + `SCHEMA` (solo canal `history` como appender) + enums `Intent`/`Awaiting`/`Verdict`/`Navigation`/`Treatment`; estado con tipos serializables simples (sin serializer a medida).
-2. AiServices: `IntentClassifier` (salida estructurada `RouterDecision`) y `Responder`; probarlos sueltos con un `main`/test `@Tag("llm")`.
+2. AiServices: `IntentClassifier` (salida estructurada `RouterDecision`) y `Responder`; probarlos sueltos con un `main` o un test opt-in contra el modelo.
 3. Nodos en orden de dificultad: `FallbackNode` → `RespondNode` → `RouterNode` → `TrackingNode` → `ResolveOrderNode` → `CancelCheckNode`/`CancelExecNode` → `SupportNode`.
-4. `SupportAgentGraph.build()` con las aristas condicionales (funciones puras) + `AgentConfig` (compile con `MemorySaver`).
+4. `SupportAgentGraph.build()` con las aristas condicionales (funciones puras) + `AgentConfig` (compile con el checkpointer en memoria; hoy `BoundedMemorySaver`).
 5. Tests: unitarios de aristas; flujo completo con fakes de los AiServices verificando la secuencia de nodos vía `graph.stream(...)`.
 6. Exportar el diagrama (`GraphRepresentation.Type.MERMAID`) y pegarlo en el README.
 
@@ -87,7 +89,7 @@ gantt
 3. Chat: store con signals, burbujas, typing indicator, badge de intención, nueva conversación.
 4. Tests de `ChatStore` e interceptor.
 
-**DoD:** demo end-to-end en local (dos terminales: `cd l1-copilot/backend && mvn spring-boot:run` + `cd l1-copilot/frontend && ng serve`) con los 3 escenarios.
+**DoD:** demo end-to-end en local (`./scripts/start.sh` desde la raíz, o dos terminales: `cd l1-copilot/backend && ./mvnw spring-boot:run` + `cd l1-copilot/frontend && npm start`) con los 3 escenarios.
 
 ## Fase 6 — Demo y documentación de cierre
 
@@ -109,7 +111,7 @@ gantt
 
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
-| Incompatibilidad langgraph4j ↔ langchain4j 0.36.2 | bloquea Fase 3 | Fase 0 dedicada; decidir versiones ANTES de codificar |
+| Incompatibilidad langgraph4j ↔ langchain4j (el proyecto partía de 0.36.2) | bloquea Fase 3 | Fase 0 dedicada; decidir versiones ANTES de codificar; hoy se suben los dos a la vez |
 | El router clasifica mal con `flash-lite` | flujos erráticos | salida estructurada + few-shot en el prompt; si no basta, subir a `gemini-2.5-flash` solo para el router |
 | Serialización del estado (ChatMessage) | checkpointer falla | usar serializer del módulo `langgraph4j-langchain4j`; mantener el estado simple (records/strings) |
 | Cuota de la capa gratuita de AI Studio | demo caída | caché existente reutilizable para el router en demos; respuestas 503 elegantes; clave de respaldo |

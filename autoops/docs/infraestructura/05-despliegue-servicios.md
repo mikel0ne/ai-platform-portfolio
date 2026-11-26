@@ -39,10 +39,13 @@ spec:
           image: registry.local/autoops-backend:<tag>
           imagePullPolicy: IfNotPresent
           ports: [{ containerPort: 8080 }]
-          envFrom: [{ configMapRef: { name: autoops-backend-generic-app } }]   # SPRING_PROFILES_ACTIVE=k8s, etc.
-          env:
-            - name: GEMINI_API_KEY
+          envFrom: [{ configMapRef: { name: autoops-backend-generic-app } }]   # SPRING_PROFILES_ACTIVE=k8s, JAVA_TOOL_OPTIONS, Langfuse…
+          env:                                   # todas vía secretKeyRef (recortado)
+            - name: GEMINI_API_KEY               # Secret autoops-llm-secret (+ GITHUB_TOKEN)
               valueFrom: { secretKeyRef: { name: autoops-llm-secret, key: GEMINI_API_KEY } }
+            - name: AUTOOPS_ADMIN_TOKEN          # Secret autoops-admin-secret: protege /admin/*
+            - name: AUTOOPS_MCP_TOKEN            # Secret autoops-mcp-token: protege /mcp (obligatorio)
+            # WIKIJS_API_KEY (wikijs-ingestion-secret) y LANGFUSE_PUBLIC_KEY/SECRET_KEY (langfuse-api-keys)
           resources:
             requests: { cpu: 250m, memory: 512Mi }
             limits:   { cpu: "2", memory: 1Gi }
@@ -58,7 +61,7 @@ spec:
 ```
 
 El **frontend** (`autoops-frontend-generic-app`) sigue el mismo patrón con `infra/values-autoops-frontend.yaml`:
-imagen `registry.local/autoops-frontend`, puerto `80` (nginx), sin ConfigMap ni Secret (config embebida en el
+imagen `registry.local/autoops-frontend`, Service en el puerto `80` hacia el `8080` del contenedor (nginx sin privilegios), sin ConfigMap ni Secret (config embebida en el
 build Angular).
 
 ## 2. Despliegue y verificación
@@ -73,7 +76,7 @@ Prueba de humo sin Ingress (port-forward directo):
 ```bash
 kubectl port-forward svc/autoops-backend-generic-app 8080:8080 -n autoops
 curl http://localhost:8080/actuator/health      # UP
-# El endpoint MCP (Streamable HTTP) responde en /mcp (lo consume el cliente MCP, no el navegador)
+# El endpoint MCP (Streamable HTTP) responde en /mcp y exige la cabecera X-MCP-Token (lo consume el cliente MCP)
 ```
 
 ## 3. Decisiones de diseño
@@ -83,7 +86,8 @@ curl http://localhost:8080/actuator/health      # UP
   `management.endpoint.health.probes.enabled=true` (por defecto en Kubernetes).
 - **CPU solo limitada arriba** (`limits`, holgado a 2 cores; `requests` modesto): evita throttling de la JVM en
   el nodo local; el límite de memoria sí protege el nodo único.
-- **Una réplica por componente**: el backend es prácticamente stateless (el estado vive en Weaviate). El
+- **Una réplica por componente**: el backend es prácticamente stateless (el estado vive en Weaviate), pero el límite de
+  peticiones de `/search` (`SearchRateLimiter`) es un contador global en memoria: con más réplicas dejaría de ser global. El
   transporte MCP (**Streamable HTTP, con conexión persistente**) reconecta solo; si en el futuro se escalara a
   N réplicas habría que fijar afinidad de sesión en el Ingress — en local, una réplica es suficiente.
 - **ServiceAccount de solo lectura**: el contenedor del backend monta automáticamente el token del SA; el

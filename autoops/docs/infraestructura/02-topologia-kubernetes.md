@@ -22,24 +22,34 @@ metadata:
 Lo aplica `deploy.sh` (función `ensure_namespace`) antes del primer `helm install`; aplicarlo a mano
 (`kubectl apply -f infra/namespace-autoops.yaml`) es solo un atajo de depuración.
 
-## 2. Secret del proveedor LLM
+## 2. Secrets
 
-Un único secret: la API key del proveedor LLM/embeddings. (Weaviate corre sin autenticación en local, así que
-no necesita secret; y no hay base de datos relacional.)
+Los Secrets del backend son: la API key del proveedor LLM/embeddings y el token de GitHub (`autoops-llm-secret`),
+la clave de Wiki.js (`wikijs-ingestion-secret`, opcional), el token de `/admin/*` (`autoops-admin-secret`), el
+token de `/mcp` (`autoops-mcp-token`) y las claves del proyecto Langfuse (`langfuse-api-keys`). (Weaviate corre sin
+autenticación en local, así que no necesita secret; y no hay base de datos relacional.)
 
 No hay un YAML de Secret en el repo (ni siquiera con placeholders): `deploy.sh` lo **sincroniza
 automáticamente** (`sync_secrets`, idempotente vía `kubectl create secret ... --dry-run=client | kubectl
 apply -f -`) a partir de las claves declaradas en `infra/projects/autoops.env`:
 
 ```bash
+OPTIONAL_SECRET_VARS=(WIKIJS_API_KEY)
+
 declare -gA SECRETS_BACKEND=(
-  [autoops-llm-secret]="GEMINI_API_KEY"
+  [autoops-llm-secret]="GEMINI_API_KEY GITHUB_TOKEN"
+  [wikijs-ingestion-secret]="WIKIJS_API_KEY"
+  [autoops-admin-secret]="AUTOOPS_ADMIN_TOKEN"
+  [autoops-mcp-token]="AUTOOPS_MCP_TOKEN"
+  [langfuse-api-keys]="LANGFUSE_AUTOOPS_PUBLIC_KEY LANGFUSE_AUTOOPS_SECRET_KEY"
 )
 ```
 
-El **valor real** de `GEMINI_API_KEY` no se commitea: vive en `infra/.env.local` (compartida por todos los
-proyectos del portfolio) o en `infra/.env.local` (específica, gitignored). Si la variable está vacía,
-`deploy.sh` avisa pero sigue (el Secret se crea con valor vacío, falla luego en readiness — guía 07).
+Los **valores reales** no se commitean: viven en `infra/.env.local` (compartida por todos los proyectos del
+portfolio; opcionalmente `infra/.env.autoops.local`, ambas gitignored). Si una variable obligatoria está vacía,
+`deploy.sh` **aborta antes de tocar el clúster** (solo las de `OPTIONAL_SECRET_VARS`, como `WIKIJS_API_KEY`,
+solo avisan; `--allow-empty` lo degrada a aviso). `AUTOOPS_MCP_TOKEN` es obligatoria a propósito: sin ella `/mcp`
+quedaría abierto. Una clave vacía nunca pisa un valor no vacío que ya tenga el Secret en el clúster.
 
 ## 3. RBAC de AutoOps (lectura del clúster)
 
@@ -98,7 +108,7 @@ roleRef:
 
 ```bash
 kubectl get ns autoops
-kubectl get secret autoops-llm-secret -n autoops
+kubectl get secret autoops-llm-secret autoops-mcp-token autoops-admin-secret -n autoops
 kubectl get sa,clusterrole,clusterrolebinding | grep autoops
 
 # AutoOps puede LEER pods/logs pero NO escribir ni leer Secrets:

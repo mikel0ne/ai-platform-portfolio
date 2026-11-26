@@ -79,7 +79,7 @@ Puntos clave:
 
 ## El estado: `SupportState`
 
-Extiende `org.bsc.langgraph4j.state.AgentState`. El `SCHEMA` solo declara **un canal explícito**: `history`, con un reductor que acumula (`appendCapped`: acumula hasta 20 turnos y, al superarlos, conserva los últimos 10). El resto de claves usan el comportamiento por defecto (`Channels.base` = reemplazo) y se **leen** con `value(clave, default)`; no se declaran en el `SCHEMA`. Todos los valores son tipos serializables simples (String, Long, Boolean, Map) para que el checkpointer no necesite serializers a medida.
+Extiende `org.bsc.langgraph4j.state.AgentState`. El `SCHEMA` solo declara **un canal explícito**: `history`, con un reductor que acumula (`appendCapped`: acumula hasta 20 turnos y, al superarlos, conserva los últimos 10). El historial guardado contiene solo los mensajes del usuario y las respuestas finales del agente; cada LLM ve una ventana de él (`copilot.history.classifier|responder.size`, 6 por defecto, 9 como máximo: `ConversationHistoryProperties`). El resto de claves usan el comportamiento por defecto (`Channels.base` = reemplazo) y se **leen** con `value(clave, default)`; no se declaran en el `SCHEMA`. Todos los valores son tipos serializables simples (String, Long, Boolean, listas de DTOs) para que el checkpointer no necesite serializers a medida.
 
 ```java
 public class SupportState extends AgentState {
@@ -100,13 +100,14 @@ public class SupportState extends AgentState {
     // --- Intención y foco ---
     public Intent intent();                    // TRACKING|CANCEL|RETURN|SUPPORT|TICKETS|FAQ|CHATTY|OTHER|NONE
     public Optional<Intent> suspendedIntent(); // gestión en pausa por digresión FAQ/CHATTY
+    public Optional<Intent> offeredIntent();   // gestión que el agente ofreció tras una duda (DOUBT)
     public Optional<Long> orderId();           // pedido en foco (comprometido; se lee de cualquier Number)
     public Optional<Long> proposedOrderId();   // foco propuesto por el router, sin comprometer (lo asciende verify)
-    public List<String> candidates();          // pedidos ofrecidos para desambiguar (texto plano)
+    public List<String> candidates();          // pedidos ofrecidos para desambiguar (`#<id> descripción (estado…)`)
     public Awaiting awaiting();                // pregunta pendiente del turno anterior
 
     // --- Verificación y navegación ---
-    public Verdict verdict();        // SURE|DOUBT|REJECT (lo fija verify; default SURE)
+    public Verdict verdict();        // SURE|DOUBT|REJECT (lo fija verify; NONE si el turno no se verificó)
     public boolean tentative();      // avanzar con decisión solo "plausible" (suaviza el tono)
     public boolean navigating();     // BACK_TO_LIST/BACK_TO_MENU: no revalidar en verify
     public int clarifyAttempts();    // turnos ambiguos seguidos con gestión en curso
@@ -114,7 +115,7 @@ public class SupportState extends AgentState {
     // --- Acciones con confirmación (human-in-the-loop) ---
     public boolean cancellable();   public Optional<Long> pendingCancelId();
     public boolean returnable();    public Optional<Long> pendingReturnId();
-    public String confirmation();   // YES|NO|NONE detectado por el router
+    public Confirmation confirmation(); // YES|NO|NONE detectado por el router
     public boolean orderRelated();  // ¿la incidencia SUPPORT es sobre un pedido?
     public String ticketDraft();    // borrador de incidencia acumulado entre turnos
 
@@ -122,9 +123,9 @@ public class SupportState extends AgentState {
     public String toolResult();   // ÚNICA fuente de datos del nodo respond
     public String reply();        // respuesta final del turno
     public boolean resolved();    // el turno cerró la gestión
-    public List<Map<String,Object>> orderCards();   // tarjetas para la UI (hoy Map; ver mejora #8)
-    public List<Map<String,Object>> ticketCards();
-    public List<Map<String,Object>> returnCards();
+    public List<OrderCardDto> orderCards();   // tarjetas para la UI
+    public List<TicketCardDto> ticketCards();
+    public List<ReturnCardDto> returnCards();
 }
 ```
 
@@ -133,7 +134,8 @@ Enums de control (decisiones de flujo **en Java**, no en prompts):
 ```java
 public enum Intent     { TRACKING, CANCEL, RETURN, SUPPORT, TICKETS, FAQ, CHATTY, OTHER, NONE }
 public enum Awaiting   { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TICKET_INFO }
-public enum Verdict    { SURE, DOUBT, REJECT }                       // veredicto de verify
+public enum Verdict    { SURE, DOUBT, REJECT, NONE }                 // veredicto de verify (NONE: no se verificó)
+public enum Confirmation { YES, NO, NONE }                           // confirmación detectada por el router
 public enum Navigation { NONE, BACK_TO_LIST, BACK_TO_MENU, BACK }    // navegación jerárquica
 public enum Treatment  { TU, USTED }                                 // registro de tratamiento
 ```
@@ -270,27 +272,33 @@ El flujo de `RouterNode.apply` es: atajos de UI → clasificación con LLM (una 
 
 Orden de las políticas (importa, está fijado por dependencias de lectura): `suspendForDigression` (retorno anticipado) → `resumeAfterDigression` → `recordIntent` → `dropTicketDraft` → `moveFocus` → `bindConfirmation` → `countClarifyAttempts`. El descarte del borrador va antes que el foco porque `routesToVerify` lee el `awaiting` y el borrador *efectivos*; el foco va antes que la confirmación porque `confirmsPendingAction` lee el pedido que escribió el paso de foco.
 
-El clasificador es un **AiService de LangChain4j con salida estructurada**:
+El clasificador es un **AiService de LangChain4j con salida estructurada**. El prompt de sistema (reglas, intenciones, bloque de seguridad) vive en `src/main/resources/prompts/intent_classifier.txt` y se carga con `@SystemMessage(fromResource = ...)`; el historial viaja en el mensaje de usuario, dentro de un cerco marcado como no fiable:
 
 ```java
 public interface IntentClassifier {
 
-    @SystemMessage("""
-        Eres el router de un agente de soporte de e-commerce.
-        Clasifica el mensaje del usuario en una intención: TRACKING, CANCEL, SUPPORT u OTHER.
-        Contexto: el agente está esperando '{{awaiting}}'. Pedidos candidatos ya ofrecidos: {{candidates}}.
-        Si el usuario está respondiendo a una pregunta pendiente eligiendo un pedido
-        (por id o por descripción, p.ej. "el portátil"), mantén la intención previa y
-        devuelve el orderId elegido. Si menciona explícitamente un número de pedido, extráelo.
-        """)
-    @UserMessage("{{message}}")
-    RouterDecision classify(@V("message") String message,
-                            @V("awaiting") String awaiting,
-                            @V("candidates") String candidates);
+    @SystemMessage(fromResource = "/prompts/intent_classifier.txt")
+    @UserMessage("""
+            <historial_no_fiable>
+            {{history}}
+            </historial_no_fiable>
 
-    record RouterDecision(Intent intent, Long orderId) {}
+            MENSAJE ACTUAL DEL USUARIO:
+            {{message}}
+            """)
+    RouterDecision classify(@V("message") String message,
+                            @V("currentIntent") String currentIntent,
+                            @V("awaiting") String awaiting,
+                            @V("candidates") String candidates,
+                            @V("focusOrder") String focusOrder,
+                            @V("history") String history);
+
+    record RouterDecision(String intent, Long orderId, String confirmation, String navigation,
+                          boolean orderRelated) { ... }
 }
 ```
+
+Los campos llegan como texto y se convierten con `Intent.fromLlm`, `Navigation.fromLlm`, etc. (`EnumParsing`, con `Locale.ROOT`; un valor desconocido degrada a un valor seguro).
 
 > La **resolución de referencia** ("el portátil" → 123) se hace aquí porque el LLM ve los candidatos del estado. `resolve_order` solo se ocupa de buscar candidatos cuando aún no los hay.
 
@@ -362,24 +370,20 @@ La skill `faq` (intención `FAQ`: preguntas generales sobre envíos, devolucione
 ### `resolve_order` — desambiguación proactiva
 
 ```java
-@Override
-public Map<String, Object> apply(SupportState state) {
-    log.debug("---RESOLVE ORDER---");
-    List<OrderSummary> recent = orderService.getRecentOrders(state.userId());
+List<OrderSummary> recent = orderService.getRecentOrders(state.userId());
+List<String> candidates = recent.stream().map(OrderCandidates::describe).toList();  // "#123 Portátil (IN_DELIVERY, pedido el ...)"
 
-    if (recent.isEmpty())
-        return Map.of("toolResult", "El usuario no tiene pedidos.",
-                      "awaiting", Awaiting.NOTHING.name());
+if (recent.isEmpty())
+    return Map.of(TOOL_RESULT, "El usuario no tiene ningún pedido registrado.", AWAITING, NOTHING.name());
 
-    if (recent.size() == 1)                     // único candidato → autoselección
-        return Map.of("orderId", recent.get(0).id(),
-                      "awaiting", Awaiting.NOTHING.name());
+if (recent.size() == 1)                         // único candidato → autoselección
+    return Map.of(ORDER_ID, recent.get(0).id(), CANDIDATES, candidates,
+                  ORDER_CARDS, orderCards, AWAITING, NOTHING.name());
 
-    return Map.of("candidates", toLabels(recent),  // varios → preguntar (texto plano; ver SupportState)
-                  "orderCards", toCards(recent),    // tarjetas para la UI
-                  "awaiting", Awaiting.ORDER_CHOICE.name(),
-                  "toolResult", toJson(recent));
-}
+return Map.of(CANDIDATES, candidates,           // varios → preguntar
+              ORDER_CARDS, orderCards,          // tarjetas para la UI
+              AWAITING, ORDER_CHOICE.name(),
+              TOOL_RESULT, "El usuario tiene varios pedidos recientes: ...");
 ```
 
 ### Identificar el pedido como paso previo también en SUPPORT
@@ -407,18 +411,20 @@ Mismo patrón: invocan la tool Java correspondiente, vuelcan el resultado tipado
 ### `respond` — redacción única de la respuesta
 
 ```java
-@Override
-public Map<String, Object> apply(SupportState state) {
-    log.debug("---RESPOND---");
-    String reply = responder.write(           // AiService: redacta en español, tono cercano,
-        state.intent().name(),                // sin inventar datos: SOLO puede usar toolResult
-        state.awaiting().name(),
-        state.toolResult(),                   // String (vacío si no hay datos)
-        lastUserText(state));
-    // history acumula; reply es base (reemplazo)
-    return Map.of("reply", reply, "history", List.of(Turn.agent(reply)));
-}
+Responder writer = state.intent() == Intent.CHATTY ? chattyResponder : responder;   // CHATTY usa el modelo de temperatura 0.7
+
+String reply = writer.write(
+        state.intent().name(), state.awaiting().name(),
+        state.toolResult().isBlank() ? "(sin datos)" : state.toolResult(),   // única fuente de datos
+        state.userMessage(),
+        !state.orderCards().isEmpty() || !state.ticketCards().isEmpty(),      // cardsShown
+        describeFocusOrder(state), state.treatment().name(), state.tentative(),
+        history.responder().render(state.history()));
+
+return Map.of(REPLY, reply, HISTORY, List.of(Turn.agent(reply)));   // history acumula; reply reemplaza
 ```
+
+El prompt de sistema del `Responder` está en `prompts/responder.txt`.
 
 Regla del prompt de `respond`: *"Responde únicamente con la información de TOOL_RESULT. Si AWAITING es ORDER_CHOICE, formula la pregunta de elección listando los pedidos. Si es CANCEL_CONFIRM, pide confirmación explícita sí/no. Nunca inventes estados de pedido."*
 
@@ -443,8 +449,10 @@ Regla del prompt de `respond`: *"Responde únicamente con la información de TOO
 public class AgentConfig {
 
     @Bean
-    public BaseCheckpointSaver checkpointSaver() {
-        return new BoundedMemorySaver(maxConversations, maxPerConversation); // prototipo: en memoria con tope (ADR-6)
+    public BaseCheckpointSaver checkpointSaver(
+            @Value("${copilot.checkpoints.max-conversations:1000}") int maxConversations,
+            @Value("${copilot.checkpoints.max-per-conversation:10}") int maxPerConversation) {
+        return new BoundedMemorySaver(maxConversations, maxPerConversation); // en memoria con tope (ADR-6)
     }
 
     @Bean
@@ -458,32 +466,33 @@ public class AgentConfig {
 }
 ```
 
+`BoundedMemorySaver` conserva solo los últimos checkpoints de cada conversación y solo las conversaciones usadas más recientemente, para que un pod longevo no crezca sin límite.
+
 Invocación por turno (en `ConversationService`):
 
 ```java
-public ChatResult chat(String userId, String conversationId, String message) {
-    var config = RunnableConfig.builder()
-            .threadId(conversationId)          // ← la clave de la memoria entre turnos
-            .build();
+RunnableConfig config = RunnableConfig.builder()
+        .threadId(threadId(userId, conversationId))   // "userId:conversationId": la clave de la memoria entre turnos
+        .build();
 
-    var state = supportAgent.invoke(
-            Map.of("userId", userId,
-                   "userMessage", message,
-                   "treatment", treatment.name(),
-                   "history", List.of(Turn.user(message))),  // + reseteo de campos efímeros del turno
-            config)
-        .orElseThrow(() -> new IllegalStateException("El grafo no devolvió estado"));
+Map<String, Object> input = new HashMap<>(SupportState.TURN_RESETS);   // campos efímeros a cero
+input.put(SupportState.USER_ID, userId);
+input.put(SupportState.TREATMENT, treatment.name());
+input.put(SupportState.USER_MESSAGE, message);
+input.put(SupportState.HISTORY, List.of(Turn.user(message)));
 
-    return new ChatResult(state.reply(), state.intent().name(), state.resolved());
-}
+SupportState state = supportAgent.invoke(input, config)
+        .orElseThrow(() -> new ConversationException("The graph returned no final state"));
 ```
 
-Con el mismo `threadId`, `MemorySaver` restaura `intent`, `candidates`, `awaiting`, `orderId`, etc. — así "El portátil" del segundo turno se entiende sin repetir nada.
+El `threadId` incluye el `userId` porque el `conversationId` lo elige el cliente: así un usuario no puede reanudar la conversación de otro.
+
+Con el mismo `threadId`, el checkpointer restaura `intent`, `candidates`, `awaiting`, `orderId`, etc. — así "El portátil" del segundo turno se entiende sin repetir nada.
 
 ## Observabilidad y testing del grafo
 
 - **Logs por nodo** con el patrón `---NOMBRE---` (igual que los ejemplos oficiales de LangGraph4j); con `dev.langchain4j: DEBUG` ya activado en `application.yml` se ven además las llamadas al modelo.
 - **Diagrama generado**: `graph.getGraph(GraphRepresentation.Type.MERMAID)` exporta la topología real; incluirlo en el README del repo y en CI para detectar derivas doc/código.
-- **Tests sin LLM**: las aristas (`routeFromRouter`...) son funciones puras sobre `SupportState` → tests unitarios triviales construyendo el estado con `Map.of`. Los nodos de tool se testean con repositorios H2.
-- **Tests con LLM falso**: para el flujo completo, sustituir `IntentClassifier`/`Responder` por fakes deterministas (`@MockBean`) y verificar la secuencia de nodos con `graph.stream(...)` inspeccionando `NodeOutput.node()`.
-- **Test de integración real** (opcional, etiquetado `@Tag("llm")`): escenario de referencia completo contra Gemini con la API key de desarrollo.
+- **Tests sin LLM**: las aristas (`SupportRouting.fromRouter`...) son funciones puras sobre `SupportState` → tests unitarios triviales construyendo el estado con `Map.of`. Los nodos de tool se testean con repositorios H2.
+- **Tests con LLM falso**: para el flujo completo, sustituir `IntentClassifier`/`Responder`/`Verifier` por fakes deterministas (`@MockitoBean`) y verificar la secuencia de nodos con `graph.stream(...)` inspeccionando `NodeOutput.node()`.
+- **Evaluación contra el modelo real** (opt-in): `RouterEvalTest` (`ROUTER_EVAL=true`) y `RouterFailureE2eEvalTest` (`ROUTER_E2E_EVAL=true`), ver el README del proyecto.

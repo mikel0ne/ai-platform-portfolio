@@ -6,18 +6,18 @@ SPA mínima pero cuidada: una interfaz de chat con "login" simulado. Su único t
 
 | Tema | Decisión |
 |---|---|
-| Versión | Angular 17+ (standalone components, signals, control flow `@if/@for`) |
+| Versión | Angular 22 (standalone components, signals, control flow `@if/@for`) |
 | Ubicación | carpeta `l1-copilot/frontend/` dentro del monorepo (simplifica la demo y el despliegue conjunto) |
 | Estado | servicios con signals; sin NgRx (sobredimensionado aquí) |
 | Estilos | CSS propio o Angular Material (a gusto); diseño tipo chat clásico |
-| Comunicación | `HttpClient` + proxy de desarrollo (`/api` → `localhost:8080`); sin CORS |
+| Comunicación | `HttpClient` + proxy de desarrollo (`/api` → `localhost:8079`); sin CORS |
 | Login | selector de usuario de demo (datos de `GET /api/copilot/users`); al elegir uno se llama a `POST /api/copilot/login`; usuario y token firmado de demo se guardan en `sessionStorage` y el token se envía como `Authorization: Bearer` |
 
 ## Estructura
 
 ```
 l1-copilot/frontend/
-├── proxy.conf.json                  # { "/api": { "target": "http://localhost:8080" } }
+├── proxy.conf.json                  # { "/api": { "target": "http://localhost:8079" } }
 ├── src/app/
 │   ├── app.component.ts             # shell: header con usuario activo + router-outlet
 │   ├── app.routes.ts                # '' → Login, 'chat' → Chat (authGuard), 'tickets/:id' → detalle, 'returns/:id' → etiqueta de devolución
@@ -100,7 +100,7 @@ export class ChatApiService {
 ```
 
 ```ts
-// core/auth.interceptor.ts — token de demo firmado (versión resumida; la real también trata el 401)
+// core/auth.interceptor.ts — token de demo firmado (versión resumida; la real también limpia la sesión ante un 401)
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const token = inject(AuthService).token();
   return next(token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req);
@@ -150,11 +150,11 @@ Detalles de UX que venden el prototipo:
 
 ```bash
 cd l1-copilot/frontend
-npm install
-ng serve --proxy-config proxy.conf.json   # http://localhost:4200, /api → :8080
+npm ci
+npm start            # ng serve en http://localhost:4199, /api → :8079 (proxy.conf.json)
 ```
 
-Backend en paralelo: `cd l1-copilot/backend && mvn spring-boot:run` con `GEMINI_API_KEY` exportada.
+Backend en paralelo: `GEMINI_API_KEY` exportada y `./scripts/start.sh` desde la raíz del repo (arranca backend y frontend), o `cd l1-copilot/backend && ./mvnw spring-boot:run` (necesita `platform-commons` instalado, ver el README del proyecto).
 
 ## Build de producción
 

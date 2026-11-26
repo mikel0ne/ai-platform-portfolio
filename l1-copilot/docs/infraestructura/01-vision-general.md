@@ -23,13 +23,13 @@ y la instalación incluye `kubectl`, `helm` y el CLI de contenedores.
 
 ### D-2: Infra compartida por scripts; aplicaciones por Helm
 La infra del clúster (registry, PostgreSQL) se despliega con manifiestos crudos vía
-los scripts de [`infra/scripts/`](../../infra/scripts) (`02-setup-registry.sh`,
+los scripts de [`infra/scripts/`](../../../infra/scripts) (`02-setup-registry.sh`,
 `03-setup-postgres.sh`). Razón: son piezas que se instalan **una vez por clúster** y
 viven al margen de cualquier aplicación; el script es más directo que un chart y queda
 controlado al detalle (versión, NodePort, recursos).
 
 Las **aplicaciones** sí usan Helm: existe un **chart genérico reutilizable**
-[`infra/charts/generic-app`](../../infra/charts/generic-app) (Deployment + Service +
+[`infra/charts/generic-app`](../../../infra/charts/generic-app) (Deployment + Service +
 ConfigMap + Ingress + HPA parametrizados por values) y cada proyecto solo aporta sus
 `values-<app>.yaml`. Ver D-6.
 
@@ -47,7 +47,7 @@ El Postgres compartido se levanta vacío (solo crea `appdb`/`appuser`). Cada pro
 crea **su BD y su esquema** con un script propio: en este repo,
 [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) crea la
 BD `l1_copilot` y aplica `l1-copilot/backend/src/main/resources/schema-postgresql.sql` +
-`data-postgresql.sql`. El backend arranca con `ddl-auto: validate` y
+`data-postgresql.sql`. El backend arranca con `ddl-auto: none` y
 `sql.init.mode: never` (no toca el esquema en prod).
 
 - En un entorno real: migraciones Flyway/Liquibase ejecutadas por la app o un Job.
@@ -56,10 +56,10 @@ BD `l1_copilot` y aplica `l1-copilot/backend/src/main/resources/schema-postgresq
 Un solo host sirve la SPA (`/`) y la API (`/api`): el frontend usa rutas relativas, no
 hay CORS y el modelo es idéntico al de producción. `l1-copilot.local` se resuelve a
 `127.0.0.1` añadiendo una entrada al fichero `hosts` de Windows con
-[`infra/scripts/add-copilot-host.ps1`](../../infra/scripts/add-copilot-host.ps1) (una vez).
+[`infra/scripts/add-copilot-host.ps1`](../../../infra/scripts/add-copilot-host.ps1) (una vez).
 El Ingress (recurso `Ingress` estándar, `ingressClassName: traefik`, no CRDs de Traefik) lo
 aplica el script genérico
-[`infra/scripts/setup-app-ingress.sh --project l1-copilot`](../../infra/scripts/setup-app-ingress.sh),
+[`infra/scripts/setup-app-ingress.sh --project l1-copilot`](../../../infra/scripts/setup-app-ingress.sh),
 **no** el chart del backend (en los values el Ingress va deshabilitado): así una única
 regla enruta `/` → frontend y `/api` → backend.
 
@@ -71,16 +71,15 @@ nunca creados por el chart), Ingress, recursos. Esto evita duplicar manifiestos 
 permite que un cambio en el chart beneficie a todos los proyectos.
 
 ### D-7: Secretos como `Secret` creados imperativamente
-Los valores reales (`GEMINI_API_KEY`, password de Postgres) se crean con
-`kubectl create secret` o con
-[`infra/scripts/create-secrets.ps1`](../../infra/scripts/create-secrets.ps1) (lee un
-`.env` git-ignorado) y **nunca** se commitean. El chart `generic-app` referencia los
+Los valores reales (`GEMINI_API_KEY`, password de Postgres, secreto de firma del token de demo) los sincroniza
+[`infra/scripts/deploy.sh`](../../../infra/scripts/deploy.sh) desde `infra/.env.local` (git-ignorado); `kubectl create secret` o
+[`infra/scripts/create-secrets.ps1`](../../../infra/scripts/create-secrets.ps1) quedan para usos puntuales. **Nunca** se commitean. El chart `generic-app` referencia los
 Secrets en `secretEnv` pero no los crea.
 
 - En un entorno real: External Secrets Operator / Sealed Secrets / Vault.
 
 ### D-8: Backend a 1 réplica con `strategy: Recreate` (limitación consciente)
-El estado conversacional del grafo vive en un `MemorySaver` en memoria del pod: con
+El estado conversacional del grafo vive en un `BoundedMemorySaver` en memoria del pod: con
 más de una réplica los turnos de una conversación caerían en pods distintos. Escalar
 exige antes un `BaseCheckpointSaver` persistente (Postgres/Redis) — apuntado como
 extensión en la arquitectura (ADR-6).
@@ -100,14 +99,14 @@ extensión en la arquitectura (ADR-6).
 infra/                                      # FUENTE DE VERDAD de la infraestructura
 ├── INFRA.md                                # documentación cross-project de infra (canónica)
 ├── .gitignore                              # bloquea .env con secretos
-├── scripts/                                # instalación del clúster + despliegue genérico
+├── scripts/                                # instalación del clúster + despliegue genérico (también 08-setup-wikijs.sh, 09-setup-langfuse.sh, ingest-autoops.sh y test/deploy-guards.sh)
 │   ├── 01-install-rancher-desktop.sh           # instala Rancher Desktop (winget desde WSL)
 │   ├── 02-setup-registry.sh                    # registry:2 en namespace registry, NodePort 30500
 │   ├── 03-setup-postgres.sh                    # postgres:16-alpine en namespace infra
 │   ├── 04-setup-postgres-ingress.sh            # opcional: Traefik TCP postgres en localhost:5432
 │   ├── 05-setup-registry-ingress.sh            # opcional: Traefik TCP registry en localhost:15000
 │   ├── 06-setup-weaviate.sh                     # opcional: Weaviate compartido (lo usa AutoOps)
-│   ├── 07-setup-observability.sh               # opcional: stack de observabilidad
+│   ├── 07-setup-observability.sh               # opcional: Loki + Grafana
 │   ├── deploy.sh                               # GENÉRICO: build+push+secrets+helm por --project/--component
 │   ├── setup-app-ingress.sh                    # GENÉRICO: Ingress de la app por --project
 │   ├── add-copilot-host.ps1                    # Admin: l1-copilot.local → 127.0.0.1 en hosts Windows
@@ -115,7 +114,8 @@ infra/                                      # FUENTE DE VERDAD de la infraestruc
 │   ├── add-registry-host.ps1                   # Admin: registry.local → 127.0.0.1 en hosts Windows
 │   └── create-secrets.ps1                      # convierte un .env en Secret de K8s (uso puntual)
 ├── projects/
-│   └── l1-copilot.env                          # descriptor del proyecto (lo leen deploy.sh / setup-app-ingress.sh)
+│   ├── l1-copilot.env                          # descriptor del proyecto (lo leen deploy.sh / setup-app-ingress.sh)
+│   └── autoops.env
 ├── .env.local                               # secretos locales reales, compartidos por todos los proyectos (git-ignored); ejemplo: .env.local.example
 ├── .env.l1-copilot.local                    # override puntual de este proyecto, opcional (git-ignored); ejemplo: .env.local.example
 ├── charts/generic-app/                     # chart Helm reutilizable para apps stateless
@@ -132,7 +132,7 @@ l1-copilot/scripts/                         # scripts ESPECÍFICOS del proyecto
 └── seed-l1-copilot-db.sh                   # recarga solo el seed (TRUNCATE + INSERT)
 
 docker/
-├── backend.Dockerfile                      # multi-stage Maven → JRE 17
+├── backend.Dockerfile                      # multi-stage Maven → JRE 17; recibe platform-commons como build context con nombre `commons`
 ├── frontend.Dockerfile                     # multi-stage Node → nginx
 └── frontend-nginx.conf                     # SPA fallback
 ```

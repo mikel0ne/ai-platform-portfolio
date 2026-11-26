@@ -6,8 +6,8 @@
 
 | Componente | Script | Namespace | Acceso |
 |---|---|---|---|
-| Registry de imágenes | [`infra/scripts/02-setup-registry.sh`](../../infra/scripts/02-setup-registry.sh) | `registry` | NodePort `localhost:30500` |
-| PostgreSQL 16 (Alpine) | [`infra/scripts/03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh) | `infra` | en-cluster `postgres.infra.svc.cluster.local:5432` · NodePort `localhost:15432` |
+| Registry de imágenes | [`infra/scripts/02-setup-registry.sh`](../../../infra/scripts/02-setup-registry.sh) | `registry` | NodePort `localhost:30500` |
+| PostgreSQL 16 (Alpine) | [`infra/scripts/03-setup-postgres.sh`](../../../infra/scripts/03-setup-postgres.sh) | `infra` | en-cluster `postgres.infra.svc.cluster.local:5432` · NodePort `localhost:15432` |
 | BD del proyecto | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) | (dentro de Postgres) | BD `l1_copilot`, user `appuser` |
 
 ## 1. Registry de imágenes
@@ -41,7 +41,7 @@ docker push registry.local/l1-copilot-backend:1.0.0
 El hostname canónico es `registry.local` (sin puerto, vía Traefik 80/443). El
 NodePort `localhost:30500` sigue disponible como fallback. Para que esto funcione,
 el script
-[`05-setup-registry-ingress.sh`](../../infra/scripts/05-setup-registry-ingress.sh)
+[`05-setup-registry-ingress.sh`](../../../infra/scripts/05-setup-registry-ingress.sh)
 configura:
 - IngressRoute Traefik `web` + `websecure` (cert por defecto) → svc `registry:5000`.
 - `/etc/docker/daemon.json` y `/etc/rancher/k3s/registries.yaml` dentro de la WSL
@@ -49,7 +49,7 @@ configura:
 - `/etc/hosts` (tanto en Windows vía `add-registry-host.ps1` como en la WSL).
 
 Detalles completos y aviso de persistencia ante reset de Rancher: ver
-[`infra/INFRA.md`](../../infra/INFRA.md#4-registry-local).
+[`infra/INFRA.md`](../../../infra/INFRA.md#4-registry-local).
 
 ## 2. PostgreSQL compartido
 
@@ -68,7 +68,7 @@ Despliega `postgres:16-alpine` en el namespace `infra` con:
 **DNS interno** para las aplicaciones: `postgres.infra.svc.cluster.local:5432`.
 
 > **Opcional — acceso desde el host**:
-> [`04-setup-postgres-ingress.sh`](../../infra/scripts/04-setup-postgres-ingress.sh)
+> [`04-setup-postgres-ingress.sh`](../../../infra/scripts/04-setup-postgres-ingress.sh)
 > añade un entrypoint TCP en Traefik y expone Postgres en `localhost:5432`
 > (más natural que el NodePort `15432`). Combinado con `add-postgres-host.ps1` se llega
 > a `postgres.local:5432`.

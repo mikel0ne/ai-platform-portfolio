@@ -5,7 +5,7 @@
 # Deploy (deploy.sh also creates the namespace and syncs the Secrets from infra/.env.local):
 #   ./infra/scripts/deploy.sh --project l1-copilot --component backend
 # =============================================================================
-# replicaCount=1 and strategy=Recreate while the graph checkpointer is a MemorySaver
+# replicaCount=1 and strategy=Recreate while the graph checkpointer is a BoundedMemorySaver
 # (conversation state in the pod's memory). No HPA until a persistent
 # BaseCheckpointSaver is in place.
 # =============================================================================

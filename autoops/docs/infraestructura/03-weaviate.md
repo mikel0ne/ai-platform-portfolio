@@ -32,22 +32,23 @@ mano. Forma lógica:
   "vectorizer": "none",
   "moduleConfig": { "reranker-transformers": {} },
   "properties": [
-    { "name": "texto",   "dataType": ["text"] },
-    { "name": "titulo",  "dataType": ["text"] },
-    { "name": "fuente",  "dataType": ["text"], "tokenization": "field" },
-    { "name": "seccion", "dataType": ["text"] },
+    { "name": "text",    "dataType": ["text"] },
+    { "name": "title",   "dataType": ["text"] },
+    { "name": "source",  "dataType": ["text"], "tokenization": "field" },
+    { "name": "section", "dataType": ["text"] },
     { "name": "url",     "dataType": ["text"], "tokenization": "field" },
-    { "name": "origen",  "dataType": ["text"], "tokenization": "field" },
+    { "name": "origin",  "dataType": ["text"], "tokenization": "field" },
     { "name": "docId",   "dataType": ["text"], "tokenization": "field" },
     { "name": "hash",    "dataType": ["text"], "tokenization": "field" },
-    { "name": "orden",   "dataType": ["int"] }
+    { "name": "order",   "dataType": ["int"] },
+    { "name": "sectionChars", "dataType": ["int"] }
   ]
 }
 ```
 
 > **Esquema completo en doc de arquitectura `05-contratos-api-datos.md` §4** (contrato canónico). Importante:
 > `ensureSchema()` es **idempotente** — si la clase ya existe en el clúster con un esquema más viejo (p. ej. sin
-> `titulo`/`url`/`origen`/`docId`/`hash`), NO la migra sola. Tras cualquier cambio de esquema hace falta
+> `title`/`url`/`origin`/`docId`/`hash`/`sectionChars`), NO la migra sola. Tras cualquier cambio de esquema hace falta
 > `bash infra/scripts/ingest-autoops.sh --reset` (borra y recrea la clase + reingesta) para que coincida con el
 > código real.
 
@@ -60,7 +61,7 @@ en esta API/key). Si se cambia de modelo, recrear la clase y **re-ingestar** (`i
 El **reranker no es opcional aquí**: el código (`WeaviateGateway`) usa `rerank` de forma nativa en la query
 (`_additional { rerank(...) }`), así que el módulo `reranker-transformers` **debe** estar habilitado (lo está
 en el manifiesto de §1). Reordena por relevancia el resultado de la búsqueda híbrida (vector + BM25); el nodo
-`grade` del bucle CRAG califica sobre ese score. Es la mayor ganancia de precisión del RAG.
+`grade` del bucle CRAG califica con el LLM, no con ese score. Es la mayor ganancia de precisión del RAG.
 
 ## 4. Conexión desde AutoOps
 

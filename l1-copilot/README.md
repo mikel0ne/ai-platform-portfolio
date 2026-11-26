@@ -73,7 +73,7 @@ The ADRs are in [`docs/arquitectura/02-arquitectura-sistema.md`](docs/arquitectu
 | 3 | The LLM only produces a label and slots (structured output); Java `switch` edges route, domain services enforce the rules. |
 | 4 | The `userId` comes from the session, never from the user's text, so a prompt cannot reach another user's data. |
 | 5 | H2 in development, PostgreSQL when deployed, with SQL scripts per dialect. |
-| 6 | In-memory `MemorySaver` checkpointer: single replica and `Recreate` strategy until a Postgres-backed saver exists. |
+| 6 | In-memory checkpointer (`BoundedMemorySaver`, capped per conversation and in total): single replica and `Recreate` strategy until a Postgres-backed saver exists. |
 
 Other choices visible in the code:
 

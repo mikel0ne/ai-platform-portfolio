@@ -94,10 +94,10 @@ Este escenario ejercita: enrutamiento, detección de información faltante, ejec
 
 | Requisito | Decisión |
 |---|---|
-| Seguridad del dato | El `userId` viaja del frontend al backend (token simulado) y se inyecta en las tools desde código; el LLM nunca decide de qué usuario se consultan datos |
+| Seguridad del dato | El `userId` viaja del frontend al backend en un token de demo firmado (HMAC-SHA256) y se inyecta en las tools desde código; el LLM nunca decide de qué usuario se consultan datos |
 | Coste / cuota | Gemini `gemini-3.1-flash-lite` (capa gratuita de AI Studio); el router y los nodos usan prompts cortos |
 | Persistencia | H2 en `dev` para arrancar sin nada instalado; PostgreSQL en despliegue Kubernetes |
-| Memoria conversacional | `MemorySaver` (en memoria) en el prototipo; el diseño deja el `BaseCheckpointSaver` como punto de extensión para persistirlo |
+| Memoria conversacional | `BoundedMemorySaver` (en memoria, con tope) en el prototipo; el diseño deja el `BaseCheckpointSaver` como punto de extensión para persistirlo |
 | Observabilidad | Logs estructurados por nodo del grafo (`---ROUTER---`, `---TRACKING---`…), Actuator health |
 | Idioma | El agente conversa en español (prompt de sistema), aunque entiende entradas en otros idiomas |
 

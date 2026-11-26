@@ -12,7 +12,7 @@ El servidor solo usa modelos en dos puntos **internos**:
 |---|---|---|
 | **Embeddings al indexar** (ingesta) | `EmbeddingModel` (`@Primary`) | Calcular el vector del núcleo de cada chunk antes de insertarlo en Weaviate. |
 | **Embeddings al consultar** (retrieve) | `EmbeddingModel` (`@Qualifier("queryEmbeddingModel")`) | Calcular el vector de la consulta del usuario. |
-| **LLM interno** del bucle CRAG (`rewrite`) | `ChatModel` | Reformular/expandir la consulta cuando la recuperación es floja. |
+| **LLM interno** del bucle CRAG (`multiQuery`, `grade`, `rewrite`) | `ChatModel` | Generar variantes de la consulta, calificar fragmentos y cobertura de subpreguntas, y reformular la consulta cuando la recuperación es floja. |
 | **LLM interno** de la redacción del chat | `ChatModel` | Redactar la respuesta del front de búsqueda (no la tool MCP). |
 
 Indexar y consultar usan **dos beans distintos del mismo modelo**, no uno solo: Google AI Studio asimetriza el
@@ -76,35 +76,45 @@ package io.github.mikel0ne.autoops.llm.provider;
 public class GeminiModelConfig {
 
     @Bean
+    @Lazy      // la clave solo hace falta al usar el modelo, no al arrancar
     @Primary   // inyección sin cualificar (p. ej. en tests) recibe este
     public EmbeddingModel embeddingModel(LlmProperties props,
-                                         @Value("${GEMINI_API_KEY}") String apiKey) {
+                                         @Value("${GEMINI_API_KEY:}") String apiKey) {
         return GoogleAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.embeddingModelName())
                 .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_DOCUMENT)
+                .timeout(props.timeout())
+                .maxRetries(props.maxRetries())
                 .build();
     }
 
     @Bean("queryEmbeddingModel")
+    @Lazy
     public EmbeddingModel queryEmbeddingModel(LlmProperties props,
-                                              @Value("${GEMINI_API_KEY}") String apiKey) {
+                                              @Value("${GEMINI_API_KEY:}") String apiKey) {
         return GoogleAiEmbeddingModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.embeddingModelName())
                 .taskType(GoogleAiEmbeddingModel.TaskType.RETRIEVAL_QUERY)
+                .timeout(props.timeout())
+                .maxRetries(props.maxRetries())
                 .build();
     }
 
     @Bean
-    public ChatModel chatModel(LlmProperties props,
-                               @Value("${GEMINI_API_KEY}") String apiKey) {
-        return GoogleAiGeminiChatModel.builder()
+    @Lazy
+    public ChatModel chatModel(LlmProperties props, /* caché, Langfuse… */ @Value("${GEMINI_API_KEY:}") String apiKey) {
+        ChatModel model = GoogleAiGeminiChatModel.builder()
                 .apiKey(apiKey)
                 .modelName(props.chatModelName())
                 .temperature(props.temperature())
                 .timeout(props.timeout())
+                .maxRetries(props.maxRetries())
+                .listeners(List.of(new LangfuseChatModelListener(/* … */)))   // platform-commons
                 .build();
+        // con cache.enabled=true (solo desarrollo) se envuelve en CachingChatModel (platform-commons)
+        return cacheProps.isCacheEnabled() ? new CachingChatModel(model, cache) : model;
     }
 }
 ```
@@ -128,8 +138,8 @@ Ejemplo: Azure OpenAI. Total: 1 dependencia + 1 clase + configuración. Cero cam
 ## 5. El proveedor falso para tests
 
 La misma mecánica da el "proveedor de tests": un `EmbeddingModel`/`ChatModel` stub, construido a mano (sin
-`@Configuration` condicional). Permite probar el bucle CRAG programando respuestas fijas del reformulador y
-scores controlados, sin tocar Gemini ni la red.
+`@Configuration` condicional). Permite probar el bucle CRAG programando respuestas fijas del calificador y
+del reformulador, sin tocar Gemini ni la red.
 
 ```java
 class ScriptedChatModel implements ChatModel {
@@ -148,4 +158,4 @@ class ScriptedChatModel implements ChatModel {
 3. Toda llamada al LLM lleva timeout.
 4. Los logs nunca incluyen la API key ni payloads completos en niveles ≥ INFO.
 5. La cuota gratuita de Gemini se respeta con: modelo `flash-lite`, temperatura baja y el uso **acotado** del
-   LLM (solo `rewrite` del CRAG y redacción del chat; la tool MCP no consume LLM del servidor).
+   LLM (solo `multiQuery`, `grade` y `rewrite` del CRAG y la redacción del chat; la tool MCP no consume LLM del servidor).

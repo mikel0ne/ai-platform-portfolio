@@ -11,19 +11,21 @@ datos relacional de historial: todo eso era del diseño anterior y se elimina.
 El front principal. Publica las **tools** que consume el cliente MCP (Claude Code, Copilot):
 
 - Expone como tools MCP los beans Java anotados con `@Tool` (catálogo completo en [03-tools-mcp.md](03-tools-mcp.md)).
-- **Transporte**: **Streamable HTTP** (Spring AI 2.0.0, con keep-alive) para la versión desplegada en el
-  clúster; **stdio** para uso local del desarrollador.
+- **Transporte**: **Streamable HTTP** (Spring AI 2.0, con keep-alive de 20 s), tanto desplegado como en local
+  (`:8080/mcp`). El starter sin WebMVC permitiría stdio, pero no está configurado.
+- **Autenticación**: el endpoint `/mcp` exige la cabecera `X-MCP-Token` cuando hay token configurado
+  (`AUTOOPS_MCP_TOKEN`); en el clúster el secreto es obligatorio, en una ejecución local sin él el endpoint queda abierto.
 - No contiene lógica de negocio: cada tool delega en el núcleo RAG o en el servicio K8s.
 
 ### Núcleo RAG (LangChain4j + Weaviate + CRAG)
 
 El cerebro de recuperación, compartido por la tool `search_docs` y por el chat:
 
-- **Ingesta multi-fuente**: cada `FuenteDocumental` (markdown local, repo Git, Wiki.js) aporta documentos →
-  el `Chunker` los trocea (heading + recursivo; cada chunk almacena su núcleo + `seccionChars`) → embeddings →
+- **Ingesta multi-fuente**: cada `DocumentSource` (markdown local, repositorio de GitHub, Wiki.js) aporta `SourceDocument`s →
+  el `Chunker` los trocea (heading + recursivo; cada chunk almacena su núcleo + `sectionChars`) → embeddings →
   Weaviate (ver ADR-010/011).
 - **Recuperación avanzada**: búsqueda **híbrida** (vector + keyword) + **reranking** + **bucle correctivo
-  CRAG** (califica la relevancia; si es floja, reformula/expande la consulta y reintenta). El ciclo se modela
+  CRAG** (califica la relevancia por fragmento y la cobertura de cada subpregunta; si es floja, reformula/expande la consulta y reintenta). En la primera pasada las variantes de la consulta se recuperan **en paralelo**. El ciclo se modela
   con **LangGraph4j** (ver [03-tools-mcp.md](03-tools-mcp.md) §3).
 
 ### Servicio Kubernetes (read-only, fabric8)
@@ -43,14 +45,16 @@ Logs agregados, complemento de `pod_logs` (que solo ve el pod actual):
   dedicado) con la API `query_range` de **Loki**, compartido en el namespace `observability` (guía de
   infraestructura `07-setup-observability.sh`).
 - Construye la query LogQL a partir de filtros estructurados (namespace/pod/contenedor/texto) y resuelve la
-  ventana temporal (`ventanaMinutos` o `desde`/`hasta` ISO-8601 con milisegundos, para correlacionar instantes
+  ventana temporal (`windowMinutes` o `from`/`to` ISO-8601 con milisegundos, para correlacionar instantes
   concretos entre servicios). Aplana y ordena cronológicamente la respuesta a `LogEntry`.
 
 ### Chat de búsqueda (front secundario)
 
 Una **UI mínima estática** + un endpoint REST `POST /search` que reutiliza el **mismo núcleo RAG** y añade un
 paso de **redacción con LLM** para responder en lenguaje natural. Solo documentación (no K8s). **Sin** JWT,
-historial ni auditoría: es deliberadamente fino para no recrear un copiloto.
+historial ni auditoría: es deliberadamente fino para no recrear un copiloto. Como cada consulta cuesta varias
+llamadas al LLM y no hay autenticación, `SearchRateLimiter` limita `/search` con un contador **global** en
+memoria (`autoops.search.max-requests-per-minute`, 30 por defecto; 429 al superarlo): solo vale con una réplica.
 
 ### Weaviate
 
@@ -152,18 +156,19 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 - **Consecuencias:** el servidor incorpora un LLM pequeño de uso **interno** (calificar/reformular), distinto
   del razonamiento del cliente.
 
-### ADR-008 — Transporte MCP Streamable HTTP in-cluster (+ stdio en local)
+### ADR-008 — Transporte MCP Streamable HTTP
 
-- **Decisión:** desplegado, AutoOps expone MCP por **Streamable HTTP** (Spring AI 2.0.0 / Spring Boot 4.1.0;
-  necesita correr en el clúster para usar el ServiceAccount de lectura). En local, el desarrollador puede usar
-  **stdio**.
+- **Decisión:** AutoOps expone MCP por **Streamable HTTP** (Spring AI 2.0 / Spring Boot 4.1; necesita correr
+  en el clúster para usar el ServiceAccount de lectura). En local se usa el mismo transporte en `:8080/mcp`.
 - **Historia:** la primera versión desplegada usaba el transporte **SSE legacy** (Spring AI 1.0.0). Sin
   keep-alive, los clientes basados en Node/undici (Claude Code, Copilot en VS Code/IntelliJ) cortaban la
   conexión a los ~5 min de inactividad (`-32001 Request timed out`) y había que reiniciar el cliente a mano.
   Se migró a Streamable HTTP (`streamable-http.keep-alive-interval: 20s`) como fix de la causa raíz, no como
   parche.
-- **Consecuencias:** el Ingress enruta el endpoint `/mcp`; el cliente MCP se configura con la URL (ver
-  [07-roadmap-implementacion.md](07-roadmap-implementacion.md) §F4).
+- **Consecuencias:** el Ingress enruta el endpoint `/mcp`; el cliente MCP se configura con la URL y la cabecera
+  `X-MCP-Token` (el `.mcp.json` del repo la toma de la variable de entorno `AUTOOPS_MCP_TOKEN`; ver
+  [07-roadmap-implementacion.md](07-roadmap-implementacion.md) §F4 y la guía de infraestructura `06`). El token
+  protege `/mcp` y es obligatorio en el despliegue; `/search` sigue sin autenticación (demo local).
 
 ### ADR-009 — Logs agregados vía Loki (`query_logs`), complemento de `pod_logs`
 
@@ -171,9 +176,9 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
   hay forma de correlacionar eventos entre varios pods/namespaces en una ventana de tiempo. Loki ya recibía los
   logs de todo el clúster (Promtail, ver guía de infraestructura `07-setup-observability.sh`), pero solo era
   útil para un humano mirando Grafana — el cliente MCP no podía consultarlo.
-- **Decisión:** nueva tool `query_logs` (`io.github.mikel0ne.autoops.observability`: `LokiGateway` + `LokiProperties` +
-  `ObservabilityTools`) que llama a `/loki/api/v1/query_range` con una query LogQL construida a partir de
-  filtros estructurados. La ventana temporal admite `ventanaMinutos` (relativa) o `desde`/`hasta` en ISO-8601
+- **Decisión:** nueva tool `query_logs` (`LokiGateway` + `LokiProperties` en `io.github.mikel0ne.autoops.observability`, y
+  `ObservabilityTools` en `tools`) que llama a `/loki/api/v1/query_range` con una query LogQL construida a partir de
+  filtros estructurados. La ventana temporal admite `windowMinutes` (relativa) o `from`/`to` en ISO-8601
   con milisegundos, para acotar a un instante muy concreto al correlacionar llamadas entre servicios.
 - **Consecuencias:** primer cliente HTTP plano del proyecto (`RestClient` de Spring, sin SDK dedicado de Loki);
   el resto de integraciones (Weaviate, fabric8) usan su propio SDK. RBAC sin cambios: Loki no expone más que
@@ -190,22 +195,22 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
   desde un repositorio Git, ni de citar con título/URL, ni de dar al LLM redactor más contexto que el propio
   fragmento recuperado.
 - **Decisión:**
-  1. **Abstracción de origen** (`io.github.mikel0ne.autoops.rag.source.FuenteDocumental`): Spring inyecta `List<FuenteDocumental>`;
-     cada una emite `Documento`. `LocalMarkdownSource` (carpeta local) y `GitMarkdownSource` (JGit, clona una
-     rama y construye el permalink al **commit SHA**, no a la rama — para que la cita no se rompa cuando la
-     rama avanza) están implementadas. `WikiJsSource` ingesta páginas de Wiki.js (wiki self-hosted, ver
-     infra/INFRA.md §7) vía su API GraphQL — sustituye al stub `ConfluenceSource`, que dejaba la abstracción
+  1. **Abstracción de origen** (`io.github.mikel0ne.autoops.rag.source.DocumentSource`): Spring inyecta `List<DocumentSource>`;
+     cada una emite `SourceDocument`. `LocalMarkdownSource` (carpeta local) y `GitHubMarkdownSource` (lee el repo
+     por la API de GitHub, sin clonar, y construye el permalink a la rama indicada o a la predeterminada)
+     están implementadas. `WikiJsSource` ingesta páginas de Wiki.js (wiki self-hosted, ver
+     infra/INFRA.md §7) vía su API GraphQL — sustituye al stub `ConfluenceSource` (ya retirado), que dejaba la abstracción
      lista pero sin una instancia real contra la que tirar.
   2. **Chunking híbrido** (`Chunker`, estático y puro): parte por encabezado (mantiene el breadcrumb completo,
-     p. ej. `Operación > Probes > Readiness`, como metadato `seccion`) y, dentro de cada sección, empaqueta
+     p. ej. `Operación > Probes > Readiness`, como metadato `section`) y, dentro de cada sección, empaqueta
      párrafos hasta un tamaño objetivo; si un párrafo solo ya excede ese tamaño, lo subdivide con el splitter
      recursivo de LangChain4j en vez de emitir un chunk gigante.
-  3. **Ventana de vecinos (sentence-window):** se separa el texto que se **embebe** (`nucleo`: el fragmento
-     en sí, pequeño y limpio → afina el match) del que se **almacena y se cita** (`texto`: núcleo + el chunk
+  3. **Ventana de vecinos (sentence-window):** se separa el texto que se **embebe** (el núcleo: el fragmento
+     en sí, pequeño y limpio → afina el match) del que se **almacena y se cita** (`text`: núcleo + el chunk
      anterior + el siguiente del mismo documento → más contexto para el LLM redactor). Es gratis aquí porque
      Weaviate tiene `vectorizer: none` (AutoOps calcula el vector a mano, ver ADR-005): basta con `embedAll`
-     sobre `nucleo` e insertar `texto`.
-  4. **Metadatos ampliados:** `titulo`, `url` (con ancla a la sección), `origen` (`markdown-local`|`git`|`wikijs`),
+     sobre el núcleo e insertar `text`.
+  4. **Metadatos ampliados:** `title`, `url` (con ancla a la sección), `origin` (`markdown-local`|`git`|`wikijs`),
      `docId` (documento padre) y `hash` (SHA-256 del núcleo, para una futura ingesta incremental) — esquema en
      [05-contratos-api-datos.md](05-contratos-api-datos.md) §4.
   5. **`taskType` distinto en indexar vs consultar:** `GeminiModelConfig` expone dos beans `EmbeddingModel`
@@ -219,8 +224,8 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
   bajo demanda (mismo patrón que `K8sInspectionService`/`LokiGateway`: leer en vivo, no indexar), no parte del
   RAG de documentación.
 - **Consecuencias:** cambio de esquema en Weaviate → cualquier despliegue de esto exige **reindexar desde
-  cero** (`POST /admin/vectorstore/drop` + `POST /admin/ingest` + `POST /admin/ingest/git?url=...`, o
-  directamente `infra/scripts/ingest-autoops.sh --reset`) con un `--tag` de imagen único.
+  cero** (`POST /admin/vectorstore/drop` + `POST /admin/ingest` + `POST /admin/ingest/git?url=...`, con la cabecera
+  `X-Admin-Token`, o directamente `infra/scripts/ingest-autoops.sh --reset`) con un `--tag` de imagen único.
 
 ### ADR-011 — Contexto en consulta: auto-merging de sección en vez de ventana de vecinos
 
@@ -234,13 +239,13 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 - **Decisión:**
   1. **Se elimina la ventana horneada:** cada chunk embebe y almacena el mismo texto (el núcleo). El `Chunker`
      deja de calcular `conVentanaDeVecinos`.
-  2. **Metadato de jerarquía:** en ingesta se estampa `seccionChars` (tamaño total de la sección) en cada chunk,
+  2. **Metadato de jerarquía:** en ingesta se estampa `sectionChars` (tamaño total de la sección) en cada chunk,
      para que el bucle CRAG decida la expansión **sin consultar**.
   3. **Auto-merging de sección en `expand`** (patrón Parent-Document/Auto-Merging, doc 03 §3.2): los fragmentos
-     relevantes se agrupan por `(docId, seccion)` y, según `seccionChars` y la co-recuperación (≥2 hits), se
-     fusionan a la **sección** (no al documento) vía `DocRetriever.seccionCompleta(docId, seccion)`, uniendo los
+     relevantes se agrupan por `(docId, section)` y, según `sectionChars` y la co-recuperación (≥2 hits), se
+     fusionan a la **sección** (no al documento) vía `DocRetriever.fullSection(docId, section)`, uniendo los
      núcleos sin solape. `documentoCompleto` se retira.
-- **Consecuencias:** cambio de esquema (campo `seccionChars`) **y** de qué texto se almacena (núcleo, no ventana)
+- **Consecuencias:** cambio de esquema (campo `sectionChars`) **y** de qué texto se almacena (núcleo, no ventana)
   → **reindexar desde cero** (mismo procedimiento que ADR-010). A cambio: sin duplicación de texto, sin bleed
   entre secciones, `grade` juzga el núcleo limpio, y la expansión es determinista y acotada a la sección.
 
@@ -249,7 +254,7 @@ Reglas de dependencia: `MCP/Chat → {RAG, K8s, Observabilidad} → {Weaviate, L
 | Atributo | Mecanismo |
 |---|---|
 | Fiabilidad de la recuperación | Híbrido + reranking + bucle correctivo CRAG con tope de iteraciones |
-| Seguridad | RBAC read-only sin Secrets; ninguna tool de escritura; el clúster no puede ser modificado |
+| Seguridad | RBAC read-only sin Secrets; ninguna tool de escritura; el clúster no puede ser modificado; `/mcp` con `X-MCP-Token` y `/admin/*` con `X-Admin-Token` |
 | Evolución | Proveedor LLM/embeddings intercambiable (config); tools como beans `@Tool` enchufables |
 | Reutilización | Es un MCP estándar: cualquier cliente MCP lo aprovecha sin UI propia |
 | Trazabilidad | Logs por tool y por iteración del bucle CRAG |

@@ -3,7 +3,8 @@
 > **Son DOS imágenes**, no una: `registry.local/autoops-backend` (Spring Boot, build multi-stage Maven) y
 > `registry.local/autoops-frontend` (Angular construido con `npm` y servido por nginx). Los Dockerfiles son
 > **compartidos** por todo el monorepo: `docker/backend.Dockerfile` y `docker/frontend.Dockerfile`. El corpus
-> del RAG se hornea en la imagen del backend (`deploy.sh` lo copia al contexto desde `CORPUS_DIR`).
+> del RAG se copia a la imagen del backend (`deploy.sh` lo copia al contexto desde `CORPUS_DIR`), aunque en el
+> clúster no se lee (ver §1).
 
 Ninguna de las dos imágenes se construye a mano con `docker build`: las orquesta el script genérico
 `infra/scripts/deploy.sh --project autoops --component backend|frontend|all` (ver `infra/projects/autoops.env`
@@ -17,42 +18,55 @@ ver §3).
 ## 1. Dockerfile del backend
 
 `docker/backend.Dockerfile` (contexto de build: `autoops/backend/`; la librería `platform-commons` entra como
-contexto con nombre de BuildKit: `--build-context commons=platform-commons`, que `deploy.sh` ya pasa):
+contexto con nombre de BuildKit: `--build-context commons=platform-commons`, que `deploy.sh` ya pasa). Extracto:
 
 ```dockerfile
 # ---- Stage 1: build ----
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM eclipse-temurin:17-jdk-alpine AS build
 WORKDIR /workspace
 
-# Primero solo el pom: la capa de dependencias se cachea entre builds
-COPY pom.xml .
-RUN mvn -B dependency:go-offline
+# El wrapper fija la versión de Maven; el pom va primero para que la capa de dependencias se cachee
+COPY mvnw pom.xml lombok.config ./
+COPY .mvn .mvn
 
+# platform-commons se instala antes, para que el pom de la app lo resuelva del repositorio local de la imagen
+COPY --from=commons . /commons
+RUN sh ./mvnw -B -q -f /commons/pom.xml install -DskipTests
+
+RUN sh ./mvnw -B -q dependency:go-offline
 COPY src ./src
-RUN mvn -B package -DskipTests
+RUN sh ./mvnw -B -q package -DskipTests \
+    && java -Djarmode=tools -jar target/*.jar extract --layers --launcher --destination target/extracted
 
 # ---- Stage 2: runtime ----
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
-
 RUN addgroup -S -g 1000 app && adduser -S -u 1000 -G app app
 USER 1000
 
-COPY --from=build /workspace/target/*.jar app.jar
-COPY corpus /app/corpus    # horneado por deploy.sh antes del build (ver §1 más abajo)
+# Una capa por capa de Spring Boot: un cambio de código solo reconstruye la última, pequeña
+COPY --from=build /workspace/target/extracted/dependencies/ ./
+COPY --from=build /workspace/target/extracted/spring-boot-loader/ ./
+COPY --from=build /workspace/target/extracted/snapshot-dependencies/ ./
+COPY --from=build /workspace/target/extracted/application/ ./
+COPY corpus /app/corpus
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
 ```
 
 Notas:
 
-- Multi-stage simple (jar único, sin `layertools`): imagen final ligera (`eclipse-temurin:17-jre-alpine`, sin
-  JDK ni Maven) y usuario no-root (`uid 1000`).
+- Multi-stage con el jar en capas (`layertools`/`jarmode=tools`): imagen final ligera (`eclipse-temurin:17-jre-alpine`,
+  sin JDK ni Maven) y usuario no-root (`uid 1000`).
 - No hay UI dentro del jar: la SPA Angular es la **otra** imagen (frontend).
-- **Corpus horneado**: `deploy.sh` copia `CORPUS_DIR` (`autoops/corpus`) a `autoops/backend/corpus` *antes* del
-  build, así que `COPY corpus /app/corpus` siempre encuentra contenido; la app lo lee vía
-  `AUTOOPS_INGESTION_CORPUS_PATH=/app/corpus` (ConfigMap del chart, guía 05).
+- **Charset**: el despliegue pasa `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8` por el
+  ConfigMap; el backend (`CharsetGuard`) no arranca si el charset por defecto de la JVM no es UTF-8.
+- **Corpus**: `deploy.sh` copia `CORPUS_DIR` (`autoops/corpus`) a `autoops/backend/corpus` *antes* del build, así
+  que `COPY corpus /app/corpus` siempre encuentra una carpeta. En el clúster, sin embargo, no se lee:
+  `autoops.ingestion.corpus-path` toma por defecto `../corpus` (no existe en la imagen) y el ConfigMap no lo
+  sobrescribe, así que la fuente local queda desactivada y la ingesta sale de GitHub y de Wiki.js (guía 07 §3). Para
+  usar el corpus horneado habría que definir `AUTOOPS_INGESTION_CORPUS_PATH=/app/corpus`.
 
 ## 2. Dockerfile del frontend
 
@@ -61,7 +75,7 @@ monorepo, no solo AutoOps):
 
 ```dockerfile
 # ---- Stage 1: build ----
-FROM node:20-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /workspace
 
 COPY package*.json ./
@@ -71,17 +85,17 @@ COPY . .
 RUN npm run build
 
 # ---- Stage 2: runtime ----
-FROM nginx:1.27-alpine
+# Variante sin privilegios: corre como usuario no root en el 8080, así que el pod puede fijar runAsNonRoot
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-# Angular 17+ deja la app en dist/<nombre>/browser
 COPY --from=build /workspace/dist/frontend/browser /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+EXPOSE 8080
 ```
 
 `deploy.sh` copia `docker/frontend-nginx.conf` a `autoops/frontend/nginx.conf` antes del build (logging JSON
-estructurado para Loki/Grafana, ver guía 07).
+estructurado para Loki/Grafana, ver guía 07). El Service del chart expone el puerto 80 hacia el 8080 del contenedor.
 
 ## 3. Construcción y push (automatizado)
 
@@ -93,8 +107,8 @@ estructurado para Loki/Grafana, ver guía 07).
   y luego `helm upgrade --install` (chart `infra/charts/generic-app`, guía 05) con `--set image.tag=<tag>`.
 - `--skip-build` salta el build/push y solo aplica Helm (útil si solo cambió un `values-autoops-*.yaml`).
 - `--dry-run` renderiza el chart con `helm template` sin aplicar nada al clúster.
-- El registry `registry.local` resuelve dentro del clúster gracias al `containerd-snapshotter` compartido con
-  dockerd (k3s/Rancher Desktop): no hace falta `minikube image load` ni equivalentes.
+- El registry `registry.local` es el del clúster (`infra/scripts/02-setup-registry.sh`, `05-setup-registry-ingress.sh`):
+  k3s lo resuelve y no hace falta cargar imágenes a mano.
 
 ## 4. Ciclo de actualización
 

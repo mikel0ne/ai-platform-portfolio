@@ -2,7 +2,7 @@
 
 ## Resumen
 
-El portfolio cuenta actualmente con **2 aplicaciones desplegadas** (AutoOps MCP y L1 Support Copilot) y **4 servicios de infraestructura compartida** que ambas usan. Esta página es un mapa de alto nivel para quien llega nuevo; el detalle técnico de cada pieza vive en la documentación de arquitectura/infraestructura de cada proyecto (en Git), no aquí — esta wiki complementa esos documentos, no los duplica.
+El portfolio cuenta actualmente con **2 aplicaciones desplegadas** (AutoOps MCP y L1 Support Copilot) y **7 servicios de infraestructura compartida** que ambas usan. Esta página es un mapa de alto nivel para quien llega nuevo; el detalle técnico de cada pieza vive en la documentación de arquitectura/infraestructura de cada proyecto (en Git), no aquí — esta wiki complementa esos documentos, no los duplica.
 
 ## Aplicaciones
 
@@ -21,6 +21,7 @@ El portfolio cuenta actualmente con **2 aplicaciones desplegadas** (AutoOps MCP 
 | **Weaviate compartido** | Base vectorial; cada proyecto crea su propia clase (AutoOps usa `AutoopsDocChunk`). |
 | **Grafana/Loki** (namespace `observability`) | Logs centralizados de todos los namespaces, con retención de 7 días. |
 | **Registry local** (namespace `registry`) | Almacena las imágenes Docker que se construyen localmente para cada despliegue. |
+| **Langfuse** (namespace `langfuse`) | Trazas de las llamadas al LLM de AutoOps y del L1 Copilot (una traza por búsqueda o por turno de chat), con sus propios datastores. |
 
 ## Por qué Git y la wiki conviven como dos fuentes distintas
 

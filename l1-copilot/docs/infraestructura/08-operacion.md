@@ -83,7 +83,7 @@ kubectl exec -n infra deploy/postgres -- psql -U appuser -d postgres \
 kubectl delete namespace infra registry
 
 # Imágenes locales
-docker rmi localhost:30500/l1-copilot-backend:1.0.0 localhost:30500/l1-copilot-frontend:1.0.0
+docker rmi registry.local/l1-copilot-backend:<tag> registry.local/l1-copilot-frontend:<tag>
 
 # Borrón y cuenta nueva del clúster entero (sin reinstalar Rancher Desktop)
 # Rancher Desktop → Troubleshooting → Reset Kubernetes
@@ -105,6 +105,5 @@ docker rmi localhost:30500/l1-copilot-backend:1.0.0 localhost:30500/l1-copilot-f
 - Checkpointer persistente (Postgres) → `replicaCount > 1` y rolling updates sin
   pérdida de conversaciones.
 - Migraciones con Flyway en vez del script `setup-l1-copilot-db.sh`.
-- Prometheus + Grafana en `infra` (otro chart genérico o releases con sus propios
-  charts; Actuator ya expone métricas).
-- CI: build + push al registry de `infra` y despliegue con GitHub Actions.
+- Métricas con Prometheus (los logs ya van a Loki + Grafana, ver [`infra/INFRA.md`](../../../infra/INFRA.md)); Actuator expone `health` e `info`.
+- CD: la CI de GitHub Actions ya construye y prueba los backends y frontends; falta publicar la imagen y desplegar desde ella.

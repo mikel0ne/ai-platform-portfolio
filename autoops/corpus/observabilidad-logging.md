@@ -17,8 +17,8 @@ los pods.
 
 - Exponer métricas Prometheus en `/actuator/prometheus` (Micrometer).
 - Métricas mínimas: latencia por endpoint (histograma), tasa de errores, saturación de pools
-  (conexiones, hilos). Para AutoOps, además: histograma de iteraciones del bucle CRAG y latencia
-  por tool.
+  (conexiones, hilos). Para AutoOps, además: las iteraciones del bucle CRAG y la latencia
+  por tool (hoy se registran como scores y trazas en Langfuse; AutoOps solo expone `health` e `info` por Actuator).
 - Definir alertas sobre síntomas (latencia p99, tasa de error), no sobre causas.
 
 ## Trazas

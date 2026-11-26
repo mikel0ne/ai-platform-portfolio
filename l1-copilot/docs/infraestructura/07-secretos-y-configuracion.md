@@ -9,11 +9,12 @@ el repo jamás.**
 |---|---|---|---|
 | `GEMINI_API_KEY` | 🔴 sí | Secret `gemini-api-key` en `l1-copilot` (lo sincroniza `deploy.sh` desde `infra/.env.local`) | backend |
 | `COPILOT_AUTH_TOKEN_SECRET` | 🔴 sí, opcional | Secret `copilot-auth-token` en `l1-copilot` (lo sincroniza `deploy.sh` desde `infra/.env.local`) | backend (firma de los tokens demo) |
-| Password de Postgres compartido | 🔴 sí | Secret `postgres-credentials` en `infra` (lo crea [`03-setup-postgres.sh`](../../infra/scripts/03-setup-postgres.sh)) + Secret `postgres-credentials` en `l1-copilot` (lo sincroniza `deploy.sh`) | postgres / backend |
-| Perfil Spring, URL JDBC, opciones JVM | no | ConfigMap (lo crea el chart a partir de `configmap.data` en `values-l1-copilot-backend.yaml`) | backend |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | 🔴 sí | Secret `langfuse-api-keys` en `l1-copilot` (← `LANGFUSE_L1COPILOT_*` de `infra/.env.local`) | backend (trazas Langfuse) |
+| Password de Postgres compartido | 🔴 sí | Secret `postgres-credentials` en `infra` (lo crea [`03-setup-postgres.sh`](../../../infra/scripts/03-setup-postgres.sh)) + Secret `postgres-credentials` en `l1-copilot` (lo sincroniza `deploy.sh`) | postgres / backend |
+| Perfil Spring, URL JDBC, opciones JVM (incluye `-Dfile.encoding=UTF-8`), flags de Langfuse | no | ConfigMap (lo crea el chart a partir de `configmap.data` en `values-l1-copilot-backend.yaml`) | backend |
 | Esquema + seed SQL del proyecto | no | `l1-copilot/backend/src/main/resources/schema-postgresql.sql` y `data-postgresql.sql` (en repo) | [`l1-copilot/scripts/setup-l1-copilot-db.sh`](../../scripts/setup-l1-copilot-db.sh) |
 | Values del chart (recursos, host, probes…) | no | `infra/values-l1-copilot-*.yaml` (en repo) | helm install/upgrade |
-| Modelo Gemini, TTL caché… | no | `application*.yml` dentro de la imagen | backend |
+| Modelo Gemini, reintentos del LLM, umbral tú/usted… | no | `application*.yml` dentro de la imagen | backend |
 
 Criterio: **si rotarlo duele, es Secret; si se puede leer en un PR sin problema, es
 values/ConfigMap/yml.**
@@ -32,7 +33,7 @@ values/ConfigMap/yml.**
    `infra/.gitignore` excluye ficheros `.env*` (salvo los `.example` y los de placeholders).
 2. **Los secretos se materializan desde el `.env`:**
    - `deploy.sh` los sincroniza en cada despliegue (camino recomendado, ver arriba), o
-   - [`infra/scripts/create-secrets.ps1`](../../infra/scripts/create-secrets.ps1) / una línea
+   - [`infra/scripts/create-secrets.ps1`](../../../infra/scripts/create-secrets.ps1) / una línea
      de `kubectl create secret` para casos puntuales.
    - En un entorno serio: External Secrets / Sealed Secrets / Vault.
    **Nunca** en `infra/values-*.yaml`: esos values están versionados.
@@ -54,9 +55,9 @@ values/ConfigMap/yml.**
 ## Camino recomendado: `infra/.env.local` sincronizado por `deploy.sh`
 
 Fuente de verdad única de los Secrets (centralizada, cross-project — ver
-[`infra/INFRA.md`](../../infra/INFRA.md)):
+[`infra/INFRA.md`](../../../infra/INFRA.md)):
 
-- `infra/.env.local` — `GEMINI_API_KEY` y `POSTGRES_USER`/`POSTGRES_PASSWORD` **reales**,
+- `infra/.env.local` — `GEMINI_API_KEY`, `POSTGRES_USER`/`POSTGRES_PASSWORD`, claves Langfuse y, opcional, `COPILOT_AUTH_TOKEN_SECRET` **reales**,
   git-ignored, **compartidos por todos los proyectos del portfolio** (plantilla:
   `infra/.env.local.example`).
 - `infra/.env.l1-copilot.local` — override puntual de ESTE proyecto (git-ignored,
@@ -70,7 +71,7 @@ GEMINI_API_KEY=AIza...
 
 Qué clave va a qué Secret lo declara `infra/projects/l1-copilot.env` (`SECRETS_BACKEND`):
 `gemini-api-key` ← `GEMINI_API_KEY`; `postgres-credentials` ← `POSTGRES_USER`
-`POSTGRES_PASSWORD`; `copilot-auth-token` ← `COPILOT_AUTH_TOKEN_SECRET`. **`deploy.sh` materializa los Secrets automáticamente** (`sync_secrets`)
+`POSTGRES_PASSWORD`; `langfuse-api-keys` ← `LANGFUSE_L1COPILOT_PUBLIC_KEY`/`SECRET_KEY`; `copilot-auth-token` ← `COPILOT_AUTH_TOKEN_SECRET`. **`deploy.sh` materializa los Secrets automáticamente** (`sync_secrets`)
 en cada despliegue; no hay que crearlos a mano.
 
 `COPILOT_AUTH_TOKEN_SECRET` es opcional (`OPTIONAL_SECRET_VARS`): si falta o está vacía,

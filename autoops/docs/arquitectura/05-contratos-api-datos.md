@@ -21,7 +21,8 @@ parámetros). Forma canónica de cada una:
       "url": "", "origin": "markdown-local", "score": 0.83 }
   ],
   "iterations": 1,          // vueltas del bucle CRAG consumidas
-  "confidence": "high"        // high | medium | low | none (cobertura de la pregunta según el LLM evaluador)
+  "confidence": "high",       // high | medium | low | none (cobertura de las subpreguntas según el LLM evaluador)
+  "discardedCandidates": []   // solo con confidence none: hasta 3 candidatos descartados, como único material
 }
 ```
 
@@ -29,16 +30,16 @@ parámetros). Forma canónica de cada una:
 
 ```jsonc
 // entrada
-{ "namespace": "default", "nombre": "payments-api-7d9f-abc" }
+{ "namespace": "default", "name": "payments-api-7d9f-abc" }
 // salida (PodDiagnosis)
 {
-  "fase": "Pending",
+  "phase": "Pending",
   "ready": false,
-  "motivo": "ErrImagePull",
-  "condiciones": [ { "tipo": "Ready", "estado": "False", "motivo": "ContainersNotReady" } ],
-  "contenedores": [ { "nombre": "app", "imagen": "registry/payments:9.9.9",
-                      "reinicios": 0, "estado": "Waiting", "motivoEstado": "ErrImagePull" } ],
-  "eventos": [ { "tipo": "Warning", "motivo": "Failed", "mensaje": "Failed to pull image…", "hace": "30s" } ],
+  "reason": "ErrImagePull",
+  "conditions": [ { "type": "Ready", "state": "False", "reason": "ContainersNotReady" } ],
+  "containers": [ { "name": "app", "image": "registry/payments:9.9.9",
+                    "restarts": 0, "state": "Waiting", "stateReason": "ErrImagePull" } ],
+  "events": [ { "type": "Warning", "reason": "Failed", "message": "Failed to pull image…", "ago": "30s" } ],
   "logs": "(sin logs: el contenedor no ha arrancado)"
 }
 ```
@@ -47,34 +48,42 @@ parámetros). Forma canónica de cada una:
 
 | Tool | Entrada | Salida (resumen) |
 |---|---|---|
-| `list_pods` | `{ namespace, selector? }` | `[{ nombre, fase, ready, reinicios, edad }]` |
-| `list_workloads` | `{ namespace? }` | `[{ tipo, nombre, deseadas, disponibles }]` |
-| `describe_pod` | `{ namespace, nombre }` | Objeto tipo `describe` (contenedores, imágenes, requests/limits, condiciones) |
-| `list_events` | `{ namespace, objeto? }` | `[{ tipo, motivo, mensaje, hace }]` |
-| `pod_logs` | `{ namespace, nombre, contenedor?, lineas=200, previous=false }` | `String` (cola de logs) |
+| `list_pods` | `{ namespace, selector? }` | `[{ name, phase, ready, restarts, age }]` |
+| `list_workloads` | `{ namespace? }` | `[{ type, name, desired, available }]` |
+| `describe_pod` | `{ namespace, name }` | Objeto tipo `describe` (`name`, `namespace`, `phase`, `node`, `containers` con imagen y requests/limits, `conditions`) |
+| `list_events` | `{ namespace, object? }` | `[{ type, reason, message, ago }]` (hasta 50) |
+| `pod_logs` | `{ namespace, name, container?, lines=200, previous=false }` | `String` (cola de logs) |
+| `ping` | `{ message }` | `String`: eco con marca de tiempo |
 
 ### `query_logs`
 
 ```jsonc
-// entrada — sin desde/hasta: últimos ventanaMinutos hasta ahora
+// entrada — sin from/to: últimos windowMinutes hasta ahora
 { "namespace": "autoops", "pod": "autoops-backend-7d9f", "text": "ERROR", "windowMinutes": 15 }
 // entrada — instante concreto (p. ej. correlacionar con un timestamp ya visto en otro log)
-{ "namespace": "autoops", "desde": "2026-06-26T14:32:07.100Z", "hasta": "2026-06-26T14:32:07.900Z" }
+{ "namespace": "autoops", "from": "2026-06-26T14:32:07.100Z", "to": "2026-06-26T14:32:07.900Z" }
 // salida (List<LogEntry>)
 [
   { "timestamp": "2026-06-26T14:32:07.123Z", "namespace": "autoops", "pod": "autoops-backend-7d9f",
-    "contenedor": "app", "linea": "ERROR no se pudo conectar a weaviate.infra.svc.cluster.local:8080" }
+    "container": "app", "line": "ERROR no se pudo conectar a weaviate.infra.svc.cluster.local:8080" }
 ]
 ```
 
-`desde`/`hasta` son ISO-8601 y admiten milisegundos; si se omiten, la ventana es `[ahora - ventanaMinutos, ahora]`.
+`from`/`to` son ISO-8601 y admiten milisegundos; si se omiten, la ventana es `[ahora - windowMinutes, ahora]`.
 
 **Invariante de seguridad:** ninguna tool acepta operaciones de escritura ni expone Secrets. El RBAC del
 ServiceAccount lo garantiza a nivel de clúster (guía de infraestructura `02`).
 
+**Autenticación del endpoint:** `/mcp` exige la cabecera `X-MCP-Token` cuando `autoops.mcp.token`
+(`AUTOOPS_MCP_TOKEN`) está definido; el despliegue en el clúster lo hace obligatorio (Secret `autoops-mcp-token`).
+Sin cabecera o con un valor distinto responde `401`.
+
 ## 2. API del chat de búsqueda (front secundario)
 
-Sin autenticación en el MVP (solo lectura de documentación pública interna). Reutiliza el núcleo RAG.
+Sin autenticación en el MVP (solo lectura de documentación pública interna). Reutiliza el núcleo RAG. Está limitado
+por un contador **global** en memoria (`autoops.search.max-requests-per-minute`, 30 por defecto): al superarlo
+responde `429` sin llamar al LLM, y solo vale con una réplica. Si el modelo falla o agota su cuota responde `503`
+(`application/problem+json`) y no `500`.
 
 ### POST `/search`
 
@@ -84,14 +93,21 @@ Sin autenticación en el MVP (solo lectura de documentación pública interna). 
 // response 200
 {
   "answer": "Según la guía interna, todo contenedor declara requests y límite de memoria…",  // redactado
-  "citations": [ { "source": "politica-recursos.md", "title": "Política de recursos",
-               "section": "Política de recursos > Límites", "url": "", "origin": "markdown-local", "score": 0.81 } ],
+  "citations": [ { "text": "…", "source": "politica-recursos.md", "title": "Política de recursos",
+               "section": "Política de recursos > Límites", "url": "", "origin": "markdown-local", "score": 0.81,
+               "docId": "…", "sectionChars": 1450, "order": 3 } ],
   "confidence": "high"
 }
 ```
 
 La SPA Angular (`frontend/`, sección `search/`) consume este endpoint. Es el **único** componente con LLM de
 redacción server-side; la tool MCP equivalente (`search_docs`) no redacta.
+
+### Endpoints de administración
+
+`POST /admin/ingest[?reset=true]`, `POST /admin/ingest/git?url=…[&branch=&subdir=&webBase=]` y
+`POST /admin/vectorstore/drop` exigen la cabecera `X-Admin-Token` (`AUTOOPS_ADMIN_TOKEN`; sin token configurado
+quedan cerrados) y el Ingress no los enruta.
 
 ### GET `/actuator/health`
 
@@ -101,22 +117,25 @@ El endpoint MCP (`/mcp`, Streamable HTTP) está disponible cuando readiness pasa
 ## 3. DTOs (forma canónica en Java)
 
 ```java
-public record DocChunk(String texto, String titulo, String fuente, String seccion, String url, String origen,
-                       double score) {}
+public record DocChunk(String text, String title, String source, String section, String url, String origin,
+                       double score, String docId, int sectionChars, int order) {}
 
-public record SearchRequest(String consulta) {}
-public record SearchResponse(String respuesta, List<DocChunk> citas, String confianza) {}
+public record SearchRequest(@NotBlank @Size(max = 2000) String query) {}
+public record SearchResponse(String answer, List<DocChunk> citations, Confidence confidence) {}
+
+public record RagResult(List<DocChunk> chunks, int iterations, Confidence confidence,
+                        List<DocChunk> discardedCandidates) {}
 
 public record PodDiagnosis(
-        String fase, boolean ready, String motivo,
-        List<Condicion> condiciones, List<Contenedor> contenedores,
-        List<Evento> eventos, String logs) {
-    public record Condicion(String tipo, String estado, String motivo) {}
-    public record Contenedor(String nombre, String imagen, int reinicios, String estado, String motivoEstado) {}
-    public record Evento(String tipo, String motivo, String mensaje, String hace) {}
+        String phase, boolean ready, String reason,
+        List<ConditionInfo> conditions, List<ContainerInfo> containers,
+        List<EventInfo> events, String logs) {
+    public record ConditionInfo(String type, String state, String reason) {}
+    public record ContainerInfo(String name, String image, int restarts, String state, String stateReason) {}
+    public record EventInfo(String type, String reason, String message, String ago) {}
 }
 
-public record LogEntry(Instant timestamp, String namespace, String pod, String contenedor, String linea) {}
+public record LogEntry(Instant timestamp, String namespace, String pod, String container, String line) {}
 ```
 
 ## 4. Esquema de datos (Weaviate)
@@ -129,16 +148,16 @@ erDiagram
     DOC_CHUNK {
         uuid   id PK
         vector embedding "embebe el NUCLEO del chunk; dim = la del modelo configurado (gemini-embedding-2)"
-        text   texto "ALMACENADO: el núcleo del chunk (sin ventana; el contexto extra lo da el CRAG en consulta)"
-        string titulo "título del documento de origen"
-        string fuente "fichero/page/path de origen"
-        string seccion "breadcrumb de encabezados (p. ej. 'Operación > Probes > Readiness')"
+        text   text "ALMACENADO: el núcleo del chunk (sin ventana; el contexto extra lo da el CRAG en consulta)"
+        string title "título del documento de origen"
+        string source "fichero/page/path de origen"
+        string section "breadcrumb de encabezados (p. ej. 'Operación > Probes > Readiness')"
         string url "permalink con ancla a la sección; vacío si el origen no es navegable"
-        string origen "markdown-local | git | wikijs"
+        string origin "markdown-local | git | wikijs"
         string docId "id estable del documento padre"
         string hash "SHA-256 del núcleo; ingesta incremental/dedupe futura"
-        int    orden "posición del chunk en el documento"
-        int    seccionChars "tamaño total (caracteres) de la sección; el CRAG decide la expansión sin consultar"
+        int    order "posición del chunk en el documento"
+        int    sectionChars "tamaño total (caracteres) de la sección; el CRAG decide la expansión sin consultar"
     }
 ```
 
@@ -147,7 +166,7 @@ infraestructura `03-weaviate.md`):
 
 ```jsonc
 {
-  "class": "AutoopsDocChunk",           // el nombre real es prefijado: Weaviate es compartido (ver doc 03 de infra)
+  "class": "AutoopsDocChunk",           // en el clúster el nombre va prefijado porque Weaviate es compartido (`autoops.weaviate.class-name`; en local, `DocChunk`)
   "vectorizer": "none",                 // los embeddings los calcula AutoOps (LangChain4j), no Weaviate
   "properties": [
     { "name": "text",   "dataType": ["text"] },
@@ -168,11 +187,11 @@ infraestructura `03-weaviate.md`):
 - La **dimensión del vector** la fija el modelo de embeddings configurado (`gemini-embedding-2`, el free
   tier real — `text-embedding-004` no está disponible). Si se cambia de modelo de embeddings, hay que recrear
   la clase con la nueva dimensión y **re-ingestar** el corpus (ver doc 06).
-- La **búsqueda híbrida** (vector + BM25 sobre `texto`) y el **reranking** se piden en la query, no cambian el
+- La **búsqueda híbrida** (vector + BM25 sobre `text`) y el **reranking** se piden en la query, no cambian el
   esquema.
 - **Se embebe y se almacena el mismo texto (el núcleo)**: ya no se hornea la ventana de vecinos (ADR-010 quedó
   superseded por ADR-011, doc 02). El contexto extra lo resuelve el bucle CRAG en consulta vía auto-merging de
-  sección (`expand`, doc 03 §3.2), usando `seccionChars` para decidir sin consultar.
+  sección (`expand`, doc 03 §3.2), usando `sectionChars` para decidir sin consultar.
 
 ## 5. Versionado del contrato
 

@@ -4,10 +4,10 @@
 
 | Herramienta | Versión mínima | Para qué | Verificación |
 |---|---|---|---|
-| Docker Desktop | 4.30+ | Construir la imagen y (opcionalmente) el clúster K8s | `docker version` |
+| Rancher Desktop | 1.16+ | Clúster k3s, `docker`, `kubectl` y `helm` | `docker version` |
 | kubectl | 1.29+ | Operar el clúster | `kubectl version --client` |
 | Java (Temurin) | 17 (recomendado 21) | Compilar `autoops-mcp` | `java -version` |
-| Maven | 3.9+ | Build del servidor | `mvn -version` |
+| Maven | 3.9+ (el repo trae el wrapper `./mvnw`) | Build del servidor; antes hay que instalar `platform-commons` (`./mvnw -f ../../platform-commons/pom.xml install`) | `./mvnw -version` |
 | Git | 2.40+ | Código fuente | `git --version` |
 | Un cliente MCP | — | Probar el servidor (Claude Code, GitHub Copilot…) | — |
 
@@ -16,42 +16,25 @@ Opcionales pero recomendadas:
 - **k9s** — TUI para inspeccionar el clúster cómodamente.
 - **Helm 3** — viene con Rancher Desktop; lo usa `deploy.sh` y el stack de observabilidad.
 
-> **Node.js 20+ SÍ hace falta**: AutoOps tiene un **frontend Angular separado** (`autoops/frontend/`,
+> **Node.js 24 hace falta** (el Dockerfile del frontend usa `node:24-alpine`): AutoOps tiene un **frontend Angular separado** (`autoops/frontend/`,
 > chat de búsqueda) que se construye con `npm` y se sirve por nginx en su propia imagen.
 
 > **Clúster real:** el portfolio usa **Rancher Desktop (k3s)** con ingress **Traefik** (no Docker
 > Desktop + nginx-ingress). El registry local es `registry.local`. Ver `infra/INFRA.md`.
 
-## Elección del clúster local
+## Clúster local
 
-Dos opciones soportadas; elegir una y ser consistente.
-
-### Opción A — Kubernetes de Docker Desktop (recomendada en Windows)
-
-1. Docker Desktop → *Settings* → *Kubernetes* → **Enable Kubernetes** → *Apply & Restart*.
-2. Verificar contexto:
+El clúster es **Rancher Desktop (k3s)**; su instalación y la plataforma compartida (registry, Postgres, Weaviate,
+observabilidad) están en [`infra/INFRA.md`](../../../infra/INFRA.md) y en las guías de infraestructura de L1
+Copilot (`02-cluster-local.md`).
 
 ```powershell
-kubectl config use-context docker-desktop
+kubectl config use-context rancher-desktop
 kubectl get nodes
 ```
 
-**Ventaja:** las imágenes de `docker build` son visibles directamente por el clúster (mismo daemon); no hay paso
-de carga.
-
-**Recursos:** asignar a Docker Desktop al menos **6 GB de RAM y 4 CPUs** (*Settings → Resources*). El stack
-(`autoops-mcp` + Weaviate + ingress) consume ~2-3 GB; el reranker opcional añade ~1 GB.
-
-### Opción B — Minikube
-
-```powershell
-winget install Kubernetes.minikube
-minikube start --cpus=4 --memory=8192 --driver=docker
-kubectl config use-context minikube
-```
-
-**Diferencia:** Minikube tiene su propio daemon Docker. Tras cada `docker build` hay que cargar la imagen
-(`minikube image load autoops/mcp:0.1.0`) o construir dentro de su daemon (`minikube docker-env | Invoke-Expression`).
+**Recursos:** asignar a la VM al menos **6 GB de RAM y 4 CPUs**. El stack (`autoops-backend` + Weaviate + reranker +
+ingress) consume ~2-3 GB.
 
 ## Resolución de nombres local
 
@@ -64,18 +47,17 @@ El Ingress enruta por el host `autoops.local`. Añadir al fichero `hosts` (como 
 127.0.0.1 autoops.local
 ```
 
-> Con Minikube, usar la IP de `minikube ip` (salvo `minikube tunnel`, que publica en localhost). Ver
-> [06-ingress-acceso.md](06-ingress-acceso.md).
+> `infra/scripts/add-host.ps1 -Hostname autoops.local` lo hace por ti. Ver [06-ingress-acceso.md](06-ingress-acceso.md).
 
 ## Credenciales del proveedor LLM
 
 AutoOps usa un proveedor LLM/embeddings **abstraído**; por defecto **Google AI Studio (Gemini, capa gratuita)**.
-El LLM es de **uso interno** (reformular en el RAG correctivo y redactar el chat); el razonamiento de cara al
+El LLM es de **uso interno** (variantes, calificación y reformulación en el RAG correctivo, y redacción del chat); el razonamiento de cara al
 usuario lo pone el cliente MCP.
 
 1. Crear API key gratuita en <https://aistudio.google.com/app/apikey>.
-2. Se inyectará como Secret de Kubernetes en [02-topologia-kubernetes.md](02-topologia-kubernetes.md). **Nunca**
-   se commitea al repositorio.
+2. Se guarda en `infra/.env.local` (gitignored) y `deploy.sh` la sincroniza como Secret de Kubernetes
+   ([02-topologia-kubernetes.md](02-topologia-kubernetes.md)). **Nunca** se commitea al repositorio.
 
 ## Checklist final
 
@@ -83,7 +65,7 @@ usuario lo pone el cliente MCP.
 docker version          # Cliente y servidor responden
 kubectl get nodes       # Un nodo Ready
 java -version           # 17+
-mvn -version            # 3.9+
+./mvnw -version         # 3.9+ (wrapper del repo)
 ```
 
 Con todo en verde, continuar con [02-topologia-kubernetes.md](02-topologia-kubernetes.md).

@@ -18,8 +18,8 @@ Part of [AutoOps](autoops/README.md), shared by its `search_docs` MCP tool and i
 top-k search returns chunks that look relevant and answers anyway; this one judges what it retrieved.
 
 - **Hybrid search with reranking in one Weaviate query**: BM25 + vector, then a cross-encoder rerank.
-- **Multi-query on the first pass**: the question is expanded into variants and fused with Reciprocal Rank
-  Fusion; retries use a single rewritten query and a wider `k` to keep LLM cost bounded.
+- **Multi-query on the first pass**: the question is expanded into variants, retrieved in parallel and fused with
+  Reciprocal Rank Fusion; retries use a single rewritten query and a wider `k` to keep LLM cost bounded.
 - **CRAG loop**: an LLM grades each chunk and the coverage of each sub-question, so a compound question is not
   "answered" by covering half of it. The rerank score is never used as a proxy for relevance. The iteration
   cap sits on the graph edge, so the loop terminates whatever the grader says.
@@ -304,7 +304,7 @@ the paid tier, from estimated average token counts per call and the list prices 
 
 That is about **$3 per 1000 L1 turns** and **$2-6 per 1000 searches** with 3.5, and 25-30% less with 3.1.
 Query embeddings are negligible (about $0.00002 per search). The CRAG grader is the most expensive call because it
-reads every retrieved chunk. A confirmation button does not call the router LLM, and L1 cache hits cost nothing.
+reads every retrieved chunk. A confirmation button does not call the router LLM.
 Thinking tokens are billed as output.
 
 ## Running it

@@ -45,7 +45,7 @@ infra\scripts\add-host.ps1 -Hostname autoops.local
 
 ## 4. Registrar AutoOps en el cliente MCP
 
-Con el servidor desplegado (transporte **Streamable HTTP**, con keep-alive — Spring AI 2.0.0), añadir a la
+Con el servidor desplegado (transporte **Streamable HTTP**, con keep-alive — Spring AI 2.0), añadir a la
 config MCP del cliente:
 
 ```jsonc
@@ -65,18 +65,9 @@ El endpoint `/mcp` exige la cabecera `X-MCP-Token`; su valor es el secreto `AUTO
 `openssl rand -hex 32`). El cliente lo lee de la variable de entorno del mismo nombre, sin guardarlo en el repo: en
 Windows, variable de entorno de usuario `AUTOOPS_MCP_TOKEN` y reiniciar el cliente MCP.
 
-Para uso **local por stdio** (sin desplegar), el cliente arranca el jar:
-
-```jsonc
-{
-  "mcpServers": {
-    "autoops": {
-      "command": "java",
-      "args": ["-jar", "autoops/backend/target/autoops-mcp-0.1.0.jar", "--spring.profiles.active=local"]
-    }
-  }
-}
-```
+El repo ya trae este bloque en [`.mcp.json`](../../../.mcp.json). Para una ejecución local sin desplegar
+(`./mvnw spring-boot:run`, ver el README de AutoOps) el endpoint es `http://localhost:8080/mcp`; sin
+`AUTOOPS_MCP_TOKEN` configurado en el servidor, no exige la cabecera.
 
 Tras registrarlo, el cliente debe **listar** las tools (`search_docs`, `diagnose_pod`, `pod_logs`…).
 
@@ -87,7 +78,7 @@ Tras registrarlo, el cliente debe **listar** las tools (`search_docs`, `diagnose
 curl -H "Host: autoops.local" http://localhost/actuator/health        # {"status":"UP"}
 # Chat de búsqueda (RAG)
 curl -X POST -H "Host: autoops.local" -H "Content-Type: application/json" \
-  http://localhost/search --data-binary '{"consulta":"que probes debe exponer un microservicio"}'
+  http://localhost/search --data-binary '{"query":"que probes debe exponer un microservicio"}'
 ```
 
 Y desde Claude Code: "lista las herramientas de autoops" o invocar `search_docs` debe funcionar contra la URL

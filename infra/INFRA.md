@@ -235,7 +235,7 @@ bash infra/scripts/07-setup-observability.sh
 # En Grafana → Explore → Loki:  {namespace="autoops"} |= "ERROR"
 ```
 
-> **Presupuesto de RAM** (Docker Desktop ≥ 6 GB): Postgres ~0,3 GB · Weaviate ~0,5 GB · Loki+Promtail+Grafana ~0,6 GB · cada app Spring ~0,6 GB · Traefik ~0,1 GB. Por eso se eligió Loki/Grafana en vez de ELK (Elasticsearch solo pediría 1-2 GB de heap).
+> **Presupuesto de RAM** (Rancher Desktop ≥ 6 GB): Postgres ~0,3 GB · Weaviate ~0,5 GB · Loki+Promtail+Grafana ~0,6 GB · cada app Spring ~0,6 GB · Traefik ~0,1 GB. Por eso se eligió Loki/Grafana en vez de ELK (Elasticsearch solo pediría 1-2 GB de heap).
 
 ---
 
@@ -316,10 +316,15 @@ Langfuse admite inicialización headless (`LANGFUSE_INIT_*`), pero solo crea **u
 
 ```
 <repo>/                         # un solo repo/rama con la plataforma + un dir por proyecto
+├── pom.xml                     # agregador Maven (reactor): platform-commons, l1-copilot/backend, autoops/backend
+├── platform-commons/           # librería sin Spring compartida por los dos backends (caché de respuestas LLM, trazas Langfuse)
 ├── infra/                      # TODO lo cross-project (charts, scripts, manifests compartidos)
 ├── docker/                     # Dockerfiles genéricos (backend Java, frontend nginx) — compartidos
 ├── .run/                       # Run configs IntelliJ (prefijo por proyecto: «autoops · …»)
-├── scripts/                    # scripts generales (start/stop local)
+├── .github/                    # CI (backends, frontends, chart Helm, shellcheck) y Dependabot
+├── scripts/                    # scripts generales (start/stop local, verify-in-docker.sh)
+├── wiki/                       # contenido y scripts de Wiki.js
+├── docs/                       # imágenes y GIFs del README
 ├── README.md
 ├── autoops/                    # proyecto AutoOps MCP
 │   ├── backend/  frontend/  docs/  corpus/
@@ -329,7 +334,11 @@ Langfuse admite inicialización headless (`LANGFUSE_INIT_*`), pero solo crea **u
 
 > Los descriptores `infra/projects/<p>.env` fijan el contexto de build de cada
 > proyecto (`autoops/backend`, `l1-copilot/backend`…). Cambiar de layout = cambiar
-> esa línea; `deploy.sh` no se toca.
+> esa línea; `deploy.sh` no se toca. Como `platform-commons` queda fuera de ese contexto,
+> `deploy.sh` lo pasa al `docker build` como contexto con nombre de BuildKit
+> (`--build-context commons=platform-commons`) y `docker/backend.Dockerfile` lo instala antes
+> de compilar el backend. En local, para compilar un backend a mano hay que instalarlo antes
+> (`./mvnw -f ../../platform-commons/pom.xml install`) o construir el reactor desde la raíz.
 
 ### Contenido de `infra/`
 
@@ -355,7 +364,7 @@ infra/
 ├── charts/
 │   └── generic-app/                        # Chart Helm reusable Deployment+Service+Ingress
 ├── components/
-│   ├── weaviate/weaviate.yaml              # Weaviate compartido (ns infra)
+│   ├── weaviate/                           # Weaviate compartido (ns infra): weaviate.yaml + reranker.yaml
 │   └── langfuse/
 │       ├── langfuse-values.yaml            # Values del chart langfuse/langfuse (recursos recortados)
 │       └── langfuse-ingress.yaml           # Ingress de Traefik para langfuse.local
@@ -374,8 +383,9 @@ infra/
     ├── 08-setup-wikijs.sh                  # Wiki.js vía Helm directo (ns wiki, sin deploy.sh)
     ├── 09-setup-langfuse.sh                # Langfuse v4 + datastores propios vía Helm (ns langfuse)
     ├── deploy.sh                           # GENÉRICO: deploy.sh --project <p> --component <c>
+    ├── test/deploy-guards.sh               # Pruebas de las guardas de deploy.sh, sin clúster
     ├── setup-app-ingress.sh                # GENÉRICO: ingress por proyecto (--project <p>)
-    ├── ingest-autoops.sh                   # Dispara la ingesta del corpus de AutoOps
+    ├── ingest-autoops.sh                   # Dispara la ingesta de la documentación del repo (GitHub) en el RAG de AutoOps
     ├── run-sh-gitbash.cmd                  # Wrapper: lanza un .sh con Git Bash de Windows
     ├── create-secrets.ps1                  # Crea Secrets de K8s desde un .env (uso manual genérico)
     ├── add-host.ps1                        # (Admin) GENÉRICO: add-host.ps1 -Hostname <host>
@@ -487,7 +497,7 @@ Dos ficheros en `infra/` (más la plantilla versionada `.env.local.example`):
 
 | Fichero | Commiteado | Contenido |
 |---------|------------|-----------|
-| `.env.local` | ❌ No (gitignored por patrón `.env.*`) | todos los secretos locales (`GEMINI_API_KEY`, `POSTGRES_*`, `GRAFANA_ADMIN_PASSWORD`, `GITHUB_TOKEN`, `WIKIJS_API_KEY`) — **una sola vez, compartidos por TODOS los proyectos** |
+| `.env.local` | ❌ No (gitignored por patrón `.env.*`) | todos los secretos locales (`GEMINI_API_KEY`, `POSTGRES_*`, `GRAFANA_ADMIN_PASSWORD`, `GITHUB_TOKEN`, `WIKIJS_API_KEY`, `AUTOOPS_ADMIN_TOKEN`, `AUTOOPS_MCP_TOKEN`, `LANGFUSE_*`, `COPILOT_AUTH_TOKEN_SECRET`) — **una sola vez, compartidos por TODOS los proyectos** |
 | `.env.<p>.local` | ❌ No (gitignored por patrón `.env.*`) | override puntual de UN proyecto (p.ej. rotar Postgres solo en local para l1-copilot); normalmente no hace falta |
 
 **Bootstrap inicial** (una vez, sirve para todos los proyectos):
@@ -496,6 +506,13 @@ Dos ficheros en `infra/` (más la plantilla versionada `.env.local.example`):
 cp infra/.env.local.example infra/.env.local
 # editar el fichero y poner tu key de https://aistudio.google.com/app/apikey
 ```
+
+Variables nuevas a tener en cuenta (la plantilla las documenta):
+
+- `AUTOOPS_MCP_TOKEN` — **obligatoria** para desplegar AutoOps (`openssl rand -hex 32`): protege `/mcp` con la cabecera `X-MCP-Token`. El cliente MCP necesita el mismo valor en su variable de entorno `AUTOOPS_MCP_TOKEN` (el `.mcp.json` del repo la lee de ahí; en Windows, variable de entorno de usuario y reiniciar el cliente).
+- `AUTOOPS_ADMIN_TOKEN` — obligatoria: protege `/admin/*` (ingesta) con `X-Admin-Token`.
+- `COPILOT_AUTH_TOKEN_SECRET` — **opcional** (`openssl rand -base64 32`): firma los tokens de sesión demo del L1 Copilot (Secret `copilot-auth-token`). Vacía, el backend genera uno aleatorio en cada arranque y los tokens no sobreviven a un reinicio.
+- `LANGFUSE_*` — las genera `09-setup-langfuse.sh` (proyecto autoops) o se copian a mano (proyecto l1-copilot), ver §8.
 
 ### Guarda de variables vacías
 
@@ -523,9 +540,17 @@ Mapping configurado en el **descriptor del proyecto** (`infra/projects/<p>.env`)
 declare -gA SECRETS_BACKEND=(
   [gemini-api-key]="GEMINI_API_KEY"
   [postgres-credentials]="POSTGRES_USER POSTGRES_PASSWORD"
+  [langfuse-api-keys]="LANGFUSE_L1COPILOT_PUBLIC_KEY LANGFUSE_L1COPILOT_SECRET_KEY"
+  [copilot-auth-token]="COPILOT_AUTH_TOKEN_SECRET"          # opcional (OPTIONAL_SECRET_VARS)
 )
-# infra/projects/autoops.env  → solo la key de Gemini (Weaviate sin auth)
-declare -gA SECRETS_BACKEND=( [autoops-llm-secret]="GEMINI_API_KEY" )
+# infra/projects/autoops.env  (Weaviate sin auth)
+declare -gA SECRETS_BACKEND=(
+  [autoops-llm-secret]="GEMINI_API_KEY GITHUB_TOKEN"
+  [wikijs-ingestion-secret]="WIKIJS_API_KEY"                # opcional (OPTIONAL_SECRET_VARS)
+  [autoops-admin-secret]="AUTOOPS_ADMIN_TOKEN"
+  [autoops-mcp-token]="AUTOOPS_MCP_TOKEN"
+  [langfuse-api-keys]="LANGFUSE_AUTOOPS_PUBLIC_KEY LANGFUSE_AUTOOPS_SECRET_KEY"
+)
 ```
 
 Añadir un Secret nuevo = añadir una entrada al map del descriptor + declarar la clave
@@ -535,7 +560,7 @@ Secret vía `secretEnv` en el values file correspondiente.
 
 ### Backend local (Spring Boot) usando las mismas variables
 
-El perfil `dev` solo necesita `GEMINI_API_KEY` (Postgres queda en H2). Tres formas de inyectarla en IntelliJ — usa la que prefieras:
+El perfil `dev` solo necesita `GEMINI_API_KEY` (Postgres queda en H2; `COPILOT_AUTH_TOKEN_SECRET` es opcional). Tres formas de inyectarla en IntelliJ — usa la que prefieras:
 
 1. **Plugin [EnvFile](https://plugins.jetbrains.com/plugin/7861-envfile)** (recomendado): en `.run/l1-copilot - Backend.run.xml` añade `infra/.env.local` y `infra/.env.l1-copilot.local` (en ese orden) como ficheros de entorno. Mismo source de verdad que el deploy.
 2. **Variables en la run config**: edita `.run/l1-copilot - Backend.run.xml` y añade `<env name="GEMINI_API_KEY" value="..." />` (queda commiteada — solo si te da igual).

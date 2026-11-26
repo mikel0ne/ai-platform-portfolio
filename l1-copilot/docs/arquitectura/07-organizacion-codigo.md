@@ -13,6 +13,7 @@ El backend aporta:
   propiedades `langchain4j.gemini.*`.
 - Caché de respuestas en fichero (`FileCacheManager` + `CachingChatModel`, en `platform-commons`; la clave se construye con campos explícitos del mensaje), Swagger, Actuator.
 - Lombok (`lombok.config` en el módulo) y token de demo firmado (`security/TokenSigner`).
+- Dependencia del módulo hermano `platform-commons` (ver abajo): para compilar a mano hay que instalarlo antes (`./mvnw -f ../../platform-commons/pom.xml install`) o construir el reactor desde la raíz (`pom.xml` agregador).
 
 ## Árbol de paquetes (estado real)
 
@@ -26,13 +27,13 @@ l1-copilot/backend/src/main/java/io/github/mikel0ne/l1copilot/
 │   ├── ConversationHistoryProperties.java / LangChain4jProperties.java
 │   ├── TreatmentPolicy.java         # umbral tú/usted por edad
 │   └── qualifier/                   # @Deterministic, @TicketModel, @ResponseModel,
-│                                    #   @ChattyModel, @ChattyResponder (ver #12)
+│                                    #   @ChattyModel, @ChattyResponder
 ├── controller/
 │   ├── AuthController.java          # POST /api/copilot/login (token de demo firmado)
 │   ├── ChatController.java          # /api/copilot/** (chat + users)
 │   ├── TicketController.java        # /api/copilot/tickets/{id}
 │   ├── ReturnController.java        # /api/copilot/returns/{id}
-│   ├── CacheController.java         # /api/cache/** (clear() oculto: @Hidden)
+│   ├── CacheController.java         # /api/cache/** (solo con cache.enabled=true; clear() oculto: @Hidden)
 │   ├── SessionUsers.java            # valida el Bearer y devuelve el userId
 │   └── ApiExceptionHandler.java / ResourceNotFoundException.java / UnknownUserException.java
 ├── security/
@@ -98,7 +99,7 @@ Criterios:
 - **`service/` (`OrderService`, `TicketService`) no conoce el grafo**: reciben primitivas y devuelven records de `dto/result`. Reutilizables desde un futuro `AiServices` con function-calling.
 - Los **AiServices** (interfaces con `@SystemMessage`) viven junto al agente (`agent/llm/`) porque sus prompts son parte de la lógica del grafo.
 
-## Dependencias Maven a añadir
+## Dependencias Maven principales
 
 ```xml
 <properties>
@@ -109,6 +110,20 @@ Criterios:
 </properties>
 
 <dependencies>
+    <!-- Librería compartida sin Spring: caché de respuestas del LLM y trazas Langfuse -->
+    <dependency>
+        <groupId>io.github.mikel0ne</groupId>
+        <artifactId>platform-commons</artifactId>
+        <version>1.0.0</version>
+    </dependency>
+
+    <!-- Lombok (optional) -->
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <optional>true</optional>
+    </dependency>
+
     <!-- LangGraph4j: el motor del grafo de estado -->
     <dependency>
         <groupId>org.bsc.langgraph4j</groupId>
@@ -156,7 +171,7 @@ Criterios:
 </dependencies>
 ```
 
-> **✅ Nota de compatibilidad (resuelta en la Fase 0):** se fijó **LangChain4j 1.16.2 + LangGraph4j 1.8.17** (langgraph4j 1.8.x compila contra langchain4j 1.14+, Java 17; verificado contra el POM de `langgraph4j-parent` en Maven Central). Migración de API 0.36→1.x aplicada: `ChatLanguageModel` → `ChatModel`, `generate()` → `chat()`. No hizo falta el módulo `langgraph4j-langchain4j`: el estado del grafo usa solo tipos `Serializable` simples, así que basta `langgraph4j-core` con el serializer por defecto.
+> **✅ Nota de compatibilidad:** el par vigente es **LangChain4j 1.23.0 + LangGraph4j 1.8.27** (langgraph4j 1.8.x compila contra langchain4j 1.14+, Java 17; hay que subir los dos a la vez), y el mismo en AutoOps y en `platform-commons`. Migración de API 0.36→1.x aplicada: `ChatLanguageModel` → `ChatModel`, `generate()` → `chat()`. No hizo falta el módulo `langgraph4j-langchain4j`: el estado del grafo usa solo tipos `Serializable` simples, así que basta `langgraph4j-core` con el serializer por defecto.
 
 ## Configuración por perfiles
 
@@ -186,26 +201,24 @@ spring:
   sql:
     init:
       mode: always
+      platform: h2
   h2:
     console:
       enabled: true
 ```
 
-`application-prod.yml` — nuevo (valores por variable de entorno, los inyecta Kubernetes):
+`application-prod.yml` — perfil de Kubernetes (usuario y contraseña llegan por variable de entorno desde Secrets; `ddl-auto: none` y `sql.init.mode: never` vienen del `application.yml` común):
 
 ```yaml
+server:
+  port: 8080   # debe coincidir con container.port de los values de Helm
+
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
-  jpa:
-    hibernate:
-      ddl-auto: validate
-  sql:
-    init:
-      mode: never           # en prod el esquema lo gestiona la infra
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://postgres.infra.svc.cluster.local:5432/l1_copilot}
 ```
+
+El esquema y el seed los aplica una vez `l1-copilot/scripts/setup-l1-copilot-db.sh`.
 
 Secretos: `GEMINI_API_KEY` ya se lee de entorno (patrón existente `${GEMINI_API_KEY:}`); en Kubernetes llega vía `Secret` (ver rama de infraestructura). **Nunca** valores reales en el repo.
 
@@ -214,9 +227,9 @@ Secretos: `GEMINI_API_KEY` ya se lee de entorno (patrón existente `${GEMINI_API
 - **Idioma:** código e identificadores en inglés; javadoc, logs y prompts en español (coherente con el código existente).
 - **Lombok:** `@RequiredArgsConstructor` + `@Slf4j` en servicios/nodos; `@Getter/@Setter` (no `@Data`) en entidades.
 - **Records** para todos los DTOs y salidas estructuradas del LLM.
-- **Prompts:** los largos en `src/main/resources/prompts/*.txt` (`@SystemMessage(fromResource = ...)`), los cortos en text blocks (`"""`); versionados con el código del nodo que los usa y nada de prompts en `application.yml`. LangChain4j lee el recurso con el charset por defecto de la JVM: por eso se arranca con `-Dfile.encoding=UTF-8` y `CharsetGuard` aborta el arranque si no es UTF-8.
-- **Logs de nodos:** prefijo `---NOMBRE---` en DEBUG (patrón de los ejemplos LangGraph4j), con `conversationId` en el MDC para correlar turnos.
-- **Tests:** JUnit 5; unitarios para aristas y tools, `@SpringBootTest` con LLM fakes para el flujo; los tests que llaman a Gemini real van con `@Tag("llm")` y excluidos del build por defecto.
+- **Prompts:** los cuatro prompts de sistema largos (router, verificador, responder, redactor de tickets) en `src/main/resources/prompts/*.txt` (`@SystemMessage(fromResource = ...)`), las plantillas cortas del mensaje de usuario en text blocks (`"""`); versionados con el código del nodo que los usa y nada de prompts en `application.yml`. LangChain4j lee el recurso con el charset por defecto de la JVM: por eso se arranca con `-Dfile.encoding=UTF-8` y `CharsetGuard` aborta el arranque si no es UTF-8.
+- **Logs de nodos:** prefijo `---NOMBRE---` en DEBUG (patrón de los ejemplos LangGraph4j); con Langfuse activo el `traceId` va en el MDC para correlar turnos.
+- **Tests:** JUnit 5; unitarios para aristas y tools, `@SpringBootTest` con LLM fakes (`@MockitoBean`) para el flujo; los tests que llaman al modelo real (`RouterEvalTest`, `RouterFailureE2eEvalTest`) son opt-in por variable de entorno y no corren en el build. `@SpringBootTest` solo corre en Linux en este entorno: `scripts/verify-in-docker.sh`.
 
 ## Ramas de trabajo (histórico del plan)
 
@@ -227,7 +240,7 @@ Secretos: `GEMINI_API_KEY` ya se lee de entorno (patrón existente `${GEMINI_API
 
 | Fase | Contenido |
 |---|---|
-| Fase 0 | Subida LangChain4j 1.x + langgraph4j en el pom, adaptación de `Config` (y retirada del andamiaje `LlmService`, ver mejora #2) |
+| Fase 0 | Subida LangChain4j 1.x + langgraph4j en el pom, adaptación de `Config` (y retirada del andamiaje `LlmService`) |
 | Fase 1 | Entidades, repos, seed, perfiles |
 | Fases 2-3 | Estado, nodos, grafo, tools |
 | Fase 4 | Controller, DTOs, errores |

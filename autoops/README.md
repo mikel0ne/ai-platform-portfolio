@@ -55,8 +55,9 @@ flowchart LR
 ```
 
 - **Hybrid search + native reranking** in a single Weaviate query (vector + BM25, cross-encoder rerank).
-- **Multi-query fan-out** on the first pass only, fused with Reciprocal Rank Fusion; retries use one rewritten
-  query to keep the LLM cost bounded.
+- **Multi-query fan-out** on the first pass only: the variants are retrieved in parallel (pool of
+  `autoops.crag.retrieval-parallelism`, default 4) and fused with Reciprocal Rank Fusion in variant order; retries
+  use one rewritten query to keep the LLM cost bounded.
 - **LLM grading, never the raw score**: a high rerank score is not a reliable proxy for relevance. Coverage is
   judged per question, so a compound question is not "answered" by covering one half of it.
 - **Section auto-merging** after grading: small sections, or sections hit several times, are returned whole;

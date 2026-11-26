@@ -33,12 +33,14 @@ Con `k9s` instalado, `k9s -n autoops` da todo lo anterior de forma interactiva.
 | Pod `ErrImageNeverPull`/`ImagePullBackOff` | Imagen no visible para el clúster (push a `registry.local` falló o tag no coincide) | `deploy.sh` sin `--skip-build`; comprobar `docker images`/`docker push` y el `--tag` usado |
 | `autoops-backend-generic-app` `CrashLoopBackOff` al arrancar | No conecta a Weaviate | `kubectl logs --previous`. ¿`weaviate-0` Ready en el namespace **`infra`** (no `autoops`)? ¿host/puerto correctos? |
 | Readiness nunca pasa | Falta `GEMINI_API_KEY` o Weaviate no responde | `kubectl describe pod` + logs; verificar secret `autoops-llm-secret` y `weaviate` Ready |
-| El cliente MCP no lista tools | Endpoint `/mcp` no accesible o mal registrado | Probar `http://autoops.local/actuator/health`; revisar la URL `/mcp` en la config del cliente y las anotaciones de Ingress (buffering off) |
+| El cliente MCP no lista tools | Endpoint `/mcp` no accesible o mal registrado | Probar `http://autoops.local/actuator/health`; revisar la URL `/mcp` y la cabecera `X-MCP-Token` en la config del cliente |
 | El cliente MCP recibe 401 en `/mcp` | Falta o no coincide la cabecera `X-MCP-Token` | Variable de entorno `AUTOOPS_MCP_TOKEN` del cliente igual a la de `infra/.env.local` y reiniciar el cliente (guía 06 §4) |
-| La conexión MCP se corta a los segundos | Ingress bufferiza o timeout corto | Anotaciones `proxy-buffering: off` y `proxy-read-timeout` altos (guía 06 §2) |
+| La conexión MCP se corta a los segundos | Timeout corto en algún proxy intermedio | Traefik no bufferiza por defecto; revisar los timeouts del entrypoint de Traefik y el `keep-alive-interval` del servidor (20 s) |
 | El cliente MCP deja de poder llamar tools tras ~5 min idle (`-32001 Request timed out`) | Body-timeout del cliente (Node/undici) sobre una conexión sin keep-alive | Asegurar `spring.ai.mcp.server.streamable-http.keep-alive-interval` configurado (p. ej. `20s`) en `application.yml`; si reaparece, reiniciar la conexión del cliente |
-| `search_docs`/`/search` no devuelven nada o dan error de schema (`Cannot query field "titulo"...`) | Clase `AutoopsDocChunk` con esquema viejo (`ensureSchema()` es idempotente: si la clase ya existe, no la migra) | Re-ingestar con reset (§3): `bash infra/scripts/ingest-autoops.sh --reset` |
+| `search_docs`/`/search` no devuelven nada o dan error de schema (`Cannot query field "sectionChars"...`) | Clase `AutoopsDocChunk` con esquema viejo (`ensureSchema()` es idempotente: si la clase ya existe, no la migra) | Re-ingestar con reset (§3): `bash infra/scripts/ingest-autoops.sh --reset` |
 | `diagnose_pod` responde `403 Forbidden` | RBAC no aplicado o SA no asignado | `kubectl auth can-i list pods --as=system:serviceaccount:autoops:autoops-mcp -A` debe ser `yes`; ¿`serviceAccountName` en el Deployment? |
+| `/search` responde `429` | Superado el límite global de `SearchRateLimiter` (`autoops.search.max-requests-per-minute`, 30) | Esperar un minuto; el contador es global, no por cliente |
+| `/search` responde `503` | El modelo falla o su cuota se agotó (el backend lo traduce a 503, no a 500) | Revisar los logs (`Model failure`) y la cuota de Gemini |
 | Respuestas del LLM interno con `429` | Límite de la capa gratuita de Gemini | Esperar la ventana de cuota; el ConfigMap usa el alias `gemini-flash-lite-latest` (hoy `gemini-3.5-flash-lite`) con cuota diaria propia; reducir tamaño de lote en la ingesta |
 | Despliego imagen nueva y no cambia nada | Etiqueta reutilizada con `IfNotPresent` | `--tag` único en `deploy.sh` (guía 04 §3); nunca reutilizar tag |
 
@@ -49,7 +51,7 @@ Weaviate. El script `infra/scripts/ingest-autoops.sh` automatiza el port-forward
 internos (`IngestionController`, NO expuestos por el Ingress):
 
 ```bash
-bash infra/scripts/ingest-autoops.sh            # ingesta incremental: corpus local + repo Git (no borra nada)
+bash infra/scripts/ingest-autoops.sh            # ingesta incremental del repo de GitHub (no borra nada)
 bash infra/scripts/ingest-autoops.sh --reset    # vacía Weaviate y reindexa todo desde cero
 ```
 
@@ -59,8 +61,8 @@ que se puede repetir con otra `url` para ir sumando más repos a la wiki:
 ```bash
 kubectl port-forward svc/autoops-backend-generic-app 8080:8080 -n autoops
 # En otra terminal:
-curl -X POST "http://localhost:8080/admin/vectorstore/drop"          # solo si quieres partir de cero
-curl -X POST "http://localhost:8080/admin/ingest"                    # corpus local (+ Wiki.js si está activo)
+curl -X POST -H "X-Admin-Token: $AUTOOPS_ADMIN_TOKEN" "http://localhost:8080/admin/vectorstore/drop"   # solo si quieres partir de cero
+curl -X POST -H "X-Admin-Token: $AUTOOPS_ADMIN_TOKEN" "http://localhost:8080/admin/ingest"            # corpus local (si existe) + Wiki.js (si está activo)
 curl -X POST -H "X-Admin-Token: $AUTOOPS_ADMIN_TOKEN" "http://localhost:8080/admin/ingest/git?url=https://github.com/mikel0ne/ai-platform-portfolio.git"
 # → { "url": "...", "branch": "main", "chunks": 142 }   (la rama se detecta sola si no se indica)
 ```
@@ -78,7 +80,7 @@ curl "http://localhost:8088/v1/objects?class=AutoopsDocChunk&limit=1"
 
 ## 4. Actualizar la API key del LLM
 
-El valor vive en `infra/.env.local` (gitignored) o `infra/.env.local` (compartida); tras editarlo,
+El valor vive en `infra/.env.local` (gitignored, compartido) o en `infra/.env.autoops.local` (solo AutoOps); tras editarlo,
 `deploy.sh` resincroniza el Secret automáticamente (`--skip-build` si no hace falta rebuild de imagen):
 
 ```bash
@@ -99,12 +101,12 @@ kubectl rollout restart deployment/autoops-backend-generic-app -n autoops
 ## 5. Consumo de recursos
 
 ```powershell
-# Requiere metrics-server (Minikube: addon; Docker Desktop no lo trae)
+# Requiere metrics-server (k3s lo trae de serie)
 kubectl top pods -n autoops
 ```
 
 Presupuesto orientativo en reposo: ~1,2 GB RAM (JVM ≈ 600 MB, Weaviate ≈ 300 MB, ingress ≈ 100 MB). El reranker
-opcional añade ~700 MB-1 GB.
+(`weaviate-reranker`, necesario para el reranking nativo) añade ~700 MB-1 GB.
 
 ## 6. Limpieza
 
@@ -131,11 +133,11 @@ usar la ingesta con reset (§3): `bash infra/scripts/ingest-autoops.sh --reset` 
 ## 7. Checklist de despliegue desde cero
 
 1. ☐ Clúster activo (`kubectl get nodes`).
-2. ☐ Namespace + secret + RBAC read-only (guía 02); `auth can-i get secrets` → **no**.
+2. ☐ `infra/.env.local` completo (incluido `AUTOOPS_MCP_TOKEN`) y namespace + secrets + RBAC read-only (guía 02); `auth can-i get secrets` → **no**.
 3. ☐ Weaviate Ready en `infra` (`/v1/.well-known/ready`) (guía 03).
 4. ☐ Imágenes `registry.local/autoops-backend` y `registry.local/autoops-frontend` construidas y visibles (guía 04).
 5. ☐ `autoops-backend-generic-app` y `autoops-frontend-generic-app` `READY 1/1` (guía 05).
 6. ☐ Ingress instalado (con `/mcp`) + hosts editado (guía 06).
 7. ☐ Corpus ingestado (`AutoopsDocChunk` con objetos) (§3).
-8. ☐ Cliente MCP (Claude Code) **lista las tools** vía `http://autoops.local/mcp`.
+8. ☐ Variable de entorno `AUTOOPS_MCP_TOKEN` en la máquina del cliente y cliente MCP (Claude Code) **lista las tools** vía `http://autoops.local/mcp`.
 9. ☐ Pod roto a propósito → el cliente diagnostica citando el evento real (`ErrImagePull`).

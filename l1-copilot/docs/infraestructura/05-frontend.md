@@ -2,17 +2,17 @@
 
 **Prerrequisitos:** guía 04 (backend desplegado), frontend implementado en
 `l1-copilot/frontend/` (Fase 5 del plan de arquitectura).
-**Resultado:** SPA servida por nginx en el clúster como `l1-copilot-frontend:80`,
+**Resultado:** SPA servida por nginx en el clúster como `l1-copilot-frontend-generic-app:80`,
 desplegada con el chart `generic-app`.
 
 ## 1. Imagen
 
-[`docker/frontend.Dockerfile`](../../docker/frontend.Dockerfile) — multi-stage:
+[`docker/frontend.Dockerfile`](../../../docker/frontend.Dockerfile) — multi-stage:
 
-1. **Stage build** (`node:20-alpine`): `npm ci && npm run build` (salida en
-   `dist/frontend/browser` con Angular 17+).
-2. **Stage runtime** (`nginx:1.27-alpine`): copia los estáticos y
-   [`docker/frontend-nginx.conf`](../../docker/frontend-nginx.conf).
+1. **Stage build** (`node:24-alpine`): `npm ci && npm run build` (salida en
+   `dist/frontend/browser` con Angular 22).
+2. **Stage runtime** (`nginxinc/nginx-unprivileged:1.27-alpine`): copia los estáticos y
+   [`docker/frontend-nginx.conf`](../../../docker/frontend-nginx.conf); corre sin root y escucha en el 8080.
 
 El `frontend-nginx.conf` hace dos cosas y solo dos:
 
@@ -52,18 +52,17 @@ helm upgrade --install l1-copilot-frontend infra/charts/generic-app \
 ```
 
 Puntos clave del values
-([`infra/values-l1-copilot-frontend.yaml`](../../infra/values-l1-copilot-frontend.yaml)):
+([`infra/values-l1-copilot-frontend.yaml`](../../../infra/values-l1-copilot-frontend.yaml)):
 
 - Deployment de 1 réplica (estáticos puros; podría escalar sin problema, a diferencia
   del backend).
 - Probes HTTP a `/` (nginx responde el index).
 - Recursos mínimos: requests 16Mi/10m, limits 64Mi/100m.
-- Service ClusterIP `l1-copilot-frontend:80`.
+- Service ClusterIP `l1-copilot-frontend-generic-app:80` (hacia el puerto 8080 del contenedor).
 - **`ingress.enabled: false`** — el Ingress lo aplica el script genérico
   `infra/scripts/setup-app-ingress.sh --project l1-copilot` con `kubectl`. Ver guía 06.
-- `runAsNonRoot: false` porque la imagen `nginx:alpine` corre como root; si quieres
-  estricto, construir sobre `nginxinc/nginx-unprivileged` (puerto 8080) y ajustar
-  `container.port`.
+- `runAsNonRoot: true`: la imagen se construye sobre `nginxinc/nginx-unprivileged`, que
+  corre sin root en el puerto 8080 (`container.port`).
 
 ## 3. Verificación
 
@@ -71,7 +70,7 @@ Puntos clave del values
 kubectl get pods -n l1-copilot -l app.kubernetes.io/instance=l1-copilot-frontend
 
 kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- \
-  curl -s -o /dev/null -w "%{http_code}" http://l1-copilot-frontend:80/
+  curl -s -o /dev/null -w "%{http_code}" http://l1-copilot-frontend-generic-app:80/
 # 200
 ```
 

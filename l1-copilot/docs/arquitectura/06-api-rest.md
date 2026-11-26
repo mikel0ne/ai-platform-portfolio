@@ -1,8 +1,12 @@
 # 06 — API REST
 
-API mínima entre el frontend Angular y el agente. El agente vive bajo `/api/copilot/**`; también existe `/api/cache/**` (gestión de la caché). El antiguo andamiaje `/api/llm/**` se eliminó (mejora #2).
+API mínima entre el frontend Angular y el agente. El agente vive bajo `/api/copilot/**`. Solo si se activa la caché de respuestas del LLM (`cache.enabled=true`, solo desarrollo; desactivada por defecto) existen además `GET /api/cache/status` y `DELETE /api/cache/clear`.
 
 ## Endpoints
+
+### `POST /api/copilot/login` — sesión de demo
+
+Petición `{"userId":"u-001"}`; respuesta `{"token":"..."}`, el token firmado que el resto de endpoints esperan como `Authorization: Bearer <token>`. `401` si el usuario no existe. No pide contraseña (ver nota de seguridad).
 
 ### `POST /api/copilot/chat` — turno de conversación
 
@@ -43,11 +47,11 @@ Semántica de los campos:
 
 ### `GET /api/copilot/tickets/{id}` — detalle de una incidencia
 
-De solo lectura y solo para el dueño del ticket (cabecera `Authorization`): alimenta la página `/tickets/{id}` que se abre al pulsar la tarjeta de un ticket.
+De solo lectura y solo para el dueño del ticket (cabecera `Authorization`; `404` si no es suyo): alimenta la página `/tickets/{id}` que se abre al pulsar la tarjeta de un ticket.
 
 ### `GET /api/copilot/returns/{id}` — etiqueta de devolución
 
-De solo lectura y público: alimenta la página `/returns/{id}` (la **etiqueta de devolución**) que se abre al pulsar la tarjeta de una devolución. Devuelve `ReturnLabelDto` con el código `RET-####`, el almacén de destino, el transportista y el valor del código de barras.
+De solo lectura y solo para el dueño del pedido (cabecera `Authorization`; `404` si el pedido no es suyo o no tiene una devolución en curso): alimenta la página `/returns/{id}` (la **etiqueta de devolución**) que se abre al pulsar la tarjeta de una devolución. Devuelve `ReturnLabelDto` con el código `RET-####`, el almacén de destino, el transportista y el valor del código de barras.
 
 ### `GET /api/copilot/users` — usuarios de demo
 
@@ -65,7 +69,7 @@ Devuelve los usuarios del seed para el selector de "login" simulado del frontend
 ### Endpoints de apoyo (ya existentes / Actuator)
 
 - `GET /actuator/health` — probes de Kubernetes.
-- Swagger UI (`/swagger-ui.html`) documenta todo automáticamente (springdoc ya está en el `pom.xml`).
+- Swagger UI (`/api/swagger-ui/index.html`) documenta todo automáticamente (springdoc 3 en el `pom.xml`).
 
 ## DTOs
 
@@ -100,6 +104,7 @@ public class ChatController {
     private final ConversationService conversationService;
     private final UserRepository userRepository;
     private final TreatmentPolicy treatmentPolicy;   // decide tú/usted por edad
+    private final SessionUsers sessionUsers;         // verifica el token firmado
 
     @PostMapping("/chat")
     public ChatResponse chat(@RequestHeader("Authorization") String authorization,
@@ -130,9 +135,10 @@ public class ChatController {
 | Situación | HTTP | `detail` |
 |---|---|---|
 | Validación de DTO | 400 | mensajes de Bean Validation |
-| Token ausente, manipulado o de un usuario inexistente | 401 | "Usuario no autenticado" |
-| Error interno (BD, grafo) | 500 | "Error procesando el mensaje" (sin detalles internos; se loguean con `conversationId`) |
-| Gemini no disponible / cuota | 503 | "El asistente no está disponible, inténtalo en unos minutos" |
+| Token ausente, manipulado o de un usuario inexistente | 401 | "Unauthenticated user" (o "Missing session header Authorization") |
+| Ticket o devolución inexistente o ajeno | 404 | mensaje del recurso |
+| Error interno (BD, grafo) | 500 | "Error processing the message" (sin detalles internos; se loguean con `conversationId`) |
+| Gemini no disponible / cuota | 503 | "The assistant is unavailable, try again in a few minutes" |
 
 ```java
 @RestControllerAdvice
@@ -141,7 +147,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler(LlmUnavailableException.class)
     ProblemDetail llmDown(LlmUnavailableException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
-                "El asistente no está disponible, inténtalo en unos minutos");
+                "The assistant is unavailable, try again in a few minutes");
     }
     // ... resto de handlers
 }
@@ -150,11 +156,11 @@ public class ApiExceptionHandler {
 ## Concurrencia y timeouts
 
 - **Un turno por conversación a la vez:** si el usuario envía dos mensajes seguidos, el frontend deshabilita el input hasta recibir respuesta (suficiente para el prototipo; el backend no necesita locking porque el checkpointer serializa por invocación).
-- **Timeout del modelo:** configurar el `ChatLanguageModel` de Gemini con `timeout(Duration.ofSeconds(30))` y 1 reintento; el turno completo (router + tools + respond ≈ 2-3 llamadas LLM) debe quedar por debajo del timeout del frontend (60 s).
+- **Timeout del modelo:** el `ChatModel` de Gemini se configura con `langchain4j.gemini.timeout` (30 s) y, por encima, `RetryingChatModel` reintenta según `copilot.llm-retry` (hasta 4 intentos); el turno completo (router + tools + respond ≈ 2-3 llamadas LLM) debe quedar por debajo del timeout del frontend (60 s).
 
 ## CORS
 
-En `dev`, Angular corre en `http://localhost:4200` y el backend en `:8080` → o bien `@CrossOrigin`/configuración CORS para `localhost:4200`, o bien (recomendado) **proxy de Angular** (`proxy.conf.json` → `/api` → `localhost:8080`), que es lo que asume [08 — Frontend](08-frontend-angular.md). En Kubernetes el Ingress sirve frontend y API bajo el mismo host, así que no hay CORS.
+En `dev`, Angular corre en `http://localhost:4199` y el backend en `:8079` → o bien `@CrossOrigin`/configuración CORS para `localhost:4199`, o bien (recomendado) **proxy de Angular** (`proxy.conf.json` → `/api` → `localhost:8079`), que es lo que asume [08 — Frontend](08-frontend-angular.md). En Kubernetes el Ingress sirve frontend y API bajo el mismo host, así que no hay CORS.
 
 ## Extensión futura: streaming (SSE)
 

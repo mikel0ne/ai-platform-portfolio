@@ -23,9 +23,9 @@ flowchart LR
 - [x] Proyecto Spring Boot `io.github.mikel0ne:autoops-mcp` con `spring-ai-starter-mcp-server-webmvc`.
 - [x] Reubicar la semilla de Gemini bajo `io.github.mikel0ne.autoops.llm`/`config` (abstracción del doc 06).
 - [x] Una tool trivial de prueba (`ping`) anotada con `@Tool` y registrada en `McpConfig`.
-- [x] Perfil `local` con transporte **stdio**; perfil `k8s` con **HTTP/SSE**.
+- [x] Perfil `k8s` (`application-k8s.yml`) para el clúster. (La primera versión planteaba stdio en local y HTTP/SSE en el clúster; hoy ambos usan Streamable HTTP, ver F4.)
 
-**Verificación:** registrar el servidor en Claude Code (`.mcp.json`, stdio) y comprobar que **lista la tool**
+**Verificación:** registrar el servidor en Claude Code (`.mcp.json`) y comprobar que **lista la tool**
 `ping` y la invoca.
 
 ## F1 — Núcleo RAG con bucle correctivo (CRAG)
@@ -34,21 +34,22 @@ flowchart LR
 
 - [x] Weaviate local (docker compose o el manifiesto de la guía de infra + port-forward).
 - [x] `WeaviateGateway` (cliente raw `io.weaviate:client`, no `WeaviateEmbeddingStore` — ver ADR-005; clase
-      `AutoopsDocChunk`, reranker) + `IngestionService` (multi-fuente → chunks ~500 tokens (núcleo) + seccionChars →
+      `AutoopsDocChunk` en el clúster, `DocChunk` en local; reranker) + `IngestionService` (multi-fuente → chunks de hasta `maxChars` (núcleo) + sectionChars →
       embeddings) + comando/endpoint de ingesta.
-- [x] Ingesta multi-fuente (ADR-010/011, doc 02): `FuenteDocumental` (markdown local + Git +
-      Wiki.js), `Chunker` híbrido heading+recursivo, metadatos ampliados (título/url/origen/docId/hash/seccionChars),
+- [x] Ingesta multi-fuente (ADR-010/011, doc 02): `DocumentSource` (markdown local + GitHub +
+      Wiki.js), `Chunker` híbrido heading+recursivo, metadatos ampliados (title/url/origin/docId/hash/sectionChars),
       `taskType` distinto al indexar vs consultar. El contexto extra se da en consulta (auto-merging de sección).
 - [x] Redactar 4-6 documentos de `corpus/` (estándares ficticios pero realistas: convención de microservicios,
       política de recursos, guía de probes…).
-- [x] `CragGraph` (LangGraph4j): nodos `retrieve`/`rerank`/`grade`/`rewrite`. El edge ya no usa umbral de score
-      (eliminado, ver doc 02 ADR-007): `grade` llama siempre al LLM (`crag_grade.txt`); `rewrite` además
-      reformula con `crag_rewrite.txt` y amplía `k` (`kStep`/`kMax`).
-- [x] `RagService.buscar(consulta, k)` + tool `search_docs`.
+- [x] `CragGraph` (LangGraph4j): nodos `multiQuery`/`retrieve`/`topK`/`grade`/`expand`/`rewrite` (la primera
+      versión tenía `retrieve`/`rerank`/`grade`/`rewrite`). El edge no usa umbral de score (ver doc 02 ADR-007):
+      `grade` llama siempre al LLM (`crag_grade.txt`) y evalúa la cobertura de cada subpregunta; `rewrite` reformula
+      con `crag_rewrite.txt` y amplía `k` (`kStep`/`kMax`); `multiQuery` recupera las variantes en paralelo.
+- [x] `RagService.search(query, k)` + tool `search_docs`.
 - [x] Tests del bucle con store y `ChatModel` falsos (converge, reformula, termina).
 
 **Verificación:** desde Claude Code, `search_docs("estándar de probes")` devuelve chunks del corpus; con una
-consulta mal formulada se observa que **el bucle reformula y mejora** (`iteraciones >= 1`).
+consulta mal formulada se observa que **el bucle reformula y mejora** (`iterations >= 1`).
 
 ## F1b — Chat de búsqueda (front secundario)
 
@@ -57,7 +58,7 @@ consulta mal formulada se observa que **el bucle reformula y mejora** (`iteracio
 - [x] `SearchController` (`POST /search`) + `AnswerComposer` (redacción con LLM interno, anti-alucinación) sobre
       el **mismo** `RagService`.
 - [x] UI de búsqueda: caja de búsqueda, respuesta y citas. Se sirve como **SPA Angular** (`frontend/src/app/search`,
-      reutilizada y podada del scaffolding) en vez del HTML+JS estático planteado originalmente.
+      reutilizada del scaffolding) en vez del HTML+JS estático planteado originalmente.
 
 **Verificación:** abrir `/` en el navegador, preguntar por un estándar y recibir respuesta redactada con citas.
 
@@ -84,24 +85,27 @@ hace que el cliente llame a `diagnose_pod` y razone citando el `ErrImagePull` re
 
 **Verificación:** `pod_logs` devuelve la cola real de un pod; con `previous=true`, los del arranque anterior.
 `query_logs` correlaciona logs de varios pods en una ventana de tiempo (o un instante muy concreto con
-`desde`/`hasta` en milisegundos).
+`from`/`to` en milisegundos).
 
 ## F4 — Despliegue en Kubernetes + integración con el cliente
 
-**Objetivo:** AutoOps corriendo en el clúster y enchufado por HTTP/SSE. **Guías ya escritas**: seguir
+**Objetivo:** AutoOps corriendo en el clúster y enchufado por Streamable HTTP. **Guías ya escritas**: seguir
 `docs/infraestructura/` 01→07.
 
 - [x] Manifiestos en `infra/` (descriptor `infra/projects/autoops.env` + `values-autoops-{backend,frontend}.yaml`
       + `rbac-autoops.yaml`), no en una carpeta `k8s/` separada como se planteó originalmente. El secreto (API
       key de Gemini) vive en `infra/.env.local`, gitignored — mismo efecto que el `01-secrets.yaml`
       previsto, mecanismo distinto.
-- [x] Dockerfile (guía infra 04) + perfil `k8s` (transporte MCP, inicialmente SSE).
+- [x] Dockerfile (guía infra 04; recibe `platform-commons` como build context `commons`) + perfil `k8s` (transporte MCP, inicialmente SSE).
 - [x] Desplegar Weaviate + `autoops-mcp` + Ingress; ejecutar la ingesta del corpus.
 - [x] Registrar el endpoint MCP en Claude Code (`.mcp.json` apuntando a `http://autoops.local/sse`).
-- [x] Migrar de SSE a **Streamable HTTP** (Spring Boot 4.1.0 + Spring AI 2.0.0): la transport SSE legacy
+- [x] Migrar de SSE a **Streamable HTTP** (Spring Boot 4.1 + Spring AI 2.0): la transport SSE legacy
       no soportaba keep-alive y los clientes basados en Node/undici (Claude Code, Copilot en VS Code e
       IntelliJ) cortaban la conexión a los ~5 min de inactividad, dejando las tools inutilizables hasta un
       reinicio manual. Endpoint nuevo: `http://autoops.local/mcp` (`.mcp.json` actualizado).
+- [x] Proteger `/mcp` con la cabecera `X-MCP-Token`: Secret `autoops-mcp-token` obligatorio en el despliegue (←
+      `AUTOOPS_MCP_TOKEN` de `infra/.env.local`); el `.mcp.json` del repo envía `${AUTOOPS_MCP_TOKEN}` desde la
+      variable de entorno del usuario.
 - [ ] Probar el diagnóstico **contra el propio clúster**: AutoOps diagnosticándose a sí mismo (buen momento de demo).
 
 **Verificación:** checklist de la guía infra `07` completa; Claude Code lista las tools vía la URL del Ingress y
@@ -113,7 +117,7 @@ diagnostica un pod roto del clúster.
    de preguntas de prueba.
 2. ~~Tool `query_logs` con Loki~~ — hecho en F3 (ver arriba).
 3. **Tool secundaria `validar_manifiesto`** (sin estado): la única reminiscencia útil del diseño anterior.
-4. **CI con GitHub Actions**: build + tests + imagen.
+4. ~~CI con GitHub Actions~~ — hecho (`.github/workflows/ci.yml`: backends, frontends, chart Helm y scripts); falta publicar la imagen.
 5. **Observabilidad**: histograma de iteraciones del bucle CRAG, latencia por tool (Micrometer).
 
 ---
@@ -123,7 +127,7 @@ diagnostica un pod roto del clúster.
 | Riesgo | Impacto | Mitigación |
 |---|---|---|
 | Cuota gratuita de Gemini (429) | Ingesta/CRAG lentos | Modelo `flash-lite`; uso de LLM acotado; embeddings en lotes |
-| El bucle CRAG no converge en consultas raras | Respuestas de baja confianza | Devolver siempre lo mejor obtenido + marcar `confianza: baja`; subir `MAX_ITERACIONES` es un parámetro |
+| El bucle CRAG no converge en consultas raras | Respuestas de baja confianza | Devolver siempre lo mejor obtenido + marcar `confidence` `low`/`none`; subir `autoops.crag.max-iterations` es un parámetro |
 | Versiones Spring AI / LangChain4j / LangGraph4j se mueven | Fricción al empezar fases | Fijar versiones en el `pom.xml` y no actualizarlas a mitad de fase |
 | Scope creep hacia un copiloto | No se termina; se traiciona el objetivo | El "fuera de alcance" del doc 01 es contractual; el chat se mantiene fino |
 | Permisos de K8s insuficientes/excesivos | Tool falla, o riesgo de seguridad | RBAC read-only exacto de la guía infra `02`; verificar con `kubectl auth can-i` |

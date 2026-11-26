@@ -9,7 +9,7 @@ en `http://l1-copilot.local/api/...` (incluyendo el actuator).
 
 ## 1. Imagen
 
-[`docker/backend.Dockerfile`](../../docker/backend.Dockerfile) — multi-stage (Maven con
+[`docker/backend.Dockerfile`](../../../docker/backend.Dockerfile) — multi-stage (Maven con
 caché de dependencias → JRE 17 alpine, usuario no-root).
 
 ```bash
@@ -32,7 +32,7 @@ docker push registry.local/l1-copilot-backend:1.0.0
 ## 2. Configuración por entorno
 
 El contenedor es el mismo para cualquier entorno; todo lo variable entra por entorno
-(declarado en [`infra/values-l1-copilot-backend.yaml`](../../infra/values-l1-copilot-backend.yaml)):
+(declarado en [`infra/values-l1-copilot-backend.yaml`](../../../infra/values-l1-copilot-backend.yaml)):
 
 | Variable | Origen | Valor |
 |---|---|---|
@@ -41,12 +41,15 @@ El contenedor es el mismo para cualquier entorno; todo lo variable entra por ent
 | `SPRING_DATASOURCE_USERNAME` / `PASSWORD` | Secret `postgres-credentials` (ns `l1-copilot`) | `appuser` / `<POSTGRES_PASSWORD>` |
 | `GEMINI_API_KEY` | Secret `gemini-api-key` | — |
 | `LANGCHAIN4J_GEMINI_MODEL_NAME` | ConfigMap (sobrescribe `langchain4j.gemini.model-name` de `application.yml`) | `gemini-flash-lite-latest` (hoy `gemini-3.5-flash-lite`) |
-| `JAVA_TOOL_OPTIONS` | ConfigMap | `-XX:MaxRAMPercentage=75` |
+| `JAVA_TOOL_OPTIONS` | ConfigMap | `-XX:MaxRAMPercentage=75 -Dfile.encoding=UTF-8` (el backend no arranca si el charset por defecto no es UTF-8: `CharsetGuard`) |
+| `COPILOT_LANGFUSE_ENABLED` / `_ENDPOINT` / `_ENVIRONMENT` | ConfigMap | `true` / Service `langfuse-web` del namespace `langfuse` / `k8s` (trazas LLM, ver [`infra/LANGFUSE-INTEGRATION.md`](../../../infra/LANGFUSE-INTEGRATION.md)) |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Secret `langfuse-api-keys` | claves del proyecto Langfuse de L1 |
+| `COPILOT_AUTH_TOKEN_SECRET` | Secret `copilot-auth-token` (opcional) | secreto de firma de los tokens de demo; si falta o está vacío, el backend genera uno aleatorio en cada arranque y los tokens no sobreviven a un reinicio |
 
 Los Secrets los sincroniza `deploy.sh` automáticamente desde `infra/.env.local`
 (git-ignored, compartido por todos los proyectos del portfolio),
 según el mapeo `SECRETS_BACKEND` de `infra/projects/l1-copilot.env` (`gemini-api-key` ←
-`GEMINI_API_KEY`, `postgres-credentials` ← `POSTGRES_USER`/`POSTGRES_PASSWORD`). Solo hay que rellenar el `.env.local` una vez
+`GEMINI_API_KEY`, `postgres-credentials` ← `POSTGRES_USER`/`POSTGRES_PASSWORD`, `langfuse-api-keys` ← `LANGFUSE_L1COPILOT_*`, `copilot-auth-token` ← `COPILOT_AUTH_TOKEN_SECRET`, este último opcional). Solo hay que rellenar el `.env.local` una vez
 (key gratuita de Gemini en
 [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)). Ver guía 07.
 
@@ -83,13 +86,13 @@ helm upgrade --install l1-copilot-backend infra/charts/generic-app \
 ```
 
 Puntos clave del values
-([`infra/values-l1-copilot-backend.yaml`](../../infra/values-l1-copilot-backend.yaml)):
+([`infra/values-l1-copilot-backend.yaml`](../../../infra/values-l1-copilot-backend.yaml)):
 
 - **`replicaCount: 1` + `strategy.type: Recreate`** — obligatorio mientras el estado
-  conversacional sea `MemorySaver` en memoria (D-8).
+  conversacional sea `BoundedMemorySaver` en memoria (D-8).
 - **Context-path `/api`**: `server.servlet.context-path: /api` en `application.yml`.
-  Todos los controllers usan rutas relativas (`@RequestMapping("/copilot")`, `/cache`,
-  `/tickets`, `/returns`); el contexto añade `/api` automáticamente. El actuator queda en
+  Todos los controllers usan rutas relativas (`@RequestMapping("/copilot")`, `/copilot/tickets`,
+  `/copilot/returns`, y `/cache` si está activa); el contexto añade `/api` automáticamente. El actuator queda en
   `/api/actuator/*`. Ventaja: ni el Ingress ni el frontend necesitan reescribir paths.
 - **Probes Actuator**: liveness `/api/actuator/health/liveness`, readiness
   `/api/actuator/health/readiness` (grupos habilitados en el perfil `prod`), con
@@ -100,8 +103,8 @@ Puntos clave del values
   `generic-app` nombra los Services como `<release>-generic-app`).
 - **Ingress**: `ingress.enabled: false` en el values — el Ingress lo aplica el script
   genérico `infra/scripts/setup-app-ingress.sh --project l1-copilot` con `kubectl` (guía 06).
-- **`secretEnv`**: declara las referencias a los Secrets `gemini-api-key` y
-  `postgres-credentials`; **el chart NO crea esos Secrets** (los sincroniza `deploy.sh`).
+- **`secretEnv`**: declara las referencias a los Secrets `gemini-api-key`,
+  `postgres-credentials`, `langfuse-api-keys` y `copilot-auth-token`; **el chart NO crea esos Secrets** (los sincroniza `deploy.sh`).
 - **Modelo Gemini**: `application.yml` fija `gemini-3.1-flash-lite` (dev/local); en el clúster el ConfigMap
   lo sobrescribe con el alias `gemini-flash-lite-latest` (Flash-Lite vigente, hoy `gemini-3.5-flash-lite`).
 

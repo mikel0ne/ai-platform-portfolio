@@ -112,8 +112,8 @@ public class Order {
 }
 ```
 
-> Las entidades llevan además validación declarativa (`@NotBlank`/`@NotNull`/`@Email`/`@Positive`,
-> mejora #15); se omite aquí por brevedad.
+> Las entidades llevan además validación declarativa (`@NotBlank`/`@NotNull`/`@Email`/`@Positive`);
+> se omite aquí por brevedad.
 
 ```java
 @Entity
@@ -171,18 +171,18 @@ public record OrderSummary(Long id, String description, String status,
                            LocalDate orderDate, String imageUrl) {}
 
 public record ShipmentStatus(Long orderId, String description, String status,
-                             LocalDate estimatedDelivery, String carrier) {}
+                             LocalDate estimatedDelivery, String carrier, String imageUrl) {}
 
 // Cancelación: comprobación (gate) y ejecución son DTOs separados
-public record CancellationCheck(Long orderId, boolean cancellable, String reason) {}
+public record CancellationCheck(Long orderId, boolean cancellable, String status, String description) {}
 public record CancellationResult(Long orderId, boolean cancelled, String reason) {}
 
 // Devolución: mismo patrón check/result
-public record ReturnCheck(Long orderId, boolean returnable, String reason) {}
-public record ReturnResult(Long orderId, boolean requested, String reason) {}
+public record ReturnCheck(Long orderId, boolean returnable, String status, String description) {}
+public record ReturnResult(Long orderId, boolean returned, String reference, String reason) {}
 
-public record TicketSummary(Long id, String subject, String status) {}
-public record TicketCreated(Long ticketId, String subject, String status) {}
+public record TicketSummary(Long ticketId, String subject, String status, Long orderId, Instant createdAt) {}
+public record TicketCreated(Long ticketId, String subject, String status, Instant createdAt) {}
 ```
 
 > Estos records viven en `dto/result/`. El catálogo completo incluye `OrderSummary`,
@@ -239,14 +239,14 @@ CREATE TABLE IF NOT EXISTS turn_log (
     ts              TIMESTAMP NOT NULL,
     conversation_id VARCHAR(100),
     user_id         VARCHAR(20),
-    message         TEXT,
+    message         VARCHAR(4000),
     intent          VARCHAR(20),
     awaiting        VARCHAR(20),
     order_id        BIGINT,
     orders_shown    INTEGER,
     tickets_created INTEGER,
     resolved        BOOLEAN,
-    reply           TEXT
+    reply           VARCHAR(4000)
 );
 ```
 
@@ -277,6 +277,7 @@ INSERT INTO orders (id, user_id, description, status, order_date, estimated_deli
 | Perfil | BD | Inicialización |
 |---|---|---|
 | `dev` | H2 en memoria (`jdbc:h2:mem:copilot`) | `spring.sql.init.mode=always`, consola H2 activada en `/h2-console` |
-| `prod` | PostgreSQL (`SPRING_DATASOURCE_URL` por entorno) | esquema/seed aplicados por initContainer/ConfigMap (ver rama de infraestructura) o `spring.sql.init.mode=always` con `ON CONFLICT DO NOTHING` |
+| `local` | PostgreSQL del clúster (`postgres.local:15432`) | `spring.sql.init.mode=never` por defecto; `SQL_INIT_MODE=always` recarga el seed |
+| `prod` | PostgreSQL (`SPRING_DATASOURCE_URL`, por defecto el de `infra`) | esquema y seed aplicados una vez por `l1-copilot/scripts/setup-l1-copilot-db.sh`; la app no los ejecuta (`mode=never`) |
 
 Dependencias Maven asociadas: `spring-boot-starter-data-jpa`, `com.h2database:h2` (runtime), `org.postgresql:postgresql` (runtime). Detalle completo en [07 — Organización del código](07-organizacion-codigo.md).

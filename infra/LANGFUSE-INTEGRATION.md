@@ -22,7 +22,7 @@ The Spring-free parts (`LangfuseChatModelListener`, `LangfuseCacheHitTracer`, `L
 config, score gateway, and the node hook or turn tracer).
 
 Why not the alternatives: Micrometer/Spring Boot OTel starters only instrument Spring AI `ChatModel`
-(neither backend calls the LLM through it), differ between Spring Boot 3.5 and 4.x, and clash with this
+(neither backend calls the LLM through it), change between Spring Boot major versions, and clash with this
 setup; the Java agent gives HTTP spans but no prompts, tokens or verdicts. **Do not add
 `micrometer-tracing-bridge-otel`, `opentelemetry-spring-boot-starter` or `spring-boot-starter-opentelemetry`.**
 
@@ -146,7 +146,7 @@ chat.turn                                   root (agent)
   `LangfuseTraceAttributesProcessor` copies them onto each child span because Langfuse v4 evaluates them per
   observation. The final `intent` is added as a tag next to `l1-copilot` and `agent`. All turns of a conversation
   therefore show up as one Langfuse Session, which is the only place the thread can be read (conversations live in
-  a `MemorySaver`).
+  a `BoundedMemorySaver`, in the pod's memory).
 - **Root input/output.** Input is the user message; output is the reply after the `<thought>` blocks are stripped.
 - **Root metadata:** `intent`, `awaiting`, `verdict`, `orderId`, `resolved`, `treatment`, `ordersShown`,
   `ticketsCreated`.

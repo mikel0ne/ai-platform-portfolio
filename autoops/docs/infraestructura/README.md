@@ -13,7 +13,7 @@ además, el sujeto que AutoOps diagnostica.
 | Componente | Tecnología | Namespace | Exposición |
 |---|---|---|---|
 | `autoops-backend` | Spring Boot 4 · Spring AI MCP (Streamable HTTP) · LangChain4j · LangGraph4j · fabric8 | `autoops` | Ingress Traefik (`/search`, `/mcp`, `/actuator`, `/swagger-ui`) |
-| `autoops-frontend` | Angular 17 + nginx (chat de búsqueda) | `autoops` | Ingress Traefik (`/`) |
+| `autoops-frontend` | Angular 22 + nginx (chat de búsqueda) | `autoops` | Ingress Traefik (`/`) |
 | `weaviate` (+ `weaviate-reranker`) | Weaviate 1.27 · reranker-transformers | **`infra`** (compartido) | Solo interno (ClusterIP) |
 | Logs | Loki + Promtail + Grafana | `observability` | `grafana.local` |
 
@@ -47,19 +47,22 @@ Todo se orquesta con los scripts **genéricos** de `infra/` (ver `infra/INFRA.md
 bash infra/scripts/06-setup-weaviate.sh         # Weaviate + reranker (ns infra)
 bash infra/scripts/07-setup-observability.sh    # Loki + Grafana (ns observability)
 
-# 2. Credencial (una vez): infra/.env.local con GEMINI_API_KEY (compartida por el portfolio)
+# 2. Credenciales (una vez): infra/.env.local, a partir de infra/.env.local.example. Obligatorias para
+#    AutoOps: GEMINI_API_KEY, GITHUB_TOKEN, AUTOOPS_ADMIN_TOKEN, AUTOOPS_MCP_TOKEN (deploy.sh aborta si
+#    falta alguna; WIKIJS_API_KEY es opcional) y las claves del proyecto Langfuse de AutoOps
 
 # 3. AutoOps
-bash infra/scripts/deploy.sh --project autoops --component all --tag 0.1.0
+bash infra/scripts/deploy.sh --project autoops --component all --tag 0.1.0   # --tag único por build
 bash infra/scripts/setup-app-ingress.sh --project autoops    # http://autoops.local
-bash infra/scripts/ingest-autoops.sh                         # ingesta del corpus
+bash infra/scripts/ingest-autoops.sh                         # ingesta de la documentación del repo (GitHub) en Weaviate
 
 # Hosts (Admin, una vez):
 #   infra/scripts/add-host.ps1 -Hostname autoops.local
 #   infra/scripts/add-host.ps1 -Hostname grafana.local
 ```
 
-URLs: `http://autoops.local/` (chat) · `http://autoops.local/mcp` (MCP) · `http://grafana.local`.
+URLs: `http://autoops.local/` (chat) · `http://autoops.local/mcp` (MCP, exige la cabecera `X-MCP-Token`) ·
+`http://grafana.local`.
 
 ## Índice de guías (diseño conceptual)
 
