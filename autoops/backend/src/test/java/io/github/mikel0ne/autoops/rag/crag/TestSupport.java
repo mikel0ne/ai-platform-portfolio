@@ -35,7 +35,7 @@ final class TestSupport {
         }
 
         @Override
-        public List<DocChunk> retrieve(String query, int k) {
+        public synchronized List<DocChunk> retrieve(String query, int k) {
             receivedKs.add(k);
             receivedQueries.add(query);
             double score = scoresPerCall[Math.min(calls, scoresPerCall.length - 1)];
@@ -72,7 +72,7 @@ final class TestSupport {
         }
 
         @Override
-        public List<DocChunk> retrieve(String query, int k) {
+        public synchronized List<DocChunk> retrieve(String query, int k) {
             receivedKs.add(k);
             List<DocChunk> result = chunksPerCall.get(Math.min(calls, chunksPerCall.size() - 1));
             calls++;

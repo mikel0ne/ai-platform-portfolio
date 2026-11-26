@@ -136,7 +136,7 @@ class CragLoopTest {
     @Test
     void multi_query_fan_out_only_on_first_pass_is_fused_with_rrf() {
         var retriever = new TestSupport.FakeRetriever(0.9, 0.5, 0.5);
-        var props = new CragProperties(2, 2, 0.5, 3, 12, 3);
+        var props = new CragProperties(2, 2, 0.5, 3, 12, 3, 1);
         var chat = new TestSupport.ScriptedChatModel(
                 List.of(grades("SUFFICIENT", "SUFFICIENT")), List.of(),
                 List.of(variants("variante uno", "variante dos")));

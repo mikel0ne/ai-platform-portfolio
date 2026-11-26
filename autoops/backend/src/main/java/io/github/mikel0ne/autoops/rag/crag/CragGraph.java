@@ -22,8 +22,14 @@ import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.StateGraph;
 import org.bsc.langgraph4j.hook.NodeHook;
 import org.bsc.langgraph4j.utils.EdgeMappings;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.bsc.langgraph4j.GraphDefinition.END;
 import static org.bsc.langgraph4j.GraphDefinition.START;
@@ -32,7 +38,7 @@ import static org.bsc.langgraph4j.action.AsyncNodeAction.node_async;
 
 @Component
 @RequiredArgsConstructor
-public class CragGraph {
+public class CragGraph implements DisposableBean {
 
     private final DocRetriever retriever;
     private final ObjectProvider<ChatModel> chatModel;
@@ -42,6 +48,16 @@ public class CragGraph {
 
     // Compiled lazily so the ChatModel (and its API key) is not needed at startup.
     private volatile CompiledGraph<CragState> compiled;
+
+    private volatile ExecutorService retrievalExecutor;
+
+    @Override
+    public void destroy() {
+        ExecutorService executor = retrievalExecutor;
+        if (executor != null) {
+            executor.shutdown();
+        }
+    }
 
     public CompiledGraph<CragState> get() {
         CompiledGraph<CragState> local = compiled;
@@ -58,11 +74,14 @@ public class CragGraph {
 
     private CompiledGraph<CragState> build() {
         ChatModel llm = chatModel.getObject();
+        // Small on purpose: every variant embeds its query, and the embedding API has a per-minute quota.
+        ExecutorService executor = Executors.newFixedThreadPool(props.retrievalParallelism(), new RetrievalThreadFactory());
+        retrievalExecutor = executor;
         GradeNode grade = new GradeNode(AiServices.create(Grader.class, llm), props.maxIterations());
         RewriteNode rewrite = new RewriteNode(
                 llm, prompts.load("crag_rewrite.txt"), props.kStep(), props.kMax());
         MultiQueryNode multiQuery = new MultiQueryNode(
-                retriever, AiServices.create(QueryVariantGenerator.class, llm), props.multiQueryN());
+                retriever, AiServices.create(QueryVariantGenerator.class, llm), props.multiQueryN(), executor);
         try {
             return new StateGraph<>(CragState::new)
                     .addWrapCallNodeHook(nodeSpanHook(tracing))
@@ -122,5 +141,16 @@ public class CragGraph {
             case "retrieve" -> LangfuseAttributes.TYPE_RETRIEVER;
             default -> LangfuseAttributes.TYPE_SPAN;
         };
+    }
+
+    private static final class RetrievalThreadFactory implements ThreadFactory {
+        private final AtomicInteger count = new AtomicInteger();
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "crag-retrieval-" + count.incrementAndGet());
+            t.setDaemon(true);
+            return t;
+        }
     }
 }
