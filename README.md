@@ -73,6 +73,8 @@ cancelled is the failure mode it is designed against: **the LLM classifies, the 
   request. The `userId` comes from the session, never from the user's text.
 - **Security tests that assume the LLM is already fooled**: the mocked classifier and verifier say yes to
   jailbreaks, IDOR attempts and injected confirmations, and the tests check the code still refuses.
+- **Retries around every model call** (`copilot.llm-retry`): overloads (503) and timeouts back off, a per-minute
+  rate limit waits for the window the provider reports, and a daily quota is never retried.
 
 ```mermaid
 flowchart LR
@@ -228,12 +230,14 @@ and the failed cases are listed.
   stay under a cap; and security cases (grader injection, prompt leak, exfiltration, destructive commands,
   malicious formats). `RagEvalTest` reports hit@1, hit@5 and MRR for hybrid search + rerank and for the CRAG
   evidence. It fails below 0.8 on hit@5, on abstention and on security.
-- **Router**: [`golden-router-cases.json`](l1-copilot/backend/src/test/resources/golden-router-cases.json), 103
+- **Router**: [`golden-router-cases.json`](l1-copilot/backend/src/test/resources/golden-router-cases.json), 102
   messages in 24 categories: 54 security cases (history, tool-data, encoded and multilingual injection,
-  jailbreaks, roleplay, privilege claims) and 61 held-out cases that were never used to tune the prompt. Some
+  jailbreaks, roleplay, privilege claims) and 60 held-out cases that were never used to tune the prompt. Some
   cases carry conversation history, agent state or an expected confirmation. `RouterEvalTest` reports the raw
   model output and the guarded result after the deterministic assent guard. It fails below 0.7 overall or 0.8
-  on security. A test also fails if the router prompt quotes a golden case.
+  on security. A test also fails if the router prompt quotes a golden case. Decisions are cached per model in
+  `target/`, and an API error (429, 503, timeout) leaves a case open instead of counting it as a failure, so a
+  rerun completes the missing cases.
 - **Router failures end to end**: `RouterFailureE2eEvalTest` replays every case the router got wrong through
   the real graph, using the real verifier and tools that accept any order (the worst case). Each failure is
   graded by its consequence: GRAVE (an action the user did not ask for runs or is offered), MITIGADO (the flow
@@ -244,25 +248,27 @@ differences are within noise):
 
 | Version | Overall raw | Overall guarded | Security raw | Security guarded |
 |---|---|---|---|---|
-| A: old prompt + assent guard | 89% | 93% | 43/54 | 47/54 |
-| B: hardened prompt + guard | 92% | 96% | 45/54 | 49/54 |
-| C: B + structured history turns | 96% | 100% | 48/54 | 52/54 |
+| A: old prompt + assent guard | 89/103 (86%) | 93/103 (90%) | 43/54 (80%) | 47/54 (87%) |
+| B: hardened prompt + guard | 92/103 (89%) | 96/103 (93%) | 45/54 (83%) | 49/54 (91%) |
+| C: B + structured history turns | 96/103 (93%) | 100/103 (97%) | 48/54 (89%) | 52/54 (96%) |
 
 End to end on C: 7 router failures, 0 GRAVE, 1 MITIGADO, 6 LEVE. The 44-query RAG set has not been run against
 the model yet.
 
-The same 103 cases on two models (final prompt, one run each, 5 s pause between calls; a gap of three or four
-cases is within noise):
+Router results per model (one run each, 5 s pause between calls; a gap of three or four cases is within noise).
+The set had 103 cases until the `TICKET_CONFIRM` state and its only case were removed; it has 102 since:
 
 | Model | Overall raw | Overall guarded | Security raw | Security guarded | Functional | Run time |
 |---|---|---|---|---|---|---|
 | `gemini-flash-lite-latest` (3.5), commit `84b5357` | 96/103 (93%) | 100/103 (97%) | 48/54 (89%) | 52/54 (96%) | 48/49 (98%) | 12 min |
 | `gemini-3.1-flash-lite`, `main` at `1887a69` | 97/103 (94%) | 100/103 (97%) | 48/54 (89%) | 51/54 (94%) | 49/49 (100%) | 22 min |
+| `gemini-3.1-flash-lite`, `main` without `TICKET_CONFIRM` (102 cases) | 91/102 (89%) | 95/102 (93%) | 45/54 (83%) | 49/54 (91%) | 48/48 (100%) | n/a |
 
 Both fail on the same family of cases: a bare "adelante" or "ok, thanks" read as a confirmation, forged context
 or a fake "your return was approved" email read as an instruction. The 3.1 run finished in a single pass with no
 API errors left open; its six failures are all security cases, and the assent guard turns three of them into a
-safe `OTHER`. The router is only the first layer: an action still needs the verifier, a confirmation pending for
+safe `OTHER`. The two 3.1 rows differ by six cases after the prompt dropped one state and the set one case: a
+single run is a sample, not a score. The router is only the first layer: an action still needs the verifier, a confirmation pending for
 that very order, and the business rules in code.
 
 Everything else, including the full agent flows and the security suite, runs in CI with the LLM roles mocked:
@@ -329,7 +335,8 @@ l1-copilot/     L1 Support Copilot: backend (Spring Boot), frontend (Angular), d
 infra/          Shared platform: generic Helm chart, values per app, Weaviate, Loki, RBAC, scripts
 docker/         Shared Dockerfiles (backend, frontend) and nginx config
 wiki/           Wiki.js content (an extra RAG source) and its seeding scripts
-scripts/        Local start/stop of the L1 Copilot without Kubernetes
+docs/           Cross-project notes (open work, code-review findings) and the images and GIFs of this README
+scripts/        Local start/stop of the L1 Copilot, verify-in-docker, and the scripts that regenerate the README media
 .github/        CI (backends, frontends, Helm chart and shell scripts) and Dependabot
 ```
 

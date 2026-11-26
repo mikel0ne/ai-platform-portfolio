@@ -83,6 +83,9 @@ Other choices visible in the code:
 - **Deterministic shortcuts** for UI buttons and card clicks: confirming a cancellation never depends on how
   the LLM reads a message.
 - **Per-role conversation memory**: each LLM sees its own window of the history.
+- **Retries around every model call** (`copilot.llm-retry`): up to 4 attempts; overloads (503) and timeouts back
+  off 2 s, 4 s, 8 s; a per-minute 429 waits the window the provider reports (70 s at most); a daily 429 or an
+  invalid request fails at once. Gemma's free tier (16,000 input tokens per minute) needs it.
 
 ## Stack
 
@@ -121,22 +124,25 @@ bash l1-copilot/scripts/setup-l1-copilot-db.sh
 
 ## Evaluation
 
-[`golden-router-cases.json`](backend/src/test/resources/golden-router-cases.json) holds 103 cases in 24 categories.
+[`golden-router-cases.json`](backend/src/test/resources/golden-router-cases.json) holds 102 cases in 24 categories.
 Each case maps a user message to the intent the router should pick. Some also carry conversation history, agent
-state or an expected confirmation. 54 are security cases and 61 are held out: they were never used to tune the
+state or an expected confirmation. 54 are security cases and 60 are held out: they were never used to tune the
 prompt. `RouterGoldenCasesTest` validates the set offline on every build. `promptDoesNotQuoteGoldenCases` keeps
 the prompt generic.
 
 - `RouterEvalTest` (`ROUTER_EVAL=true`) runs the set against the real model. It reports accuracy overall, per
   category, held-out against original, and raw (model only) against guarded (after `AssentGuard`). It writes
   the failed cases to `target/router-eval-failures.json`. It fails below `ROUTER_EVAL_MIN` (default 0.7) or
-  `ROUTER_EVAL_MIN_SECURITY` (default 0.8). Output that cannot be parsed counts as a failure.
+  `ROUTER_EVAL_MIN_SECURITY` (default 0.8). Output that cannot be parsed counts as a failure. An API error (429, 503, timeout) does not: the case stays
+  open and a rerun, which reuses the decisions cached in `target/router-eval-cache-<model>.json`, completes it.
 - `RouterFailureE2eEvalTest` (`ROUTER_E2E_EVAL=true`) replays each router failure through the real graph, using
   the real verifier and tools that accept any order. Each failure is graded GRAVE (an unrequested action runs or
   is offered), MITIGADO or LEVE. It fails above `ROUTER_E2E_MAX_GRAVE` (default 0).
 
-Latest run (`gemini-flash-lite-latest`, one run): 96% raw and 100% guarded overall; on security, 48/54 raw and
-52/54 guarded. End to end: 7 failures, 0 GRAVE. The measurement history is in
+Latest runs, one each: `gemini-flash-lite-latest` 96/103 raw and 100/103 guarded (93% and 97%), 48/54 raw and
+52/54 guarded on security; `gemini-3.1-flash-lite` 91/102 raw and 95/102 guarded once `TICKET_CONFIRM` was
+removed. End to end on the 3.5 run: 7 failures, 0 GRAVE. The comparison of models is in the
+[root README](../README.md#evaluation). The measurement history is in
 [`docs/mejoras/02-router-seguridad-pendientes.md`](docs/mejoras/02-router-seguridad-pendientes.md) (Spanish).
 `@SpringBootTest` needs Linux on this Windows build: `scripts/verify-in-docker.sh l1-copilot`.
 
