@@ -75,6 +75,9 @@ autoops:
     sample-ratio: 1.0
     capture-content: true      # false: neither prompts nor answers leave the pod
     timeout: 10s
+  # /mcp requires the X-MCP-Token header once a token is set; without one it stays open (opt-in).
+  mcp:
+    token: ${AUTOOPS_MCP_TOKEN:}
   # /admin/* requires the X-Admin-Token header; without a token the endpoints stay closed.
   admin:
     token: ${AUTOOPS_ADMIN_TOKEN:}
