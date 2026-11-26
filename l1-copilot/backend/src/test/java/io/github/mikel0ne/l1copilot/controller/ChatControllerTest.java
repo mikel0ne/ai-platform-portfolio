@@ -3,6 +3,7 @@ package io.github.mikel0ne.l1copilot.controller;
 import io.github.mikel0ne.l1copilot.config.TreatmentPolicy;
 import io.github.mikel0ne.l1copilot.domain.User;
 import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
+import io.github.mikel0ne.l1copilot.security.TokenSigner;
 import io.github.mikel0ne.l1copilot.service.ConversationService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,11 +26,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ChatController.class)
-@Import(SessionUsers.class)
+@Import({SessionUsers.class, TokenSigner.class})
+@TestPropertySource(properties = "copilot.auth.token-secret=controller-test-secret")
 class ChatControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private TokenSigner tokenSigner;
 
     @MockitoBean
     private ConversationService conversationService;
@@ -47,7 +53,7 @@ class ChatControllerTest {
                 .thenReturn(new ConversationService.ChatResult("Tu pedido está en reparto", "TRACKING", true, List.of(), false, List.of(), List.of(), null));
 
         mockMvc.perform(post("/copilot/chat")
-                        .header("X-User-Id", "u-001")
+                        .header(SessionUsers.HEADER, bearer("u-001"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"conversationId":"conv-1","message":"¿Dónde está mi pedido?"}
@@ -76,7 +82,35 @@ class ChatControllerTest {
         when(userRepository.existsById("u-999")).thenReturn(false);
 
         mockMvc.perform(post("/copilot/chat")
-                        .header("X-User-Id", "u-999")
+                        .header(SessionUsers.HEADER, bearer("u-999"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conv-1","message":"hola"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("A tampered token: 401")
+    void tamperedTokenIsUnauthorized() throws Exception {
+        when(userRepository.existsById("u-001")).thenReturn(true);
+
+        mockMvc.perform(post("/copilot/chat")
+                        .header(SessionUsers.HEADER, bearer("u-001") + "x")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"conversationId":"conv-1","message":"hola"}
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("The raw user id is no longer accepted as a credential")
+    void rawUserIdIsUnauthorized() throws Exception {
+        when(userRepository.existsById("u-001")).thenReturn(true);
+
+        mockMvc.perform(post("/copilot/chat")
+                        .header(SessionUsers.HEADER, "Bearer u-001")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"conversationId":"conv-1","message":"hola"}
@@ -90,7 +124,7 @@ class ChatControllerTest {
         when(userRepository.existsById("u-001")).thenReturn(true);
 
         mockMvc.perform(post("/copilot/chat")
-                        .header("X-User-Id", "u-001")
+                        .header(SessionUsers.HEADER, bearer("u-001"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"conversationId":"conv-1","message":"   "}
@@ -106,7 +140,7 @@ class ChatControllerTest {
                 .thenThrow(new ConversationService.LlmUnavailableException(new RuntimeException("quota")));
 
         mockMvc.perform(post("/copilot/chat")
-                        .header("X-User-Id", "u-001")
+                        .header(SessionUsers.HEADER, bearer("u-001"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"conversationId":"conv-1","message":"hola"}
@@ -131,5 +165,9 @@ class ChatControllerTest {
                 .andExpect(jsonPath("$[0].name").value("Ana García"))
                 .andExpect(jsonPath("$[0].age").value(28))
                 .andExpect(jsonPath("$[0].formal").value(false));
+    }
+
+    private String bearer(String userId) {
+        return "Bearer " + tokenSigner.sign(userId);
     }
 }

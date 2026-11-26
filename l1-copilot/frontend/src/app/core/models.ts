@@ -6,6 +6,10 @@ export interface UserDto {
   formal: boolean;
 }
 
+export interface LoginResponse {
+  token: string;
+}
+
 export type Intent = 'TRACKING' | 'CANCEL' | 'RETURN' | 'SUPPORT' | 'TICKETS' | 'FAQ' | 'CHATTY' | 'OTHER' | 'NONE';
 
 export interface ConfirmAction {

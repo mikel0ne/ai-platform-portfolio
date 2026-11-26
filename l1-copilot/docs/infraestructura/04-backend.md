@@ -115,10 +115,10 @@ kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -
   curl -s http://l1-copilot-backend-generic-app:8080/api/actuator/health
 # {"status":"UP", ...}  (incluye db: UP contra la BD l1_copilot del Postgres compartido)
 
-# Turno de chat real (grafo + Gemini + Postgres)
+# Turno de chat real (grafo + Gemini + Postgres); TOKEN sale de POST /api/copilot/login con {"userId":"u-001"}
 kubectl run tmp --rm -it --image=curlimages/curl -n l1-copilot --restart=Never -- \
   curl -s -X POST http://l1-copilot-backend-generic-app:8080/api/copilot/chat \
-       -H "Content-Type: application/json" -H "X-User-Id: u-001" \
+       -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
        -d '{"conversationId":"smoke-1","message":"Hola"}'
 ```
 

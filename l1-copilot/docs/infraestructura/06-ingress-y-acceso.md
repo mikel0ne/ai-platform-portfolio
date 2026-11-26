@@ -65,13 +65,15 @@ curl -s http://l1-copilot.local/api/actuator/health                          # {
 curl -s http://l1-copilot.local/api/copilot/users                            # [{"id":"u-001",...}]
 
 # 4) Conversación completa (escenario de referencia, 2 turnos con el mismo conversationId)
+TOKEN=$(curl -s -X POST http://l1-copilot.local/api/copilot/login -H "Content-Type: application/json" \
+  -d '{"userId":"u-001"}' | sed 's/.*"token":"\([^"]*\)".*/\1/')
 curl -s -X POST http://l1-copilot.local/api/copilot/chat \
-  -H "Content-Type: application/json" -H "X-User-Id: u-001" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
   -d '{"conversationId":"e2e-1","message":"Donde esta mi pedido?"}'
 # → reply preguntando por el portátil (#123) o el ratón (#456), resolved=false
 
 curl -s -X POST http://l1-copilot.local/api/copilot/chat \
-  -H "Content-Type: application/json" -H "X-User-Id: u-001" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
   -d '{"conversationId":"e2e-1","message":"El portatil"}'
 # → reply con estado IN_DELIVERY y fecha estimada, resolved=true
 ```

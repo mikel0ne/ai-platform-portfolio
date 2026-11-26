@@ -157,12 +157,18 @@ in the [root README](../README.md#estimated-cost).
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/copilot/chat` | One conversation turn: `{ conversationId, message }`, header `X-User-Id` |
+| `POST /api/copilot/login` | Simulated login: `{ userId }` of a demo user returns `{ token }` (401 for an unknown user) |
+| `POST /api/copilot/chat` | One conversation turn: `{ conversationId, message }`, header `Authorization: Bearer <token>` |
 | `GET /api/copilot/users` | Demo users for the simulated login |
-| `GET /api/copilot/tickets/{id}` | Detail of one of the session user's tickets, header `X-User-Id` (404 otherwise) |
-| `GET /api/copilot/returns/{id}` | Return label of one of the session user's orders with a return in progress, header `X-User-Id` |
+| `GET /api/copilot/tickets/{id}` | Detail of one of the session user's tickets, bearer token (404 otherwise) |
+| `GET /api/copilot/returns/{id}` | Return label of one of the session user's orders with a return in progress, bearer token |
 
-`X-User-Id` stands in for a real session token (authentication is out of scope); unknown users get 401.
+The bearer token is a signed *demo* token, `base64url(userId).base64url(HMAC-SHA256(userId))`, verified in
+constant time. It stops anyone from impersonating a user by editing a header, but it has no expiry, no password
+and no revocation: real authentication is out of scope. The secret comes from `COPILOT_AUTH_TOKEN_SECRET`
+(`copilot.auth.token-secret`); when it is empty a random one is generated at startup, so tokens do not survive a
+restart and the frontend sends the user back to the login on the resulting 401. Missing, invalid or
+unknown-user tokens get 401.
 
 ## Notes
 

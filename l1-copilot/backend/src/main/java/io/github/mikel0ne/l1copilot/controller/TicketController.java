@@ -22,8 +22,8 @@ public class TicketController {
 
     @Operation(summary = "Detail of one of the session user's support tickets")
     @GetMapping("/{id}")
-    public TicketDetailDto ticket(@RequestHeader(SessionUsers.HEADER) String userId, @PathVariable Long id) {
-        String owner = sessionUsers.requireKnown(userId);
+    public TicketDetailDto ticket(@RequestHeader(SessionUsers.HEADER) String authorization, @PathVariable Long id) {
+        String owner = sessionUsers.requireKnown(authorization);
         return ticketRepository.findByIdAndUserId(id, owner)
                 .map(TicketDetailDto::from)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket", id));

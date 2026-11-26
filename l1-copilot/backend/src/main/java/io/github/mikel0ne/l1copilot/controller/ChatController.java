@@ -33,11 +33,11 @@ public class ChatController {
     @Operation(summary = "One conversation turn with the agent",
             description = "Sends a user message; the same conversationId keeps the state across turns")
     @PostMapping("/chat")
-    public ChatResponse chat(@RequestHeader(SessionUsers.HEADER) String userId,
+    public ChatResponse chat(@RequestHeader(SessionUsers.HEADER) String authorization,
                              @Valid @RequestBody ChatRequest request) {
-        sessionUsers.requireKnown(userId);
+        String owner = sessionUsers.requireKnown(authorization);
         ConversationService.ChatResult result =
-                conversationService.chat(userId, request.conversationId(), request.message());
+                conversationService.chat(owner, request.conversationId(), request.message());
         return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
                 result.resolved(), result.orders(), result.ordersSelectable(), result.tickets(),
                 result.returns(), result.confirm());

@@ -138,7 +138,7 @@ chat.turn                                   root (agent)
 - **Cache hits are visible.** `CachingChatModel` calls `LangfuseCacheHitTracer`, which emits a `gemini.chat (cache)` generation with `cache=HIT`, zero
   tokens and cost `{"total":0}`: the hit consumed no quota and must not inflate the spend.
 - **Session, user and intent on every span.** The root sets `langfuse.session.id` (the `conversationId`, the same
-  id as the graph's thread) and `langfuse.user.id` (the `X-User-Id` header) and puts them in OpenTelemetry baggage;
+  id as the graph's thread) and `langfuse.user.id` (the user resolved from the bearer token) and puts them in OpenTelemetry baggage;
   `LangfuseTraceAttributesProcessor` copies them onto each child span because Langfuse v4 evaluates them per
   observation. The final `intent` is added as a tag next to `l1-copilot` and `agent`. All turns of a conversation
   therefore show up as one Langfuse Session, which is the only place the thread can be read (conversations live in

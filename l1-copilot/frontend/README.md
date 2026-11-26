@@ -17,5 +17,7 @@ npm run build
 npx ng test --watch=false --browsers=ChromeHeadless
 ```
 
-The `X-User-Id` header added by `core/auth.interceptor.ts` stands in for a real session token; the backend
-rejects unknown users with 401.
+Login calls `POST /api/copilot/login` and keeps the signed demo token in `sessionStorage` next to the user;
+`core/auth.interceptor.ts` sends it as `Authorization: Bearer`. On a 401 from the API (for instance after a backend
+restart with a random secret) the session is cleared and the app goes back to the login. Real authentication is
+out of scope.

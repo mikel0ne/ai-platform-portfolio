@@ -172,6 +172,8 @@ The ADRs are in [`docs/arquitectura/02-arquitectura-sistema.md`](docs/arquitectu
 - Actuator exposes only `health` and `info`.
 - `/mcp` and `/search` have no authentication: this is a local demo. A real deployment would put OAuth
   (the MCP authorization spec) or an authenticating gateway in front of them.
+- `/search` is capped by `SearchRateLimiter`, a global in-memory counter (not per client): it only holds with a
+  single replica, and a scaled-out deployment would need a shared store or a gateway-level limit.
 
 ## Notes
 

@@ -7,12 +7,14 @@ import io.github.mikel0ne.l1copilot.domain.TicketStatus;
 import io.github.mikel0ne.l1copilot.domain.repository.OrderRepository;
 import io.github.mikel0ne.l1copilot.domain.repository.TicketRepository;
 import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
+import io.github.mikel0ne.l1copilot.security.TokenSigner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,11 +28,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({TicketController.class, ReturnController.class})
-@Import(SessionUsers.class)
+@Import({SessionUsers.class, TokenSigner.class})
+@TestPropertySource(properties = "copilot.auth.token-secret=controller-test-secret")
 class OwnedResourceControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private TokenSigner tokenSigner;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -52,7 +58,7 @@ class OwnedResourceControllerTest {
     void ownerReadsTicket() throws Exception {
         when(ticketRepository.findByIdAndUserId(1L, "u-001")).thenReturn(Optional.of(ticket(1L, "u-001")));
 
-        mockMvc.perform(get("/copilot/tickets/1").header(SessionUsers.HEADER, "u-001"))
+        mockMvc.perform(get("/copilot/tickets/1").header(SessionUsers.HEADER, bearer("u-001")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1));
     }
@@ -62,7 +68,7 @@ class OwnedResourceControllerTest {
     void otherUsersTicketIsNotFound() throws Exception {
         when(ticketRepository.findByIdAndUserId(1L, "u-002")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/copilot/tickets/1").header(SessionUsers.HEADER, "u-002"))
+        mockMvc.perform(get("/copilot/tickets/1").header(SessionUsers.HEADER, bearer("u-002")))
                 .andExpect(status().isNotFound());
     }
 
@@ -81,10 +87,10 @@ class OwnedResourceControllerTest {
         when(orderRepository.findByIdAndUserId(11L, "u-001"))
                 .thenReturn(Optional.of(order(11L, "u-001", OrderStatus.PAID)));
 
-        mockMvc.perform(get("/copilot/returns/10").header(SessionUsers.HEADER, "u-001"))
+        mockMvc.perform(get("/copilot/returns/10").header(SessionUsers.HEADER, bearer("u-001")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(10));
-        mockMvc.perform(get("/copilot/returns/11").header(SessionUsers.HEADER, "u-001"))
+        mockMvc.perform(get("/copilot/returns/11").header(SessionUsers.HEADER, bearer("u-001")))
                 .andExpect(status().isNotFound());
     }
 
@@ -93,7 +99,7 @@ class OwnedResourceControllerTest {
     void otherUsersReturnLabelIsNotFound() throws Exception {
         when(orderRepository.findByIdAndUserId(10L, "u-002")).thenReturn(Optional.empty());
 
-        mockMvc.perform(get("/copilot/returns/10").header(SessionUsers.HEADER, "u-002"))
+        mockMvc.perform(get("/copilot/returns/10").header(SessionUsers.HEADER, bearer("u-002")))
                 .andExpect(status().isNotFound());
     }
 
@@ -116,5 +122,9 @@ class OwnedResourceControllerTest {
         o.setStatus(status);
         o.setOrderDate(LocalDate.parse("2026-06-01"));
         return o;
+    }
+
+    private String bearer(String userId) {
+        return "Bearer " + tokenSigner.sign(userId);
     }
 }

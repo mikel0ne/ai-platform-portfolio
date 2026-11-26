@@ -11,7 +11,7 @@ SPA mínima pero cuidada: una interfaz de chat con "login" simulado. Su único t
 | Estado | servicios con signals; sin NgRx (sobredimensionado aquí) |
 | Estilos | CSS propio o Angular Material (a gusto); diseño tipo chat clásico |
 | Comunicación | `HttpClient` + proxy de desarrollo (`/api` → `localhost:8080`); sin CORS |
-| Login | selector de usuario de demo (datos de `GET /api/copilot/users`); el elegido se guarda en `sessionStorage` y se envía como cabecera `X-User-Id` |
+| Login | selector de usuario de demo (datos de `GET /api/copilot/users`); al elegir uno se llama a `POST /api/copilot/login`; usuario y token firmado de demo se guardan en `sessionStorage` y el token se envía como `Authorization: Bearer` |
 
 ## Estructura
 
@@ -25,7 +25,7 @@ l1-copilot/frontend/
 │   │   ├── models.ts               # interfaces TS (UserDto, ChatResponse, *Card, etc.)
 │   │   ├── auth.service.ts          # usuario simulado (signal<UserDto|null>, sessionStorage)
 │   │   ├── auth.guard.ts            # authGuard: protege la ruta 'chat'
-│   │   ├── auth.interceptor.ts      # añade X-User-Id a toda petición /api
+│   │   ├── auth.interceptor.ts      # añade Authorization: Bearer a toda petición /api; ante un 401 limpia la sesión y vuelve al login
 │   │   └── chat-api.service.ts      # POST /api/copilot/chat, GET /api/copilot/{users,tickets/:id,returns/:id}
 │   ├── login/
 │   │   └── login.component.ts       # tarjetas de usuarios demo → "entrar"
@@ -100,10 +100,10 @@ export class ChatApiService {
 ```
 
 ```ts
-// core/auth.interceptor.ts — el "token de sesión" simulado
+// core/auth.interceptor.ts — token de demo firmado (versión resumida; la real también trata el 401)
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  const user = inject(AuthService).user();
-  return next(user ? req.clone({ setHeaders: { 'X-User-Id': user.id } }) : req);
+  const token = inject(AuthService).token();
+  return next(token ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } }) : req);
 };
 ```
 
@@ -163,5 +163,5 @@ Backend en paralelo: `cd l1-copilot/backend && mvn spring-boot:run` con `GEMINI_
 ## Tests (mínimos exigibles)
 
 - `ChatStore`: al enviar, añade mensaje del usuario, bloquea input, añade respuesta del agente (HttpTestingController).
-- `authInterceptor`: añade `X-User-Id` cuando hay usuario.
+- `authInterceptor`: añade `Authorization: Bearer` cuando hay token y limpia la sesión ante un 401.
 - Smoke e2e manual guiado por la demo de los 3 escenarios (guion en el [plan, Fase 6](09-plan-implementacion.md)).

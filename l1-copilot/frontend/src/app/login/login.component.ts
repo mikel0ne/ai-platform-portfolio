@@ -19,6 +19,7 @@ export class LoginComponent {
   readonly users = signal<UserDto[]>([]);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+  readonly loginError = signal<string | null>(null);
   readonly brokenAvatars = new Set<string>();
 
   constructor() {
@@ -35,7 +36,13 @@ export class LoginComponent {
   }
 
   enter(user: UserDto): void {
-    this.auth.login(user);
-    this.router.navigateByUrl('/chat');
+    this.loginError.set(null);
+    this.api.login(user.id).subscribe({
+      next: ({ token }) => {
+        this.auth.login(user, token);
+        this.router.navigateByUrl('/chat');
+      },
+      error: () => this.loginError.set('No se pudo iniciar sesión. Inténtalo de nuevo.'),
+    });
   }
 }

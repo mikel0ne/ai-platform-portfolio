@@ -91,6 +91,9 @@ copilot:
     transient-delay: 2s
     max-transient-delay: 20s
     rate-limit-max-wait: 70s
+  # Signs the demo session tokens; empty generates a random secret at startup. Only from the environment.
+  auth:
+    token-secret: ${COPILOT_AUTH_TOKEN_SECRET:}
   # Turn log: raw material for the router's golden evaluation set.
   turn-log:
     file:

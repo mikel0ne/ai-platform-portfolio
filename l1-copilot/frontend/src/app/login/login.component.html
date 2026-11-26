@@ -7,6 +7,9 @@
   } @else if (error()) {
     <p class="error">{{ error() }}</p>
   } @else {
+    @if (loginError()) {
+      <p class="error">{{ loginError() }}</p>
+    }
     <ul class="users">
       @for (u of users(); track u.id) {
         <li>

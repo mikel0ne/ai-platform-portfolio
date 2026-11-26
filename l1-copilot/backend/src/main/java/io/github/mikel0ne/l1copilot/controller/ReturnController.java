@@ -23,8 +23,8 @@ public class ReturnController {
 
     @Operation(summary = "Return label of one of the session user's orders with a return in progress")
     @GetMapping("/{id}")
-    public ReturnLabelDto returnLabel(@RequestHeader(SessionUsers.HEADER) String userId, @PathVariable Long id) {
-        String owner = sessionUsers.requireKnown(userId);
+    public ReturnLabelDto returnLabel(@RequestHeader(SessionUsers.HEADER) String authorization, @PathVariable Long id) {
+        String owner = sessionUsers.requireKnown(authorization);
         return orderRepository.findByIdAndUserId(id, owner)
                 .filter(order -> order.getStatus() == OrderStatus.RETURN_REQUESTED)
                 .map(ReturnLabelDto::from)

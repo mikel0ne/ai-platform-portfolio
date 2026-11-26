@@ -70,11 +70,14 @@ cancelled is the failure mode it is designed against: **the LLM classifies, the 
 - **A verifier with an asymmetric threshold**: on doubt, a read such as tracking goes ahead, while cancel,
   return or ticket creation stops and asks.
 - **Confirmations are only valid while pending for that very order**: a forged or stale confirm restarts the
-  request. The `userId` comes from the session, never from the user's text.
+  request. The `userId` comes from the session, never from the user's text. The session is a signed *demo*
+  token (HMAC-SHA256, issued by a simulated login); real authentication is out of scope.
 - **Security tests that assume the LLM is already fooled**: the mocked classifier and verifier say yes to
   jailbreaks, IDOR attempts and injected confirmations, and the tests check the code still refuses.
 - **Retries around every model call** (`copilot.llm-retry`): overloads (503) and timeouts back off, a per-minute
   rate limit waits for the window the provider reports, and a daily quota is never retried.
+- **A global cap on AutoOps `/search`** (`SearchRateLimiter`): it is an in-memory counter, so it only holds with
+  a single replica.
 
 ```mermaid
 flowchart LR

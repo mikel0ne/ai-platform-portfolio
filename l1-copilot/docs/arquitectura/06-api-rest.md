@@ -15,7 +15,7 @@ Petición:
 }
 ```
 
-Cabecera: `X-User-Id: u-001` (simula el token de sesión; en producción saldría del JWT — ver nota de seguridad).
+Cabecera: `Authorization: Bearer <token>`, donde el token sale de `POST /api/copilot/login` con `{"userId":"u-001"}` (token de *demo* firmado, no autenticación real — ver nota de seguridad).
 
 Respuesta `200 OK`:
 
@@ -43,7 +43,7 @@ Semántica de los campos:
 
 ### `GET /api/copilot/tickets/{id}` — detalle de una incidencia
 
-De solo lectura y público (sin `X-User-Id`): alimenta la página `/tickets/{id}` que se abre al pulsar la tarjeta de un ticket.
+De solo lectura y solo para el dueño del ticket (cabecera `Authorization`): alimenta la página `/tickets/{id}` que se abre al pulsar la tarjeta de un ticket.
 
 ### `GET /api/copilot/returns/{id}` — etiqueta de devolución
 
@@ -102,9 +102,9 @@ public class ChatController {
     private final TreatmentPolicy treatmentPolicy;   // decide tú/usted por edad
 
     @PostMapping("/chat")
-    public ChatResponse chat(@RequestHeader("X-User-Id") String userId,
+    public ChatResponse chat(@RequestHeader("Authorization") String authorization,
                              @Valid @RequestBody ChatRequest request) {
-        ensureKnownUser(userId);   // 401 UnknownUserException si el usuario no existe en BD
+        String userId = sessionUsers.requireKnown(authorization);   // 401 si el token no es válido o el usuario no existe
         ChatResult result = conversationService.chat(userId, request.conversationId(), request.message());
         return new ChatResponse(request.conversationId(), result.reply(), result.intent(),
                 result.resolved(), result.orders(), result.ordersSelectable(),
@@ -118,14 +118,10 @@ public class ChatController {
                                       u.getAvatarUrl(), treatmentPolicy.isFormal(u)))  // formal: derivado de la edad
                 .toList();
     }
-
-    private void ensureKnownUser(String userId) {
-        if (!userRepository.existsById(userId)) throw new UnknownUserException(userId);
-    }
 }
 ```
 
-> **Nota de seguridad:** `X-User-Id` es una simulación asumida y documentada (fuera de alcance la auth real). El diseño deja un único punto de cambio: cuando haya JWT, el `userId` se extraerá del `Authentication` de Spring Security en este mismo controlador y nada más cambia (ni grafo ni tools).
+> **Nota de seguridad:** el token es un token de *demo* firmado: `base64url(userId).base64url(HMAC-SHA256(userId))`, con el secreto de `copilot.auth.token-secret` (`COPILOT_AUTH_TOKEN_SECRET`; si está vacío se genera uno aleatorio al arrancar y los tokens no sobreviven a un reinicio). Impide suplantar a otro usuario editando una cabecera, pero no caduca ni se revoca y el login no pide contraseña: la autenticación real queda fuera de alcance. El diseño deja un único punto de cambio (`SessionUsers.requireKnown`): con JWT el `userId` saldría del `Authentication` de Spring Security y nada más cambia (ni grafo ni tools).
 
 ## Manejo de errores (RFC 7807)
 
@@ -134,7 +130,7 @@ public class ChatController {
 | Situación | HTTP | `detail` |
 |---|---|---|
 | Validación de DTO | 400 | mensajes de Bean Validation |
-| `X-User-Id` ausente o usuario inexistente | 401 | "Usuario no autenticado" |
+| Token ausente, manipulado o de un usuario inexistente | 401 | "Usuario no autenticado" |
 | Error interno (BD, grafo) | 500 | "Error procesando el mensaje" (sin detalles internos; se loguean con `conversationId`) |
 | Gemini no disponible / cuota | 503 | "El asistente no está disponible, inténtalo en unos minutos" |
 
