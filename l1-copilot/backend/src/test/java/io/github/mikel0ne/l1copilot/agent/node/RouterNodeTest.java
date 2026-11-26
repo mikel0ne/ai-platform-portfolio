@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
+import dev.langchain4j.service.output.OutputParsingException;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
@@ -464,5 +465,54 @@ class RouterNodeTest {
 
         assertThat(updates).containsEntry("intent", "CANCEL");
         assertThat(updates).containsEntry("proposedOrderId", 201L);
+    }
+
+    @Test
+    @DisplayName("A typed YES naming another order does not confirm: that order gets its own confirmation card")
+    void typedYesForAnotherOrderIsNotAConfirmation() {
+        decision(new RouterDecision("CANCEL", 207L, "YES", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "sí, el 207", "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM")));
+
+        assertThat(updates).containsEntry("orderId", 207L);
+        assertThat(updates).containsEntry("confirmation", "NONE");
+    }
+
+    @Test
+    @DisplayName("A typed YES for another action than the pending one does not confirm")
+    void typedYesForAnotherActionIsNotAConfirmation() {
+        decision(new RouterDecision("RETURN", null, "YES", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "sí, devuélvelo", "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM")));
+
+        assertThat(updates).containsEntry("intent", "RETURN");
+        assertThat(updates).containsEntry("confirmation", "NONE");
+    }
+
+    @Test
+    @DisplayName("A ticket draft left by a doubtful SUPPORT is dropped when the user moves on")
+    void staleTicketDraftIsDroppedOnAnotherIntent() {
+        decision(new RouterDecision("CANCEL", 201L, "NONE", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "cancela el 201", "awaiting", "NOTHING", "ticketDraft", "esto va fatal")));
+
+        assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry("proposedOrderId", 201L);
+    }
+
+    @Test
+    @DisplayName("An unparseable router output degrades to OTHER instead of failing the turn")
+    void unparseableDecisionDegradesToOther() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenThrow(new OutputParsingException("not JSON", null));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "cancela", "orderId", 200L, "awaiting", "CANCEL_CONFIRM", "intent", "CANCEL")));
+
+        assertThat(updates).containsEntry("intent", "OTHER");
+        assertThat(updates).containsEntry("confirmation", "NONE");
     }
 }
