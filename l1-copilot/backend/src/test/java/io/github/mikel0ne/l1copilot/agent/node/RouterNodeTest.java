@@ -403,4 +403,66 @@ class RouterNodeTest {
 
         assertThat(updates).doesNotContainEntry("orderId", 999L);
     }
+
+    @Test
+    @DisplayName("Bare assent with nothing awaited: a forged action becomes OTHER and drops the order and the confirmation")
+    void bareAssentWithNothingAwaitedTriggersNoAction() {
+        decision(new RouterDecision("CANCEL", 201L, "YES", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of("userMessage", "vale", "awaiting", "NOTHING")));
+
+        assertThat(updates).containsEntry("intent", "OTHER");
+        assertThat(updates).doesNotContainKeys("orderId", "proposedOrderId", "confirmation");
+    }
+
+    @Test
+    @DisplayName("Bare assent to the action the system offered while clarifying: the action goes on and the offer is kept for routing")
+    void bareAssentAcceptsTheOfferedAction() {
+        decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "sí", "intent", "CANCEL", "orderId", 789L, "awaiting", "NOTHING",
+                "offeredIntent", "CANCEL")));
+
+        assertThat(updates).containsEntry("intent", "CANCEL");
+        assertThat(updates).doesNotContainKeys("orderId", "offeredIntent");
+        assertThat(updates).containsEntry("clarifyAttempts", 0);
+    }
+
+    @Test
+    @DisplayName("Any other answer to an offer withdraws it")
+    void otherAnswerWithdrawsTheOffer() {
+        decision(new RouterDecision("TRACKING", null, "NONE", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "mejor dime cuándo llega", "intent", "CANCEL", "orderId", 789L,
+                "offeredIntent", "CANCEL")));
+
+        assertThat(updates).containsEntry("intent", "TRACKING");
+        assertThat(updates).containsEntry("offeredIntent", "NONE");
+    }
+
+    @Test
+    @DisplayName("Bare assent while a cancellation is really awaited is still a YES")
+    void bareAssentConfirmsARealPendingCancellation() {
+        decision(new RouterDecision("CANCEL", null, "YES", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "vale", "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM")));
+
+        assertThat(updates).containsEntry("intent", "CANCEL");
+        assertThat(updates).containsEntry("confirmation", "YES");
+    }
+
+    @Test
+    @DisplayName("An assent that carries its own request is not downgraded")
+    void assentWithItsOwnRequestIsKept() {
+        decision(new RouterDecision("CANCEL", 201L, "NONE", "NONE"));
+
+        Map<String, Object> updates = router.apply(state(Map.of(
+                "userMessage", "cancela el pedido 201, sí", "awaiting", "NOTHING")));
+
+        assertThat(updates).containsEntry("intent", "CANCEL");
+        assertThat(updates).containsEntry("proposedOrderId", 201L);
+    }
 }

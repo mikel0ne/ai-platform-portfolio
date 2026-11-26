@@ -407,6 +407,25 @@ class SupportAgentFlowTest {
     }
 
     @Test
+    @DisplayName("Verify DOUBT on a cancellation -> bare yes: no second clarification and nothing is executed")
+    void clarifyThenBareYesDoesNotLoopNorExecute() {
+        when(classifier.classify(any(), any(), any(), any(), any(), any()))
+                .thenReturn(new RouterDecision("CANCEL", 200L, "NONE", "NONE"))
+                .thenReturn(new RouterDecision("CANCEL", null, "NONE", "NONE"));
+        when(verifier.verify(any(), any(), any()))
+                .thenReturn(new Verifier.Decision("DOUBT", "no está claro si quiere cancelar"));
+
+        var turn1 = conversationService.chat("u-002", "conv-clar-cancel", "lo del pedido 200, ya sabes");
+        assertThat(turn1.reply()).contains("CLARIFY");
+
+        var turn2 = conversationService.chat("u-002", "conv-clar-cancel", "sí");
+
+        assertThat(turn2.reply()).doesNotContain("CLARIFY");
+        assertThat(orderRepository.findById(200L).orElseThrow().getStatus()).isEqualTo(OrderStatus.CREATED);
+        verify(verifier, times(1)).verify(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("Sticky focus: after checking an order, a message without an id still refers to THAT order")
     void focusStaysOnOrderAcrossTurns() {
         when(classifier.classify(any(), any(), any(), any(), any(), any()))

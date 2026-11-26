@@ -1,5 +1,6 @@
 package io.github.mikel0ne.l1copilot.agent.node;
 
+import io.github.mikel0ne.l1copilot.agent.AssentGuard;
 import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.Intent;
@@ -28,6 +29,17 @@ public class RouterNode implements NodeAction<SupportState> {
 
     @Override
     public Map<String, Object> apply(SupportState state) {
+        Map<String, Object> updates = new HashMap<>(route(state));
+        boolean offerAccepted = state.offeredIntent()
+                .filter(offered -> offered.name().equals(updates.get(SupportState.INTENT)))
+                .isPresent();
+        if (state.offeredIntent().isPresent() && !offerAccepted) {
+            updates.put(SupportState.OFFERED_INTENT, Intent.NONE.name());
+        }
+        return updates;
+    }
+
+    private Map<String, Object> route(SupportState state) {
         log.debug("---ROUTER--- awaiting={} intent={} suspended={}",
                 state.awaiting(), state.intent(), state.suspendedIntent().orElse(null));
 
@@ -40,13 +52,19 @@ public class RouterNode implements NodeAction<SupportState> {
         // During a digression the suspended request is the current one, so resuming it keeps its intent.
         Intent effectiveCurrent = state.suspendedIntent().orElse(state.intent());
 
-        IntentClassifier.RouterDecision decision = classifier.classify(
+        IntentClassifier.RouterDecision raw = classifier.classify(
                 state.userMessage(),
                 effectiveCurrent.name(),
                 state.awaiting().name(),
                 describeCandidates(state),
                 describeFocus(state),
                 IntentClassifier.fenceSafe(history.classifier().render(state.history())));
+        IntentClassifier.RouterDecision decision =
+                AssentGuard.apply(raw, state.awaiting(), state.offeredIntent(), state.userMessage());
+        if (!decision.equals(raw)) {
+            log.debug("---ROUTER--- bare assent with nothing awaited: {} -> {} (offered={})",
+                    raw.intent(), decision.intent(), state.offeredIntent().orElse(null));
+        }
 
         Map<String, Object> updates = new HashMap<>();
         Intent intent = Intent.fromLlm(decision.intent());

@@ -204,4 +204,18 @@ class SupportRoutingTest {
         assertThat(SupportRouting.fromCancelCheck(state(Map.of("cancellable", false, "confirmation", "YES"))))
                 .isEqualTo(SupportRouting.TO_ASK_USER);
     }
+
+    @Test
+    @DisplayName("Accepting the action the system offered skips verify; a stale offer for another intent does not")
+    void acceptedOfferSkipsVerify() {
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "CANCEL", "orderId", 123L, "offeredIntent", "CANCEL"))))
+                .isEqualTo(SupportRouting.TO_CANCEL_CHECK);
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "CANCEL", "orderId", 123L, "offeredIntent", "RETURN"))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
+        assertThat(SupportRouting.fromRouter(state(Map.of(
+                "intent", "CANCEL", "orderId", 123L, "offeredIntent", "NONE"))))
+                .isEqualTo(SupportRouting.TO_VERIFY);
+    }
 }

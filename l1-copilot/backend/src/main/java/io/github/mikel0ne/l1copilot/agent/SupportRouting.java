@@ -40,10 +40,12 @@ public final class SupportRouting {
         };
     }
 
+    // Accepting an action the system itself offered is the verification; re-verifying a bare "yes" loops on DOUBT.
     private static boolean needsVerify(SupportState state) {
         return state.awaiting() == Awaiting.NOTHING
                 && state.ticketDraft().isBlank()
-                && !state.navigating();
+                && !state.navigating()
+                && state.offeredIntent().filter(offered -> offered == state.intent()).isEmpty();
     }
 
     private static boolean supportNeedsOrder(SupportState state) {

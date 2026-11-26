@@ -20,6 +20,7 @@ public class SupportState extends AgentState {
     public static final String HISTORY = "history";
     public static final String INTENT = "intent";
     public static final String SUSPENDED_INTENT = "suspendedIntent";
+    public static final String OFFERED_INTENT = "offeredIntent";
     public static final String ORDER_ID = "orderId";
     public static final String CANDIDATES = "candidates";
     public static final String PROPOSED_ORDER_ID = "proposedOrderId";
@@ -74,6 +75,10 @@ public class SupportState extends AgentState {
 
     public Optional<Intent> suspendedIntent() {
         return this.<String>value(SUSPENDED_INTENT).map(Intent::fromLlm);
+    }
+
+    public Optional<Intent> offeredIntent() {
+        return this.<String>value(OFFERED_INTENT).map(Intent::fromLlm).filter(i -> i != Intent.NONE);
     }
 
     public Optional<Long> orderId() {

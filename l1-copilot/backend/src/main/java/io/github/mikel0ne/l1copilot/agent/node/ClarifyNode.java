@@ -43,6 +43,9 @@ public class ClarifyNode implements NodeAction<SupportState> {
         updates.put(SupportState.TOOL_RESULT, instruction);
 
         updates.put(SupportState.AWAITING, Awaiting.NOTHING.name());
+        if (lead) {
+            updates.put(SupportState.OFFERED_INTENT, suspected.name());
+        }
         return updates;
     }
 }
