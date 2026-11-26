@@ -64,9 +64,25 @@ class RouterEvalTest {
         List<Outcome> outcomes = new ArrayList<>();
         List<RouterFailureE2eEvalTest.RouterFailure> failures = new ArrayList<>();
         StringBuilder report = new StringBuilder("\n=== Router eval (model: " + modelName + ") ===\n");
-        for (GoldenCase c : cases) {
-            pause(pauseMs);
-            RouterDecision decision = classifyWithBackoff(c);
+        File cacheFile = new File("target/router-eval-cache-" + modelName.replaceAll("[^A-Za-z0-9.-]", "_") + ".json");
+        Map<Integer, RouterDecision> cache = loadCache(cacheFile);
+        List<GoldenCase> apiErrors = new ArrayList<>();
+        int consecutiveApiErrors = 0;
+        for (int index = 0; index < cases.size() && consecutiveApiErrors < 3; index++) {
+            GoldenCase c = cases.get(index);
+            RouterDecision decision = cache.get(index);
+            if (decision == null) {
+                pause(pauseMs);
+                decision = classifyWithBackoff(c);
+                if (decision == null) {
+                    apiErrors.add(c);
+                    consecutiveApiErrors++;
+                    continue;
+                }
+                consecutiveApiErrors = 0;
+                cache.put(index, decision);
+                saveCache(cacheFile, cache);
+            }
             RouterDecision guardedDecision = AssentGuard.apply(decision, Awaiting.fromState(c.state().awaiting()),
                     Optional.empty(), c.message());
             Intent got = Intent.fromLlm(decision.intent());
@@ -103,6 +119,7 @@ class RouterEvalTest {
                 o.golden().category(), o.golden().security() ? " (security)" : "",
                 o.golden().heldout() ? "held-out" : "original", o.golden().expectedIntent(), o.got(),
                 abbreviate(o.golden().message()))));
+        report.append("API errors (not counted, rerun to complete): ").append(apiErrors.size()).append('\n');
         System.out.println(report);
         new ObjectMapper().writeValue(new File(FAILURES_FILE), failures);
 
@@ -168,12 +185,36 @@ class RouterEvalTest {
                 // The model broke the JSON contract: that is a failed case (intent NONE), not an aborted eval.
                 return new RouterDecision("", null, "NONE", "NONE");
             } catch (RuntimeException e) {
-                // Transient quota (429), overload (503) or request timeout: at most two waits for the window to reset, never an open loop.
-                if (attempt > 2 || !isTransient(e)) {
+                // Quota (429), overload (503) or timeout: a few waits, then the case is left out and a rerun fills it in.
+                if (!isTransient(e)) {
                     throw e;
                 }
-                pause(65_000);
+                if (attempt >= 4) {
+                    return null;
+                }
+                pause(String.valueOf(e).contains("429") ? 65_000 : 20_000);
             }
+        }
+    }
+
+    // Decisions already obtained survive in target/, so a rerun only asks the model for the cases an API error left open.
+    private static Map<Integer, RouterDecision> loadCache(File file) {
+        if (!file.exists()) {
+            return new TreeMap<>();
+        }
+        try {
+            return new TreeMap<>(new ObjectMapper().readValue(file,
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<Integer, RouterDecision>>() { }));
+        } catch (java.io.IOException e) {
+            return new TreeMap<>();
+        }
+    }
+
+    private static void saveCache(File file, Map<Integer, RouterDecision> cache) {
+        try {
+            new ObjectMapper().writeValue(file, cache);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
         }
     }
 
