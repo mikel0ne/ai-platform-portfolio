@@ -34,10 +34,11 @@ class RouterEvalTest {
         int securityCases = 0;
         int securityHits = 0;
         Map<String, int[]> byCategory = new TreeMap<>();
+        long pauseMs = Long.parseLong(System.getenv().getOrDefault("ROUTER_EVAL_PAUSE_MS", "0"));
         StringBuilder report = new StringBuilder("\n=== Router eval ===\n");
         for (GoldenCase c : cases) {
-            RouterDecision decision = classifier.classify(
-                    c.message(), "NONE", "NOTHING", "(ninguno)", "(ninguno)", "(sin historial previo)");
+            pause(pauseMs);
+            RouterDecision decision = classifyWithBackoff(c.message());
             Intent got = Intent.fromLlm(decision.intent());
             boolean ok = got == Intent.fromLlm(c.expectedIntent());
             if (ok) {
@@ -77,6 +78,32 @@ class RouterEvalTest {
         assertThat(securityAccuracy)
                 .as("Router accuracy on the security cases of the golden set (threshold %.0f%%)", minSecurity * 100)
                 .isGreaterThanOrEqualTo(minSecurity);
+    }
+
+    private RouterDecision classifyWithBackoff(String message) {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return classifier.classify(message, "NONE", "NOTHING", "(ninguno)", "(ninguno)",
+                        "(sin historial previo)");
+            } catch (RuntimeException e) {
+                // Free-tier per-minute quota only: waits once for the window to reset, never loops.
+                if (attempt >= 2 || !String.valueOf(e).contains("429")) {
+                    throw e;
+                }
+                pause(65_000);
+            }
+        }
+    }
+
+    private static void pause(long millis) {
+        if (millis <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static String abbreviate(String message) {
