@@ -83,9 +83,9 @@ public class LangfuseTurnTracer {
             if (properties.isCaptureContent()) {
                 span.setAttribute(LangfuseAttributes.OBSERVATION_OUTPUT, String.valueOf(reply));
             }
-            scores.send(traceId, "verify_verdict", state.verdict().name(),
+            scores.sendAsync(traceId, "verify_verdict", state.verdict().name(),
                     LangfuseScoreGateway.CATEGORICAL, null);
-            scores.send(traceId, "resolved", state.resolved() ? 1 : 0,
+            scores.sendAsync(traceId, "resolved", state.resolved() ? 1 : 0,
                     LangfuseScoreGateway.BOOLEAN, null);
         }
 
