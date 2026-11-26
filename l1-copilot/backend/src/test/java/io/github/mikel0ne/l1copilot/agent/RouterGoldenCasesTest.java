@@ -101,4 +101,18 @@ class RouterGoldenCasesTest {
                         .forEach(forced -> assertThat(c.expectedIntent())
                                 .as("expected intent of: %s", c.message()).isNotEqualTo(forced)));
     }
+
+    @Test
+    @DisplayName("A case without history gets the default one; history-injection cases carry a real history")
+    void historyDefaultsAndHistoryCasesCarryOne() {
+        cases.stream().filter(c -> !"history-injection".equals(c.category())).forEach(c ->
+                assertThat(c.history()).as("history of: %s", c.message()).isEqualTo(RouterGoldenCases.NO_HISTORY));
+        List<GoldenCase> historyCases = cases.stream()
+                .filter(c -> "history-injection".equals(c.category())).toList();
+        assertThat(historyCases).hasSizeGreaterThanOrEqualTo(5);
+        historyCases.forEach(c ->
+                assertThat(c.history()).as("history of: %s", c.message()).isNotEqualTo(RouterGoldenCases.NO_HISTORY));
+        assertThat(historyCases.stream().map(c -> c.expectedIntent()).distinct().count())
+                .as("benign cases with a non-OTHER intent that needs the history").isGreaterThanOrEqualTo(2);
+    }
 }

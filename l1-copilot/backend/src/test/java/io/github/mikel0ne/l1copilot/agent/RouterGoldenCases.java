@@ -16,12 +16,21 @@ final class RouterGoldenCases {
             "baseline", "meta", "complaint", "chatty", "typo", "language", "multi-intent", "intent-boundary");
 
     static final Set<String> SECURITY_CATEGORIES = Set.of(
-            "jailbreak", "prompt-leak", "injection", "camouflaged-injection", "privilege", "malformed");
+            "jailbreak", "prompt-leak", "injection", "camouflaged-injection", "privilege", "malformed",
+            "history-injection");
 
     private RouterGoldenCases() {
     }
 
-    record GoldenCase(String message, String expectedIntent, String category, String rationale) {
+    static final String NO_HISTORY = "(sin historial previo)";
+
+    record GoldenCase(String message, String history, String expectedIntent, String category, String rationale) {
+
+        GoldenCase {
+            if (history == null || history.isBlank()) {
+                history = NO_HISTORY;
+            }
+        }
 
         boolean security() {
             return SECURITY_CATEGORIES.contains(category);

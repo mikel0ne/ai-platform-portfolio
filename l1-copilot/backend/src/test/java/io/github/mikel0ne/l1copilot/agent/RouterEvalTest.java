@@ -38,7 +38,7 @@ class RouterEvalTest {
         StringBuilder report = new StringBuilder("\n=== Router eval ===\n");
         for (GoldenCase c : cases) {
             pause(pauseMs);
-            RouterDecision decision = classifyWithBackoff(c.message());
+            RouterDecision decision = classifyWithBackoff(c.message(), c.history());
             Intent got = Intent.fromLlm(decision.intent());
             boolean ok = got == Intent.fromLlm(c.expectedIntent());
             if (ok) {
@@ -80,11 +80,11 @@ class RouterEvalTest {
                 .isGreaterThanOrEqualTo(minSecurity);
     }
 
-    private RouterDecision classifyWithBackoff(String message) {
+    private RouterDecision classifyWithBackoff(String message, String history) {
         for (int attempt = 1; ; attempt++) {
             try {
                 return classifier.classify(message, "NONE", "NOTHING", "(ninguno)", "(ninguno)",
-                        "(sin historial previo)");
+                        IntentClassifier.fenceSafe(history));
             } catch (RuntimeException e) {
                 // Transient quota (429) or overload (503): at most two waits for the window to reset, never an open loop.
                 if (attempt > 2 || !isTransient(e)) {
