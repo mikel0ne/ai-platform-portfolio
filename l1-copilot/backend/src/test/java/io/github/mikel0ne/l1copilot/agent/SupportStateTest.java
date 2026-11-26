@@ -14,7 +14,7 @@ class SupportStateTest {
     @DisplayName("Returns the candidates as plain text exactly as stored")
     void candidatesAreReturnedAsStoredText() {
         SupportState state = new SupportState(Map.of(
-                "candidates", List.of(
+                SupportState.CANDIDATES, List.of(
                         "#123 Portátil (IN_DELIVERY, pedido el 2026-06-01)",
                         "#456 Ratón (PAID, pedido el 2026-06-20)")
         ));
@@ -45,5 +45,19 @@ class SupportStateTest {
         SupportState state = new SupportState(new java.util.HashMap<>(SupportState.TURN_RESETS));
 
         assertThat(state.verdict()).isEqualTo(Verdict.NONE);
+    }
+
+    @Test
+    @DisplayName("An Integer order id in the state is read as a Long, as a checkpoint round trip may leave it")
+    void orderIdIsReadFromAnyNumber() {
+        SupportState state = new SupportState(Map.of(SupportState.ORDER_ID, 123));
+
+        assertThat(state.orderId()).isEqualTo(java.util.Optional.of(123L));
+    }
+
+    @Test
+    @DisplayName("Without an order id in the state there is no focus")
+    void orderIdDefaultsToEmpty() {
+        assertThat(new SupportState(Map.of()).orderId()).isEmpty();
     }
 }

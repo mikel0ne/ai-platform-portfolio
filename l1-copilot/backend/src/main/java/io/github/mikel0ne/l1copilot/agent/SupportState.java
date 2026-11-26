@@ -111,7 +111,7 @@ public class SupportState extends AgentState {
     }
 
     public Optional<Long> orderId() {
-        return this.value(ORDER_ID);
+        return this.<Number>value(ORDER_ID).map(Number::longValue);
     }
 
     public List<String> candidates() {

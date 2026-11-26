@@ -25,7 +25,7 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
         log.debug("---RESOLVE ORDER---");
         List<OrderSummary> recent = orderService.getRecentOrders(state.userId());
         List<String> candidates = recent.stream()
-                .map(ResolveOrderNode::describeCandidate)
+                .map(OrderCandidates::describe)
                 .toList();
         List<OrderCardDto> orderCards = recent.stream()
                 .map(o -> new OrderCardDto(o.id(), o.description(), o.status(), o.imageUrl()))
@@ -56,11 +56,5 @@ public class ResolveOrderNode implements NodeAction<SupportState> {
                         "El usuario tiene varios pedidos recientes: %s. Hay que preguntarle a cuál de "
                         + "ellos se refiere la gestión en curso (sobre cuál quiere actuar, o cuál es "
                         + "el del problema si está reportando una incidencia).", listing));
-    }
-
-    private static String describeCandidate(OrderSummary order) {
-        return String.format("#%d %s (%s%s)",
-                order.id(), order.description(), order.status(),
-                order.orderDate() != null ? ", pedido el " + order.orderDate() : "");
     }
 }

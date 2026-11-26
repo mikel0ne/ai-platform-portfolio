@@ -40,10 +40,10 @@ class RouterNodeTest {
     void nullOrderKeepsFocus() {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "awaiting", "NOTHING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.ORDER_ID, 789L, SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).doesNotContainKey("orderId");
-        assertThat(updates).containsEntry("intent", "SUPPORT");
+        assertThat(updates).doesNotContainKey(SupportState.ORDER_ID);
+        assertThat(updates).containsEntry(SupportState.INTENT, "SUPPORT");
     }
 
     @Test
@@ -51,11 +51,11 @@ class RouterNodeTest {
     void explicitDifferentOrderSwitchesFocus() {
         decision(new RouterDecision("TRACKING", 456L, "NONE", "NONE"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "awaiting", "NOTHING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.ORDER_ID, 789L, SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).containsEntry("proposedOrderId", 456L);
-        assertThat(updates).doesNotContainKey("orderId");
-        assertThat(updates).doesNotContainKey("candidates");
+        assertThat(updates).containsEntry(SupportState.PROPOSED_ORDER_ID, 456L);
+        assertThat(updates).doesNotContainKey(SupportState.ORDER_ID);
+        assertThat(updates).doesNotContainKey(SupportState.CANDIDATES);
     }
 
     @Test
@@ -64,12 +64,12 @@ class RouterNodeTest {
         decision(new RouterDecision("TRACKING", 789L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "awaiting", "ORDER_CHOICE",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("proposedOrderId", 789L);
-        assertThat(updates).doesNotContainKey("orderId");
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.PROPOSED_ORDER_ID, 789L);
+        assertThat(updates).doesNotContainKey(SupportState.ORDER_ID);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
     }
 
     @Test
@@ -77,13 +77,13 @@ class RouterNodeTest {
     void backToListReleasesFocus() {
         decision(new RouterDecision("OTHER", null, "NONE", "BACK_TO_LIST"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "intent", "TRACKING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.ORDER_ID, 789L, SupportState.INTENT, "TRACKING")));
 
-        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
 
-        assertThat(updates).containsEntry("intent", "TRACKING");
+        assertThat(updates).containsEntry(SupportState.INTENT, "TRACKING");
     }
 
     @Test
@@ -91,10 +91,10 @@ class RouterNodeTest {
     void backToListKeepsCancelIntent() {
         decision(new RouterDecision("OTHER", null, "NONE", "BACK_TO_LIST"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "intent", "CANCEL")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.ORDER_ID, 789L, SupportState.INTENT, "CANCEL")));
 
-        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("intent", "CANCEL");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
     }
 
     @Test
@@ -102,14 +102,14 @@ class RouterNodeTest {
     void backToMenuReleasesFocusAndFallsBackToOther() {
         decision(new RouterDecision("TRACKING", null, "NONE", "BACK_TO_MENU"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("orderId", 789L, "intent", "TRACKING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.ORDER_ID, 789L, SupportState.INTENT, "TRACKING")));
 
-        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
 
-        assertThat(updates).containsEntry("intent", "OTHER");
+        assertThat(updates).containsEntry(SupportState.INTENT, "OTHER");
     }
 
     @Test
@@ -118,14 +118,14 @@ class RouterNodeTest {
         decision(new RouterDecision("TRACKING", null, "NONE", "BACK"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "atrás",
-                "orderId", 789L,
-                "intent", "TRACKING")));
+                SupportState.USER_MESSAGE, "atrás",
+                SupportState.ORDER_ID, 789L,
+                SupportState.INTENT, "TRACKING")));
 
-        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
 
-        assertThat(updates).containsEntry("intent", "TRACKING");
+        assertThat(updates).containsEntry(SupportState.INTENT, "TRACKING");
     }
 
     @Test
@@ -134,16 +134,16 @@ class RouterNodeTest {
         decision(new RouterDecision("OTHER", null, "NONE", "BACK"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "atrás",
-                "awaiting", "ORDER_CHOICE",
-                "intent", "TRACKING",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
+                SupportState.USER_MESSAGE, "atrás",
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.INTENT, "TRACKING",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
 
-        assertThat(updates).containsEntry("intent", "OTHER");
+        assertThat(updates).containsEntry(SupportState.INTENT, "OTHER");
     }
 
     @Test
@@ -152,16 +152,16 @@ class RouterNodeTest {
         decision(new RouterDecision("OTHER", null, "NONE", "BACK"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "atrás",
-                "awaiting", "NOTHING",
-                "intent", "RETURN",
-                "candidates", List.of("#123 Portátil (DELIVERED)", "#789 Monitor (DELIVERED)"))));
+                SupportState.USER_MESSAGE, "atrás",
+                SupportState.AWAITING, "NOTHING",
+                SupportState.INTENT, "RETURN",
+                SupportState.CANDIDATES, List.of("#123 Portátil (DELIVERED)", "#789 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("orderId", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("candidates", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.CANDIDATES, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
 
-        assertThat(updates).containsEntry("intent", "RETURN");
+        assertThat(updates).containsEntry(SupportState.INTENT, "RETURN");
     }
 
     @Test
@@ -170,16 +170,16 @@ class RouterNodeTest {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "TRACKING",
-                "awaiting", "ORDER_CHOICE",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#456 Monitor (DELIVERED)"))));
+                SupportState.INTENT, "TRACKING",
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)", "#456 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("intent", "FAQ");
+        assertThat(updates).containsEntry(SupportState.INTENT, "FAQ");
 
-        assertThat(updates).containsEntry("suspendedIntent", "TRACKING");
-        assertThat(updates).doesNotContainKey("orderId");
-        assertThat(updates).doesNotContainKey("candidates");
-        assertThat(updates).doesNotContainKey("awaiting");
+        assertThat(updates).containsEntry(SupportState.SUSPENDED_INTENT, "TRACKING");
+        assertThat(updates).doesNotContainKey(SupportState.ORDER_ID);
+        assertThat(updates).doesNotContainKey(SupportState.CANDIDATES);
+        assertThat(updates).doesNotContainKey(SupportState.AWAITING);
     }
 
     @Test
@@ -187,10 +187,10 @@ class RouterNodeTest {
     void faqWithoutPendingTaskIsNotDigression() {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("awaiting", "NOTHING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).containsEntry("intent", "FAQ");
-        assertThat(updates).doesNotContainKey("suspendedIntent");
+        assertThat(updates).containsEntry(SupportState.INTENT, "FAQ");
+        assertThat(updates).doesNotContainKey(SupportState.SUSPENDED_INTENT);
     }
 
     @Test
@@ -199,29 +199,29 @@ class RouterNodeTest {
         decision(new RouterDecision("TRACKING", 123L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "FAQ",
-                "suspendedIntent", "TRACKING",
-                "awaiting", "ORDER_CHOICE",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#456 Monitor (DELIVERED)"))));
+                SupportState.INTENT, "FAQ",
+                SupportState.SUSPENDED_INTENT, "TRACKING",
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)", "#456 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("suspendedIntent", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("intent", "TRACKING");
+        assertThat(updates).containsEntry(SupportState.SUSPENDED_INTENT, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.INTENT, "TRACKING");
 
-        assertThat(updates).containsEntry("proposedOrderId", 123L);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.PROPOSED_ORDER_ID, 123L);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
     }
 
     @Test
     @DisplayName("Confirm button: the command resolves to YES deterministically, without the LLM")
     void confirmCancelCommandIsDeterministic() {
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", UiAction.confirmCancel(200L),
-                "awaiting", "CANCEL_CONFIRM",
-                "orderId", 200L)));
+                SupportState.USER_MESSAGE, UiAction.confirmCancel(200L),
+                SupportState.AWAITING, "CANCEL_CONFIRM",
+                SupportState.ORDER_ID, 200L)));
 
-        assertThat(updates).containsEntry("intent", "CANCEL");
-        assertThat(updates).containsEntry("orderId", 200L);
-        assertThat(updates).containsEntry("confirmation", "YES");
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, 200L);
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "YES");
         verifyNoInteractions(classifier);
     }
 
@@ -229,10 +229,10 @@ class RouterNodeTest {
     @DisplayName("Confirm button without a pending confirmation: it does not count as YES")
     void confirmCommandWithoutPendingConfirmationIsIgnored() {
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", UiAction.confirmCancel(200L))));
+                SupportState.USER_MESSAGE, UiAction.confirmCancel(200L))));
 
-        assertThat(updates).containsEntry("intent", "CANCEL");
-        assertThat(updates).containsEntry("confirmation", "NONE");
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NONE");
         verifyNoInteractions(classifier);
     }
 
@@ -240,36 +240,36 @@ class RouterNodeTest {
     @DisplayName("Confirm button for another order than the pending one: it does not count as YES")
     void confirmCommandForAnotherOrderIsIgnored() {
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", UiAction.confirmCancel(201L),
-                "awaiting", "CANCEL_CONFIRM",
-                "orderId", 200L)));
+                SupportState.USER_MESSAGE, UiAction.confirmCancel(201L),
+                SupportState.AWAITING, "CANCEL_CONFIRM",
+                SupportState.ORDER_ID, 200L)));
 
-        assertThat(updates).containsEntry("orderId", 201L);
-        assertThat(updates).containsEntry("confirmation", "NONE");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, 201L);
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NONE");
     }
 
     @Test
     @DisplayName("Return confirm button while a cancellation is pending: it does not count as YES")
     void returnConfirmDuringCancelConfirmationIsIgnored() {
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", UiAction.confirmReturn(200L),
-                "awaiting", "CANCEL_CONFIRM",
-                "orderId", 200L)));
+                SupportState.USER_MESSAGE, UiAction.confirmReturn(200L),
+                SupportState.AWAITING, "CANCEL_CONFIRM",
+                SupportState.ORDER_ID, 200L)));
 
-        assertThat(updates).containsEntry("intent", "RETURN");
-        assertThat(updates).containsEntry("confirmation", "NONE");
+        assertThat(updates).containsEntry(SupportState.INTENT, "RETURN");
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NONE");
     }
 
     @Test
     @DisplayName("Dismiss button: the command resolves to NO deterministically, without the LLM")
     void abortCancelCommandIsDeterministic() {
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", UiAction.abortCancel(200L),
-                "awaiting", "CANCEL_CONFIRM",
-                "orderId", 200L)));
+                SupportState.USER_MESSAGE, UiAction.abortCancel(200L),
+                SupportState.AWAITING, "CANCEL_CONFIRM",
+                SupportState.ORDER_ID, 200L)));
 
-        assertThat(updates).containsEntry("confirmation", "NO");
-        assertThat(updates).containsEntry("orderId", 200L);
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NO");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, 200L);
         verifyNoInteractions(classifier);
     }
 
@@ -277,12 +277,12 @@ class RouterNodeTest {
     @DisplayName("Card selection '#id': sets the focus without the LLM when the id is on the menu")
     void cardSelectionResolvesFocusDeterministically() {
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "#123",
-                "awaiting", "ORDER_CHOICE",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
+                SupportState.USER_MESSAGE, "#123",
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)", "#789 Monitor (DELIVERED)"))));
 
-        assertThat(updates).containsEntry("orderId", 123L);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, 123L);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
         verifyNoInteractions(classifier);
     }
 
@@ -292,14 +292,14 @@ class RouterNodeTest {
         decision(new RouterDecision("CHATTY", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "TRACKING",
-                "awaiting", "ORDER_CHOICE",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)"))));
+                SupportState.INTENT, "TRACKING",
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)"))));
 
-        assertThat(updates).containsEntry("intent", "CHATTY");
-        assertThat(updates).containsEntry("suspendedIntent", "TRACKING");
-        assertThat(updates).doesNotContainKey("orderId");
-        assertThat(updates).doesNotContainKey("awaiting");
+        assertThat(updates).containsEntry(SupportState.INTENT, "CHATTY");
+        assertThat(updates).containsEntry(SupportState.SUSPENDED_INTENT, "TRACKING");
+        assertThat(updates).doesNotContainKey(SupportState.ORDER_ID);
+        assertThat(updates).doesNotContainKey(SupportState.AWAITING);
     }
 
     @Test
@@ -308,11 +308,11 @@ class RouterNodeTest {
         decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
         Map<String, Object> withFocus = router.apply(state(Map.of(
-                "intent", "TRACKING", "orderId", 789L, "clarifyAttempts", 1)));
-        assertThat(withFocus).containsEntry("clarifyAttempts", 2);
+                SupportState.INTENT, "TRACKING", SupportState.ORDER_ID, 789L, SupportState.CLARIFY_ATTEMPTS, 1)));
+        assertThat(withFocus).containsEntry(SupportState.CLARIFY_ATTEMPTS, 2);
 
-        Map<String, Object> noFocus = router.apply(state(Map.of("clarifyAttempts", 3)));
-        assertThat(noFocus).containsEntry("clarifyAttempts", 0);
+        Map<String, Object> noFocus = router.apply(state(Map.of(SupportState.CLARIFY_ATTEMPTS, 3)));
+        assertThat(noFocus).containsEntry(SupportState.CLARIFY_ATTEMPTS, 0);
     }
 
     @Test
@@ -320,19 +320,19 @@ class RouterNodeTest {
     void supportOrderRelatedIsDumped() {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE", true));
         assertThat(router.apply(state(Map.of())))
-                .containsEntry("intent", "SUPPORT")
-                .containsEntry("orderRelated", true);
+                .containsEntry(SupportState.INTENT, "SUPPORT")
+                .containsEntry(SupportState.ORDER_RELATED, true);
 
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE", false));
         assertThat(router.apply(state(Map.of())))
-                .containsEntry("orderRelated", false);
+                .containsEntry(SupportState.ORDER_RELATED, false);
     }
 
     @Test
     @DisplayName("orderRelated is only copied for SUPPORT; other intents leave it alone")
     void orderRelatedOnlyForSupport() {
         decision(new RouterDecision("TRACKING", 123L, "NONE", "NONE", true));
-        assertThat(router.apply(state(Map.of()))).doesNotContainKey("orderRelated");
+        assertThat(router.apply(state(Map.of()))).doesNotContainKey(SupportState.ORDER_RELATED);
     }
 
     @Test
@@ -341,12 +341,12 @@ class RouterNodeTest {
         decision(new RouterDecision("SUPPORT", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "el monitor llegó roto")));
+                SupportState.INTENT, "SUPPORT", SupportState.AWAITING, "TICKET_INFO", SupportState.TICKET_DRAFT, "el monitor llegó roto")));
 
-        assertThat(updates).containsEntry("intent", "SUPPORT");
+        assertThat(updates).containsEntry(SupportState.INTENT, "SUPPORT");
 
-        assertThat(updates).doesNotContainKey("ticketDraft");
-        assertThat(updates).doesNotContainEntry("awaiting", "NOTHING");
+        assertThat(updates).doesNotContainKey(SupportState.TICKET_DRAFT);
+        assertThat(updates).doesNotContainEntry(SupportState.AWAITING, "NOTHING");
     }
 
     @Test
@@ -355,13 +355,13 @@ class RouterNodeTest {
         decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "tengo un problema")));
+                SupportState.INTENT, "SUPPORT", SupportState.AWAITING, "TICKET_INFO", SupportState.TICKET_DRAFT, "tengo un problema")));
 
-        assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
-        assertThat(updates).containsEntry("intent", "OTHER");
+        assertThat(updates).containsEntry(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
+        assertThat(updates).containsEntry(SupportState.INTENT, "OTHER");
 
-        assertThat(updates).containsEntry("clarifyAttempts", 0);
+        assertThat(updates).containsEntry(SupportState.CLARIFY_ATTEMPTS, 0);
     }
 
     @Test
@@ -370,14 +370,14 @@ class RouterNodeTest {
         decision(new RouterDecision("CANCEL", 200L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "esto va fatal")));
+                SupportState.INTENT, "SUPPORT", SupportState.AWAITING, "TICKET_INFO", SupportState.TICKET_DRAFT, "esto va fatal")));
 
-        assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("awaiting", "NOTHING");
-        assertThat(updates).containsEntry("intent", "CANCEL");
+        assertThat(updates).containsEntry(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.AWAITING, "NOTHING");
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
 
-        assertThat(updates).containsEntry("proposedOrderId", 200L);
-        assertThat(updates).doesNotContainKey("orderId");
+        assertThat(updates).containsEntry(SupportState.PROPOSED_ORDER_ID, 200L);
+        assertThat(updates).doesNotContainKey(SupportState.ORDER_ID);
     }
 
     @Test
@@ -386,12 +386,12 @@ class RouterNodeTest {
         decision(new RouterDecision("FAQ", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "intent", "SUPPORT", "awaiting", "TICKET_INFO", "ticketDraft", "el monitor llegó roto")));
+                SupportState.INTENT, "SUPPORT", SupportState.AWAITING, "TICKET_INFO", SupportState.TICKET_DRAFT, "el monitor llegó roto")));
 
-        assertThat(updates).containsEntry("intent", "FAQ");
-        assertThat(updates).containsEntry("suspendedIntent", "SUPPORT");
+        assertThat(updates).containsEntry(SupportState.INTENT, "FAQ");
+        assertThat(updates).containsEntry(SupportState.SUSPENDED_INTENT, "SUPPORT");
 
-        assertThat(updates).doesNotContainKey("ticketDraft");
+        assertThat(updates).doesNotContainKey(SupportState.TICKET_DRAFT);
     }
 
     @Test
@@ -400,11 +400,11 @@ class RouterNodeTest {
         decision(new RouterDecision("TRACKING", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "#999",
-                "awaiting", "ORDER_CHOICE",
-                "candidates", List.of("#123 Portátil (IN_DELIVERY)"))));
+                SupportState.USER_MESSAGE, "#999",
+                SupportState.AWAITING, "ORDER_CHOICE",
+                SupportState.CANDIDATES, List.of("#123 Portátil (IN_DELIVERY)"))));
 
-        assertThat(updates).doesNotContainEntry("orderId", 999L);
+        assertThat(updates).doesNotContainEntry(SupportState.ORDER_ID, 999L);
     }
 
     @Test
@@ -412,10 +412,10 @@ class RouterNodeTest {
     void bareAssentWithNothingAwaitedTriggersNoAction() {
         decision(new RouterDecision("CANCEL", 201L, "YES", "NONE"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("userMessage", "vale", "awaiting", "NOTHING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.USER_MESSAGE, "vale", SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).containsEntry("intent", "OTHER");
-        assertThat(updates).doesNotContainKeys("orderId", "proposedOrderId", "confirmation");
+        assertThat(updates).containsEntry(SupportState.INTENT, "OTHER");
+        assertThat(updates).doesNotContainKeys(SupportState.ORDER_ID, SupportState.PROPOSED_ORDER_ID, SupportState.CONFIRMATION);
     }
 
     @Test
@@ -424,12 +424,12 @@ class RouterNodeTest {
         decision(new RouterDecision("OTHER", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "sí", "intent", "CANCEL", "orderId", 789L, "awaiting", "NOTHING",
-                "offeredIntent", "CANCEL")));
+                SupportState.USER_MESSAGE, "sí", SupportState.INTENT, "CANCEL", SupportState.ORDER_ID, 789L, SupportState.AWAITING, "NOTHING",
+                SupportState.OFFERED_INTENT, "CANCEL")));
 
-        assertThat(updates).containsEntry("intent", "CANCEL");
-        assertThat(updates).doesNotContainKeys("orderId", "offeredIntent");
-        assertThat(updates).containsEntry("clarifyAttempts", 0);
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
+        assertThat(updates).doesNotContainKeys(SupportState.ORDER_ID, SupportState.OFFERED_INTENT);
+        assertThat(updates).containsEntry(SupportState.CLARIFY_ATTEMPTS, 0);
     }
 
     @Test
@@ -438,11 +438,11 @@ class RouterNodeTest {
         decision(new RouterDecision("TRACKING", null, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "mejor dime cuándo llega", "intent", "CANCEL", "orderId", 789L,
-                "offeredIntent", "CANCEL")));
+                SupportState.USER_MESSAGE, "mejor dime cuándo llega", SupportState.INTENT, "CANCEL", SupportState.ORDER_ID, 789L,
+                SupportState.OFFERED_INTENT, "CANCEL")));
 
-        assertThat(updates).containsEntry("intent", "TRACKING");
-        assertThat(updates).containsEntry("offeredIntent", "NONE");
+        assertThat(updates).containsEntry(SupportState.INTENT, "TRACKING");
+        assertThat(updates).containsEntry(SupportState.OFFERED_INTENT, "NONE");
     }
 
     @Test
@@ -451,10 +451,10 @@ class RouterNodeTest {
         decision(new RouterDecision("CANCEL", null, "YES", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "vale", "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM")));
+                SupportState.USER_MESSAGE, "vale", SupportState.INTENT, "CANCEL", SupportState.ORDER_ID, 200L, SupportState.AWAITING, "CANCEL_CONFIRM")));
 
-        assertThat(updates).containsEntry("intent", "CANCEL");
-        assertThat(updates).containsEntry("confirmation", "YES");
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "YES");
     }
 
     @Test
@@ -463,10 +463,10 @@ class RouterNodeTest {
         decision(new RouterDecision("CANCEL", 201L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "cancela el pedido 201, sí", "awaiting", "NOTHING")));
+                SupportState.USER_MESSAGE, "cancela el pedido 201, sí", SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).containsEntry("intent", "CANCEL");
-        assertThat(updates).containsEntry("proposedOrderId", 201L);
+        assertThat(updates).containsEntry(SupportState.INTENT, "CANCEL");
+        assertThat(updates).containsEntry(SupportState.PROPOSED_ORDER_ID, 201L);
     }
 
     @Test
@@ -475,10 +475,10 @@ class RouterNodeTest {
         decision(new RouterDecision("CANCEL", 207L, "YES", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "sí, el 207", "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM")));
+                SupportState.USER_MESSAGE, "sí, el 207", SupportState.INTENT, "CANCEL", SupportState.ORDER_ID, 200L, SupportState.AWAITING, "CANCEL_CONFIRM")));
 
-        assertThat(updates).containsEntry("orderId", 207L);
-        assertThat(updates).containsEntry("confirmation", "NONE");
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, 207L);
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NONE");
     }
 
     @Test
@@ -487,10 +487,10 @@ class RouterNodeTest {
         decision(new RouterDecision("RETURN", null, "YES", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "sí, devuélvelo", "intent", "CANCEL", "orderId", 200L, "awaiting", "CANCEL_CONFIRM")));
+                SupportState.USER_MESSAGE, "sí, devuélvelo", SupportState.INTENT, "CANCEL", SupportState.ORDER_ID, 200L, SupportState.AWAITING, "CANCEL_CONFIRM")));
 
-        assertThat(updates).containsEntry("intent", "RETURN");
-        assertThat(updates).containsEntry("confirmation", "NONE");
+        assertThat(updates).containsEntry(SupportState.INTENT, "RETURN");
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NONE");
     }
 
     @Test
@@ -499,10 +499,10 @@ class RouterNodeTest {
         decision(new RouterDecision("CANCEL", 201L, "NONE", "NONE"));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "cancela el 201", "awaiting", "NOTHING", "ticketDraft", "esto va fatal")));
+                SupportState.USER_MESSAGE, "cancela el 201", SupportState.AWAITING, "NOTHING", SupportState.TICKET_DRAFT, "esto va fatal")));
 
-        assertThat(updates).containsEntry("ticketDraft", AgentState.MARK_FOR_REMOVAL);
-        assertThat(updates).containsEntry("proposedOrderId", 201L);
+        assertThat(updates).containsEntry(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
+        assertThat(updates).containsEntry(SupportState.PROPOSED_ORDER_ID, 201L);
     }
 
     @Test
@@ -512,10 +512,10 @@ class RouterNodeTest {
                 .thenThrow(new OutputParsingException("not JSON", null));
 
         Map<String, Object> updates = router.apply(state(Map.of(
-                "userMessage", "cancela", "orderId", 200L, "awaiting", "CANCEL_CONFIRM", "intent", "CANCEL")));
+                SupportState.USER_MESSAGE, "cancela", SupportState.ORDER_ID, 200L, SupportState.AWAITING, "CANCEL_CONFIRM", SupportState.INTENT, "CANCEL")));
 
-        assertThat(updates).containsEntry("intent", "OTHER");
-        assertThat(updates).containsEntry("confirmation", "NONE");
+        assertThat(updates).containsEntry(SupportState.INTENT, "OTHER");
+        assertThat(updates).containsEntry(SupportState.CONFIRMATION, "NONE");
     }
 
     @ParameterizedTest
@@ -524,10 +524,10 @@ class RouterNodeTest {
     void informationalIntentDoesNotSetFocus(String intent) {
         decision(new RouterDecision(intent, 305L, "NONE", "NONE"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("awaiting", "NOTHING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).containsEntry("intent", intent);
-        assertThat(updates).doesNotContainKeys("orderId", "proposedOrderId", "candidates");
+        assertThat(updates).containsEntry(SupportState.INTENT, intent);
+        assertThat(updates).doesNotContainKeys(SupportState.ORDER_ID, SupportState.PROPOSED_ORDER_ID, SupportState.CANDIDATES);
     }
 
     @Test
@@ -535,8 +535,8 @@ class RouterNodeTest {
     void supportStillSetsFocus() {
         decision(new RouterDecision("SUPPORT", 382L, "NONE", "NONE"));
 
-        Map<String, Object> updates = router.apply(state(Map.of("awaiting", "NOTHING")));
+        Map<String, Object> updates = router.apply(state(Map.of(SupportState.AWAITING, "NOTHING")));
 
-        assertThat(updates).containsEntry("orderId", 382L);
+        assertThat(updates).containsEntry(SupportState.ORDER_ID, 382L);
     }
 }

@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
@@ -48,9 +49,9 @@ public class ReturnCheckNode implements NodeAction<SupportState> {
         updates.put(SupportState.RETURNABLE, check.returnable());
 
         if (!check.returnable()) {
-            OrderStatus status = parseStatus(check.status());
-            boolean alreadyReturning = status == OrderStatus.RETURN_REQUESTED;
-            boolean cancelled = status == OrderStatus.CANCELLED;
+            Optional<OrderStatus> status = parseStatus(check.status());
+            boolean alreadyReturning = status.equals(Optional.of(OrderStatus.RETURN_REQUESTED));
+            boolean cancelled = status.equals(Optional.of(OrderStatus.CANCELLED));
             if (alreadyReturning) {
                 updates.put(SupportState.RETURN_CARDS, List.of(returnCard(orderId, state.userId())));
                 updates.put(SupportState.TOOL_RESULT, String.format(
@@ -78,9 +79,9 @@ public class ReturnCheckNode implements NodeAction<SupportState> {
         }
 
         switch (state.confirmation()) {
-            case YES ->
-
+            case YES -> {
                 updates.put(SupportState.AWAITING, Awaiting.NOTHING.name());
+            }
             case NO -> {
                 updates.put(SupportState.TOOL_RESULT, String.format(
                         "El usuario ha decidido NO devolver el pedido #%d. La devolución queda "
@@ -100,11 +101,14 @@ public class ReturnCheckNode implements NodeAction<SupportState> {
         return updates;
     }
 
-    private static OrderStatus parseStatus(String raw) {
+    private static Optional<OrderStatus> parseStatus(String raw) {
+        if (raw == null) {
+            return Optional.empty();
+        }
         try {
-            return OrderStatus.valueOf(raw);
-        } catch (IllegalArgumentException | NullPointerException e) {
-            return null;
+            return Optional.of(OrderStatus.valueOf(raw));
+        } catch (IllegalArgumentException e) {
+            return Optional.empty();
         }
     }
 
