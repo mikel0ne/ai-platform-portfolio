@@ -46,7 +46,7 @@ public class RouterNode implements NodeAction<SupportState> {
                 state.awaiting().name(),
                 describeCandidates(state),
                 describeFocus(state),
-                history.classifier().render(state.history()));
+                IntentClassifier.fenceSafe(history.classifier().render(state.history())));
 
         Map<String, Object> updates = new HashMap<>();
         Intent intent = Intent.fromLlm(decision.intent());
