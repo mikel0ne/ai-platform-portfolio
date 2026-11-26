@@ -13,6 +13,9 @@ import io.github.mikel0ne.l1copilot.config.qualifier.ResponseModel;
 import io.github.mikel0ne.l1copilot.config.qualifier.TicketModel;
 import io.github.mikel0ne.l1copilot.observability.LangfuseChatModelListener;
 import io.github.mikel0ne.l1copilot.observability.LangfuseProperties;
+import io.github.mikel0ne.l1copilot.resilience.LlmFailureClassifier;
+import io.github.mikel0ne.l1copilot.resilience.LlmRetryProperties;
+import io.github.mikel0ne.l1copilot.resilience.RetryingChatModel;
 import io.opentelemetry.api.trace.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,10 +36,15 @@ public class ChatModelConfig {
 
     private final Tracer langfuseTracer;
     private final LangfuseProperties langfuseProperties;
+    private final LlmRetryProperties retryProperties;
+    private final LlmFailureClassifier failureClassifier;
 
-    public ChatModelConfig(Tracer langfuseTracer, LangfuseProperties langfuseProperties) {
+    public ChatModelConfig(Tracer langfuseTracer, LangfuseProperties langfuseProperties,
+                           LlmRetryProperties retryProperties, LlmFailureClassifier failureClassifier) {
         this.langfuseTracer = langfuseTracer;
         this.langfuseProperties = langfuseProperties;
+        this.retryProperties = retryProperties;
+        this.failureClassifier = failureClassifier;
     }
 
     @Bean
@@ -110,6 +118,10 @@ public class ChatModelConfig {
                 builder.thinkingConfig(GeminiThinkingConfig.builder().thinkingLevel(level).build());
             }
             delegate = builder.build();
+        }
+
+        if (retryProperties.enabled()) {
+            delegate = new RetryingChatModel(delegate, failureClassifier, retryProperties, role);
         }
 
         if (cacheProperties.isCacheEnabled()) {
