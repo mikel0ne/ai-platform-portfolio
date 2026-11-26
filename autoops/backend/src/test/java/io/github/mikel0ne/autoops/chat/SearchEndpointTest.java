@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.chat;
 
+import dev.langchain4j.exception.RateLimitException;
 import io.github.mikel0ne.autoops.error.ApiExceptionHandler;
 import io.github.mikel0ne.autoops.observability.langfuse.LangfuseTestTracing;
 import io.github.mikel0ne.autoops.rag.RagResult;
@@ -74,6 +75,16 @@ class SearchEndpointTest {
         mockMvc.perform(post("/search").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"probes\"}"))
                 .andExpect(status().isTooManyRequests());
         verifyNoInteractions(ragService, answerComposer);
+    }
+
+    @Test
+    void model_quota_failure_is_a_503_even_when_wrapped() throws Exception {
+        when(ragService.search(anyString(), anyInt()))
+                .thenThrow(new IllegalStateException("graph failed", new RateLimitException("quota exceeded")));
+
+        mockMvc.perform(post("/search").contentType(MediaType.APPLICATION_JSON).content("{\"query\":\"probes\"}"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.detail").value("The assistant is unavailable, try again in a few minutes"));
     }
 
     @Test

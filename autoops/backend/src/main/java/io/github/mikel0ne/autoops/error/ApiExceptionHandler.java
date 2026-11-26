@@ -1,5 +1,6 @@
 package io.github.mikel0ne.autoops.error;
 
+import dev.langchain4j.exception.LangChain4jException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -48,7 +49,21 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ProblemDetail unexpected(Exception ex) {
+        if (causedByLlm(ex)) {
+            log.error("Model failure processing the request", ex);
+            return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                    "The assistant is unavailable, try again in a few minutes");
+        }
         log.error("Unhandled error processing the request", ex);
         return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Error processing the request");
+    }
+
+    private static boolean causedByLlm(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof LangChain4jException) {
+                return true;
+            }
+        }
+        return false;
     }
 }
