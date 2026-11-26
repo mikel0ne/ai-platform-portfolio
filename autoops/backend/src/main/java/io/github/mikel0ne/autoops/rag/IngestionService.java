@@ -8,7 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class IngestionService {
@@ -36,26 +38,35 @@ public class IngestionService {
 
     public int ingestAll() {
         gateway.ensureSchema();
-        List<Chunk> chunks = splitAll();
-        if (chunks.isEmpty()) {
-            log.warn("No source returned documents to index");
-            return 0;
+        Map<String, List<Chunk>> bySource = splitAll();
+        int total = 0;
+        for (Map.Entry<String, List<Chunk>> entry : bySource.entrySet()) {
+            total += gateway.ingest(entry.getValue(), entry.getKey(), null);
         }
-        int n = gateway.ingest(chunks);
-        log.info("Ingestion finished: {} chunks from {} sources", n, sources.size());
-        return n;
+        if (total == 0) {
+            log.warn("No source returned documents to index");
+        }
+        log.info("Ingestion finished: {} chunks from {} sources", total, sources.size());
+        return total;
     }
 
-    private List<Chunk> splitAll() {
-        List<Chunk> chunks = new ArrayList<>();
+    // Every source is read before anything is written, and an empty one is skipped rather than
+    // taken as "all its documents vanished".
+    private Map<String, List<Chunk>> splitAll() {
+        Map<String, List<Chunk>> bySource = new LinkedHashMap<>();
         for (DocumentSource source : sources) {
             List<SourceDocument> docs = source.read();
+            log.info("Source '{}': {} documents split", source.name(), docs.size());
+            if (docs.isEmpty()) {
+                continue;
+            }
+            List<Chunk> chunks = new ArrayList<>();
             for (SourceDocument doc : docs) {
                 chunks.addAll(Chunker.splitDocument(doc, props.maxChars(), props.overlapChars()));
             }
-            log.info("Source '{}': {} documents split", source.name(), docs.size());
+            bySource.put(source.name(), chunks);
         }
-        return chunks;
+        return bySource;
     }
 
     public IngestResult ingestGitRepo(GitHubMarkdownSource.GitRepo repoInput) {
@@ -70,7 +81,7 @@ public class IngestionService {
             return new IngestResult(repo.url(), repo.branch(), 0);
         }
         gateway.ensureSchema();
-        int n = gateway.ingest(chunks);
+        int n = gateway.ingest(chunks, "git", GitHubMarkdownSource.docIdPrefix(repo));
         log.info("Git ingestion finished: {} chunks from {}@{}", n, repo.url(), repo.branch());
         return new IngestResult(repo.url(), repo.branch(), n);
     }
