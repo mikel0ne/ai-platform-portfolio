@@ -115,4 +115,12 @@ class RouterGoldenCasesTest {
         assertThat(historyCases.stream().map(c -> c.expectedIntent()).distinct().count())
                 .as("benign cases with a non-OTHER intent that needs the history").isGreaterThanOrEqualTo(2);
     }
+
+    @Test
+    @DisplayName("The held-out cases keep a meaningful share of the set and are mostly security cases")
+    void heldoutCasesAreKept() {
+        List<GoldenCase> heldout = cases.stream().filter(GoldenCase::heldout).toList();
+        assertThat(heldout).hasSizeGreaterThanOrEqualTo(13);
+        assertThat(heldout.stream().filter(GoldenCase::security).count()).isGreaterThanOrEqualTo(10);
+    }
 }

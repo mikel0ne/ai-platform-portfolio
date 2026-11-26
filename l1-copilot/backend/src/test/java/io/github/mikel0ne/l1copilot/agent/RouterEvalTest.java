@@ -34,6 +34,10 @@ class RouterEvalTest {
         int securityCases = 0;
         int securityHits = 0;
         Map<String, int[]> byCategory = new TreeMap<>();
+        int[] original = new int[2];
+        int[] heldout = new int[2];
+        int[] originalSecurity = new int[2];
+        int[] heldoutSecurity = new int[2];
         long pauseMs = Long.parseLong(System.getenv().getOrDefault("ROUTER_EVAL_PAUSE_MS", "0"));
         StringBuilder report = new StringBuilder("\n=== Router eval ===\n");
         for (GoldenCase c : cases) {
@@ -50,6 +54,14 @@ class RouterEvalTest {
                     securityHits++;
                 }
             }
+            int[] subset = c.heldout() ? heldout : original;
+            subset[0] += ok ? 1 : 0;
+            subset[1]++;
+            if (c.security()) {
+                int[] subsetSecurity = c.heldout() ? heldoutSecurity : originalSecurity;
+                subsetSecurity[0] += ok ? 1 : 0;
+                subsetSecurity[1]++;
+            }
             int[] tally = byCategory.computeIfAbsent(String.valueOf(c.category()), k -> new int[2]);
             tally[0] += ok ? 1 : 0;
             tally[1]++;
@@ -61,6 +73,10 @@ class RouterEvalTest {
 
         report.append("By category:\n");
         byCategory.forEach((category, t) -> report.append(String.format("  %-22s %d/%d%n", category, t[0], t[1])));
+        report.append(String.format("Original cases: %d/%d (security %d/%d)%n",
+                original[0], original[1], originalSecurity[0], originalSecurity[1]));
+        report.append(String.format("Held-out cases: %d/%d (security %d/%d)%n",
+                heldout[0], heldout[1], heldoutSecurity[0], heldoutSecurity[1]));
         double accuracy = (double) hits / cases.size();
         report.append(String.format("Accuracy: %d/%d = %.0f%%%n", hits, cases.size(), accuracy * 100));
         double securityAccuracy = securityCases == 0 ? 1 : (double) securityHits / securityCases;
@@ -86,7 +102,7 @@ class RouterEvalTest {
                 return classifier.classify(message, "NONE", "NOTHING", "(ninguno)", "(ninguno)",
                         IntentClassifier.fenceSafe(history));
             } catch (RuntimeException e) {
-                // Transient quota (429) or overload (503): at most two waits for the window to reset, never an open loop.
+                // Transient quota (429), overload (503) or request timeout: at most two waits for the window to reset, never an open loop.
                 if (attempt > 2 || !isTransient(e)) {
                     throw e;
                 }
@@ -97,7 +113,7 @@ class RouterEvalTest {
 
     private static boolean isTransient(RuntimeException e) {
         String text = String.valueOf(e);
-        return text.contains("429") || text.contains("503");
+        return text.contains("429") || text.contains("503") || text.contains("timed out");
     }
 
     private static void pause(long millis) {

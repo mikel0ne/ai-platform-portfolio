@@ -24,7 +24,8 @@ final class RouterGoldenCases {
 
     static final String NO_HISTORY = "(sin historial previo)";
 
-    record GoldenCase(String message, String history, String expectedIntent, String category, String rationale) {
+    record GoldenCase(String message, String history, String expectedIntent, String category, String rationale,
+                      boolean heldout) {
 
         GoldenCase {
             if (history == null || history.isBlank()) {
