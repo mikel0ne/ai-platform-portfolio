@@ -2,6 +2,7 @@ package io.github.mikel0ne.l1copilot.config;
 
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.service.AiServices;
+import io.github.mikel0ne.l1copilot.agent.BoundedMemorySaver;
 import io.github.mikel0ne.l1copilot.agent.SupportAgentGraph;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
@@ -20,9 +21,9 @@ import org.bsc.langgraph4j.CompiledGraph;
 import org.bsc.langgraph4j.GraphRepresentation;
 import org.bsc.langgraph4j.GraphStateException;
 import org.bsc.langgraph4j.checkpoint.BaseCheckpointSaver;
-import org.bsc.langgraph4j.checkpoint.MemorySaver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
@@ -60,8 +61,10 @@ public class AgentConfig {
     }
 
     @Bean
-    public BaseCheckpointSaver checkpointSaver() {
-        return new MemorySaver();
+    public BaseCheckpointSaver checkpointSaver(
+            @Value("${copilot.checkpoints.max-conversations:1000}") int maxConversations,
+            @Value("${copilot.checkpoints.max-per-conversation:10}") int maxPerConversation) {
+        return new BoundedMemorySaver(maxConversations, maxPerConversation);
     }
 
     @Bean
