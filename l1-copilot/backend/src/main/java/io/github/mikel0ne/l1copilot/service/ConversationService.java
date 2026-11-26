@@ -5,6 +5,7 @@ import io.github.mikel0ne.l1copilot.agent.Awaiting;
 import io.github.mikel0ne.l1copilot.agent.Confirmation;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.Treatment;
+import io.github.mikel0ne.l1copilot.agent.Turn;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
 import io.github.mikel0ne.l1copilot.config.TreatmentPolicy;
 import io.github.mikel0ne.l1copilot.domain.repository.UserRepository;
@@ -56,7 +57,7 @@ public class ConversationService {
         input.put(SupportState.USER_ID, userId);
         input.put(SupportState.TREATMENT, treatment.name());
         input.put(SupportState.USER_MESSAGE, message);
-        input.put(SupportState.HISTORY, List.of("USER: " + message));
+        input.put(SupportState.HISTORY, List.of(Turn.user(message)));
         input.put(SupportState.CONFIRMATION, Confirmation.NONE.name());
         input.put(SupportState.TENTATIVE, false);
 

@@ -1,6 +1,7 @@
 package io.github.mikel0ne.l1copilot.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.mikel0ne.l1copilot.agent.llm.PromptData;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.IOException;
@@ -49,7 +50,7 @@ final class RouterGoldenCases {
         }
 
         String candidatesText() {
-            return candidates.isEmpty() ? NO_VALUE : String.join("; ", candidates);
+            return candidates.isEmpty() ? NO_VALUE : PromptData.strings(candidates);
         }
 
         String focusText() {

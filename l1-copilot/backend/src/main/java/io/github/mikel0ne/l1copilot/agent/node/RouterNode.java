@@ -8,6 +8,7 @@ import io.github.mikel0ne.l1copilot.agent.Navigation;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
 import io.github.mikel0ne.l1copilot.agent.UiAction;
 import io.github.mikel0ne.l1copilot.agent.llm.IntentClassifier;
+import io.github.mikel0ne.l1copilot.agent.llm.PromptData;
 import io.github.mikel0ne.l1copilot.config.ConversationHistoryProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -268,7 +269,7 @@ public class RouterNode implements NodeAction<SupportState> {
         if (state.candidates().isEmpty()) {
             return "(ninguno)";
         }
-        return String.join("; ", state.candidates());
+        return PromptData.strings(state.candidates());
     }
 
     private String describeFocus(SupportState state) {

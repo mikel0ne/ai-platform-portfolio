@@ -1,5 +1,7 @@
 package io.github.mikel0ne.l1copilot.config;
 
+import io.github.mikel0ne.l1copilot.agent.Turn;
+import io.github.mikel0ne.l1copilot.agent.llm.PromptData;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.util.List;
@@ -33,14 +35,14 @@ public record ConversationHistoryProperties(Window classifier, Window responder)
             return Boolean.TRUE.equals(enabled);
         }
 
-        public String render(List<String> history) {
+        public String render(List<Turn> history) {
             if (!isEnabled() || history == null || history.size() <= 1) {
                 return NONE;
             }
 
-            List<String> previous = history.subList(0, history.size() - 1);
+            List<Turn> previous = history.subList(0, history.size() - 1);
             int from = Math.max(0, previous.size() - size);
-            return String.join("\n", previous.subList(from, previous.size()));
+            return PromptData.turns(previous.subList(from, previous.size()));
         }
     }
 }

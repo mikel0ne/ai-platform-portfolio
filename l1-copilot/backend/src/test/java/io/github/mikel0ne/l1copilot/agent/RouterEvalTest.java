@@ -152,7 +152,8 @@ class RouterEvalTest {
         for (int attempt = 1; ; attempt++) {
             try {
                 return classifier.classify(c.message(), c.state().currentIntent(), c.state().awaiting(),
-                        c.state().candidatesText(), c.state().focusText(), IntentClassifier.fenceSafe(c.history()));
+                        c.state().candidatesText(), c.state().focusText(),
+                        IntentClassifier.fenceSafe(GoldenHistory.render(c.history())));
             } catch (OutputParsingException e) {
                 // The model broke the JSON contract: that is a failed case (intent NONE), not an aborted eval.
                 return new RouterDecision("", null, "NONE", "NONE");

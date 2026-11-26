@@ -65,7 +65,7 @@ public class SupportState extends AgentState {
         return Treatment.fromState(this.value(TREATMENT, Treatment.TU.name()));
     }
 
-    public List<String> history() {
+    public List<Turn> history() {
         return this.value(HISTORY, List::of);
     }
 

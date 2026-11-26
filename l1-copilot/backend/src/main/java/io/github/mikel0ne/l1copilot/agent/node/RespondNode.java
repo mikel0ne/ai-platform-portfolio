@@ -2,6 +2,7 @@ package io.github.mikel0ne.l1copilot.agent.node;
 
 import io.github.mikel0ne.l1copilot.agent.Intent;
 import io.github.mikel0ne.l1copilot.agent.SupportState;
+import io.github.mikel0ne.l1copilot.agent.Turn;
 import io.github.mikel0ne.l1copilot.agent.llm.Responder;
 import io.github.mikel0ne.l1copilot.config.ConversationHistoryProperties;
 import io.github.mikel0ne.l1copilot.config.qualifier.ChattyResponder;
@@ -46,7 +47,7 @@ public class RespondNode implements NodeAction<SupportState> {
 
         return Map.of(
                 SupportState.REPLY, reply,
-                SupportState.HISTORY, List.of("AGENT: " + reply));
+                SupportState.HISTORY, List.of(Turn.agent(reply)));
     }
 
     private String describeFocusOrder(SupportState state) {
