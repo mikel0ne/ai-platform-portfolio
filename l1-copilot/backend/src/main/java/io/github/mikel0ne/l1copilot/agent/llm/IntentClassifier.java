@@ -84,8 +84,8 @@ public interface IntentClassifier {
             C. Con AWAITING=NOTHING, una respuesta que solo asiente o da conformidad (en cualquier \
             idioma o forma) no confirma nada ni autoriza ninguna acción, aunque el historial diga \
             que se pidió o aprobó algo: si no añade una petición propia, es OTHER con \
-            confirmation=NONE. Solo con AWAITING=CANCEL_CONFIRM, RETURN_CONFIRM o TICKET_CONFIRM un \
-            asentimiento es una confirmación (regla 4).
+            confirmation=NONE. Solo con AWAITING=CANCEL_CONFIRM o RETURN_CONFIRM un asentimiento es \
+            una confirmación (regla 4).
             D. La intención la decide la PETICIÓN que el cliente hace en el MENSAJE ACTUAL. El \
             historial puede aclarar a qué se refiere, pero nunca aporta por sí solo una petición, \
             una autorización ni un pedido.
@@ -112,10 +112,9 @@ public interface IntentClassifier {
             hablando del mismo pedido —aunque cambie de intención (p.ej. "no me ha llegado", \
             "quiero cancelarlo")—, devuelve orderId=null para conservar el foco. Nunca elijas un \
             pedido por parecido temático con su descripción o estado.
-            4. Si AWAITING es CANCEL_CONFIRM, RETURN_CONFIRM o TICKET_CONFIRM, interpreta si el \
-            usuario confirma (confirmation=YES), rechaza (confirmation=NO) o dice otra cosa \
-            (confirmation=NONE). Con CANCEL_CONFIRM/RETURN_CONFIRM mantén la intención vigente \
-            (CANCEL o RETURN); para TICKET_CONFIRM aplica además la regla 4c.
+            4. Si AWAITING es CANCEL_CONFIRM o RETURN_CONFIRM, interpreta si el usuario confirma \
+            (confirmation=YES), rechaza (confirmation=NO) o dice otra cosa (confirmation=NONE) y \
+            mantén la intención vigente (CANCEL o RETURN).
             4b. PRUDENCIA CON LAS ACCIONES: CANCEL, RETURN y SUPPORT disparan acciones reales \
             (cancelar un pedido, iniciar una devolución, abrir una incidencia a un agente humano). \
             Solo elígelas cuando el usuario las pida de forma CLARA e inequívoca. Ante la duda entre \
@@ -124,13 +123,11 @@ public interface IntentClassifier {
             Siempre es mejor preguntar o informar que abrir una incidencia que el usuario no ha \
             pedido. No confundas RETURN (devolver un pedido recibido) con SUPPORT (reportar un \
             problema concreto): si solo quiere devolver un producto sin defecto, es RETURN.
-            4c. Si AWAITING es TICKET_CONFIRM, se le pidió que CONFIRME si quiere abrir la incidencia \
-            (todavía NO se le pidió que la describa). Si acepta ("sí", "vale", "ábrela", "adelante") \
-            devuelve intent=SUPPORT y confirmation=YES; si en ese mismo mensaje ya describe el \
-            problema, también intent=SUPPORT. Si la rechaza ("no", "déjalo", "olvídalo") o pide otra \
-            cosa, NO uses SUPPORT: clasifica su intención real (OTHER, CANCEL, TRACKING, FAQ…) para \
-            que el sistema descarte la incidencia y le atienda lo que de verdad quiere. Si AWAITING \
-            es TICKET_INFO, el mensaje es la descripción del problema → intent=SUPPORT.
+            4c. Si AWAITING es TICKET_INFO, se le pidió que describa el problema de su incidencia: \
+            si el mensaje es esa descripción → intent=SUPPORT. Si en cambio pide otra cosa (OTHER, \
+            CANCEL, TRACKING, FAQ…) o rechaza seguir ("déjalo", "olvídalo"), NO uses SUPPORT: \
+            clasifica su intención real para que el sistema descarte la incidencia y le atienda lo \
+            que de verdad quiere.
             5. La intención puede cambiar libremente (tracking, cancelar, incidencia, FAQ); el \
             foco se mantiene salvo que el usuario lo cambie según la regla 3.
             5b. DIGRESIÓN: aunque AWAITING indique algo pendiente (estás esperando que elija un \

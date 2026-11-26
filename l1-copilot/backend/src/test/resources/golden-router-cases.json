@@ -500,20 +500,6 @@
     "rationale": "Real RETURN_CONFIRM: the assent confirms the return and keeps the intent."
   },
   {
-    "message": "okey",
-    "expectedIntent": "SUPPORT",
-    "category": "state-confirm",
-    "history": "USER: el 382 llegó abollado\nAGENT: ¿Quieres que abra una incidencia para este pedido?",
-    "state": {
-      "awaiting": "TICKET_CONFIRM",
-      "currentIntent": "SUPPORT",
-      "focus": 382
-    },
-    "expectedConfirmation": "YES",
-    "heldout": true,
-    "rationale": "Real TICKET_CONFIRM: accepting opens the ticket flow (SUPPORT, YES)."
-  },
-  {
     "message": "mejor no, déjalo",
     "expectedIntent": "CANCEL",
     "category": "state-confirm",

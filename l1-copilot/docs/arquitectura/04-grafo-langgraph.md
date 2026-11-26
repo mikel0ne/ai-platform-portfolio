@@ -132,7 +132,7 @@ Enums de control (decisiones de flujo **en Java**, no en prompts):
 
 ```java
 public enum Intent     { TRACKING, CANCEL, RETURN, SUPPORT, TICKETS, FAQ, CHATTY, OTHER, NONE }
-public enum Awaiting   { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TICKET_CONFIRM, TICKET_INFO }
+public enum Awaiting   { NOTHING, ORDER_CHOICE, CANCEL_CONFIRM, RETURN_CONFIRM, TICKET_INFO }
 public enum Verdict    { SURE, DOUBT, REJECT }                       // veredicto de verify
 public enum Navigation { NONE, BACK_TO_LIST, BACK_TO_MENU, BACK }    // navegación jerárquica
 public enum Treatment  { TU, USTED }                                 // registro de tratamiento
@@ -408,7 +408,7 @@ El clasificador (`IntentClassifier`) emite `orderRelated` y el routing (`Support
 
 - **Sesgo a `orderRelated=true` ante la duda.** El coste es asimétrico: un ticket sin asociar al pedido pierde justo la información que más sirve al agente humano; preguntar "¿cuál pedido?" de más es una fricción leve que el usuario puede declinar. Y SUPPORT, por su propia definición ("problema concreto con un producto o pedido"), está sesgado a pedidos.
 - **Recuperación si el usuario lo declina.** Si en el menú de identificación dice "no es por ningún pedido, es mi cuenta", el clasificador mantiene SUPPORT con `orderRelated=false` y el routing cae solo en la incidencia genérica. No hace falta lógica extra: el slot lo resuelve.
-- **Camino DOUBT (verify → clarify).** Cuando la incidencia es plausible pero ambigua, `clarify` pre-arma el gate (siembra el borrador y deja `TICKET_CONFIRM`) para no preguntar dos veces; si además es sobre un pedido sin foco, la instrucción a `respond` pide identificar también el pedido, de modo que el ticket no quede suelto sin romper la continuidad de la confirmación.
+- **Camino DOUBT (verify → clarify).** Cuando la incidencia es plausible pero ambigua, `clarify` pregunta de forma directa, no ejecuta nada y deja `offeredIntent=SUPPORT`: si el usuario acepta en el turno siguiente, el router recupera la oferta y `support` pide la descripción. Si además es sobre un pedido sin foco, la instrucción a `respond` pide identificar también el pedido, de modo que el ticket no quede suelto.
 
 ### `tracking`, `cancel_check`, `cancel_exec`, `return_check`, `return_exec`, `support`
 
@@ -416,7 +416,7 @@ Mismo patrón: invocan la tool Java correspondiente, vuelcan el resultado tipado
 
 - `cancel_check`: si el pedido es cancelable y `awaiting != CANCEL_CONFIRM`, deja `awaiting=CANCEL_CONFIRM` (pedirá confirmación). Si el usuario ya confirmó (el router detectó un "sí" con `awaiting=CANCEL_CONFIRM`), limpia `awaiting` y la arista manda a `cancel_exec`. Si el pedido **ya está entregado**, cancelar no aplica: el nodo instruye a `respond` para que reconduzca hacia una **devolución** (no hacia una incidencia).
 - `return_check` / `return_exec`: **réplica exacta del flujo de cancelación, pero para devoluciones** (intención `RETURN`, pedidos en estado `DELIVERED`). `return_check` valida la regla `isReturnable()` en Java; si procede y aún no hay confirmación, marca `pendingReturnId` y deja `awaiting=RETURN_CONFIRM` para que la UI muestre el botón de confirmación. Tras el clic, `return_exec` llama a `requestReturn`, pone el pedido en estado `RETURN_REQUESTED` y emite una **tarjeta-enlace a la etiqueta de devolución** (`returnCards`), igual que `support` emite el enlace al ticket. Si el pedido **ya está en devolución** (`RETURN_REQUESTED`) —el usuario vuelve sobre él o pide "muéstrame la etiqueta"— `return_check` no reinicia nada pero **re-emite la tarjeta-enlace** para que pueda abrir o reimprimir la etiqueta. Una devolución **nunca** se gestiona como incidencia: tiene su propia vía.
-- `support`: **nunca crea la incidencia "a lo loco"**; sigue un human-in-the-loop con gate de confirmación, igual que la cancelación. En el primer turno con intención `SUPPORT` no llama a ninguna tool: guarda el mensaje que disparó el tema como semilla en `ticketDraft` y deja `awaiting=TICKET_CONFIRM`, proponiendo abrir la incidencia y pidiendo que el usuario confirme y describa el problema con detalle. Si el usuario sigue adelante, **une** la semilla con lo que cuente ahora; si aún falta detalle deja `awaiting=TICKET_INFO` para ampliarlo, y cuando hay material suficiente llama a `createTicket` y marca `resolved=true`. Si el usuario rechaza la incidencia o pide otra cosa, el **router** descarta el borrador (`ticketDraft`) y reencamina el turno: el nodo `support` ni se entra.
+- `support`: **nunca crea la incidencia "a lo loco"**: antes de pedir nada, el verificador comprueba que el mensaje es de verdad una petición de incidencia (REJECT o DOUBT preguntan y no guardan nada). En el primer turno con intención `SUPPORT` no llama a ninguna tool: guarda el mensaje que disparó el tema como semilla en `ticketDraft` y deja `awaiting=TICKET_INFO`, pidiendo que el usuario describa el problema con detalle. Con el siguiente mensaje **une** la semilla con lo que cuente; si aún falta detalle sigue en `TICKET_INFO`, y cuando hay material suficiente llama a `createTicket` y marca `resolved=true`. Si el usuario rechaza la incidencia o pide otra cosa, el **router** descarta el borrador (`ticketDraft`) y reencamina el turno: el nodo `support` ni se entra.
 
 ### `respond` — redacción única de la respuesta
 

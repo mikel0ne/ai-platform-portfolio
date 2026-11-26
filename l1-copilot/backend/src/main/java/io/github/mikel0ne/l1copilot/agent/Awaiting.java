@@ -10,8 +10,6 @@ public enum Awaiting {
 
     RETURN_CONFIRM,
 
-    TICKET_CONFIRM,
-
     TICKET_INFO;
 
     public static Awaiting fromState(String raw) {

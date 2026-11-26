@@ -96,8 +96,7 @@ public class RouterNode implements NodeAction<SupportState> {
             updates.put(SupportState.ORDER_RELATED, decision.orderRelated());
         }
 
-        boolean abandoningTicketGate = (state.awaiting() == Awaiting.TICKET_CONFIRM
-                || state.awaiting() == Awaiting.TICKET_INFO)
+        boolean abandoningTicketGate = state.awaiting() == Awaiting.TICKET_INFO
                 && intent != Intent.SUPPORT && intent != Intent.NONE;
         if (abandoningTicketGate) {
             updates.put(SupportState.TICKET_DRAFT, AgentState.MARK_FOR_REMOVAL);
@@ -132,8 +131,7 @@ public class RouterNode implements NodeAction<SupportState> {
             }
         }
 
-        if (state.awaiting() == Awaiting.CANCEL_CONFIRM || state.awaiting() == Awaiting.RETURN_CONFIRM
-                || state.awaiting() == Awaiting.TICKET_CONFIRM) {
+        if (state.awaiting() == Awaiting.CANCEL_CONFIRM || state.awaiting() == Awaiting.RETURN_CONFIRM) {
             Confirmation confirmation = Confirmation.fromState(decision.confirmation());
             if (confirmation == Confirmation.YES && !confirmsPendingAction(state, intent, updates)) {
                 log.debug("---ROUTER--- YES ignored: it does not match the pending {} of order {}",
@@ -232,14 +230,13 @@ public class RouterNode implements NodeAction<SupportState> {
         Intent pendingAction = switch (state.awaiting()) {
             case CANCEL_CONFIRM -> Intent.CANCEL;
             case RETURN_CONFIRM -> Intent.RETURN;
-            case TICKET_CONFIRM -> Intent.SUPPORT;
             default -> Intent.NONE;
         };
         Intent effectiveIntent = intent == Intent.NONE ? state.intent() : intent;
         Optional<Long> confirmedOrder = state.orderId();
         Object pendingFocus = updates.get(SupportState.ORDER_ID);
         Optional<Long> effectiveOrder = pendingFocus instanceof Long id ? Optional.of(id) : confirmedOrder;
-        boolean sameOrder = pendingAction == Intent.SUPPORT || effectiveOrder.equals(confirmedOrder);
+        boolean sameOrder = effectiveOrder.equals(confirmedOrder);
         return effectiveIntent == pendingAction && sameOrder && updates.get(SupportState.PROPOSED_ORDER_ID) == null;
     }
 
